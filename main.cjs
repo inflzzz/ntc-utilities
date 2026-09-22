@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const { autoUpdater } = require('electron-updater');
 
-app.setPath('userData', path.join(__dirname, '.ntc-data'));
+if (!app.isPackaged) app.setPath('userData', path.join(__dirname, '.ntc-data'));
 const downloadJobs = new Map();
 const conversionJobs = new Map();
 let mainWindow = null;
