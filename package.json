@@ -1,6 +1,6 @@
 {
   "name": "ntc-utilities",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Utilitários desktop minimalistas — por Edu.",
   "author": "NTC Corporation",
   "main": "main.cjs",
@@ -16,6 +16,7 @@
   "build": {
     "appId": "com.ntccorporation.utilities",
     "productName": "NTC Utilities",
+    "icon": "build/ntc-logo.png",
     "files": [
       "main.cjs",
       "preload.cjs",
@@ -34,11 +35,20 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/ntc-logo.png"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "createStartMenuShortcut": true,
+      "createDesktopShortcut": false,
+      "shortcutName": "NTC Utilities",
+      "runAfterFinish": false,
+      "include": "build/installer.nsh",
+      "installerHeader": "build/installer-header.bmp",
+      "installerSidebar": "build/installer-sidebar.bmp",
+      "installerHeaderIcon": "build/installer-icon.png"
     }
   }
 }

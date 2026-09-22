@@ -152,7 +152,7 @@ async function addMediaFiles(files) {
   results.forEach(result => { if (result.status === 'fulfilled' && !conversionQueue.some(item => item.source === result.value.path)) { const item = newConversion(result.value); conversionQueue.push(item); first ||= item; } else if (result.status === 'rejected') failures++; });
   if (first) loadConversionEditor(first); renderConversionQueue(); if (failures && !first) $('#conversionQueueList').innerHTML = '<div class="empty-state"><p>Não foi possível ler os arquivos selecionados.</p></div>';
 }
-async function chooseConverterFolder() { const chosen = await window.ntc.chooseDownloadFolder(); const item = currentEditingConversion(); if (chosen && item) { item.folder = chosen; $('#converterFolderPath').textContent = chosen; } }
+async function chooseConverterFolder() { const chosen = await window.ntc.chooseDownloadFolder(); const item = currentEditingConversion(); if (chosen && item) { folder = chosen; localStorage.setItem('ntc-folder', folder); item.folder = chosen; syncSettings(); $('#converterFolderPath').textContent = chosen; } }
 async function chooseCover() { const item = currentEditingConversion(); if (!item) return; const cover = await window.ntc.chooseCoverFile(); if (cover) { item.cover = cover; $('#coverName').textContent = cover.split(/[\\/]/).pop(); } }
 async function startNextConversion() {
   if (currentConversion) return; const item = conversionQueue.find(entry => entry.status === 'pronto'); if (!item) return;
