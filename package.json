@@ -18,6 +18,7 @@
     "appId": "com.ntccorporation.utilities",
     "productName": "NTC Utilities",
     "icon": "build/ntc-logo.png",
+    "artifactName": "NTC.Utilities.Setup.${version}.${ext}",
     "files": [
       "main.cjs",
       "preload.cjs",
