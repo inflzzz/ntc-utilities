@@ -1,7 +1,7 @@
 {
   "name": "ntc-utilities",
-  "version": "0.2.3",
-  "description": "Utilitários desktop minimalistas — por Edu.",
+  "version": "0.2.4",
+  "description": "Utilitários desktop minimalistas, locais e privados.",
   "author": "NTC Corporation",
   "main": "main.cjs",
   "scripts": {

@@ -112,6 +112,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  ipcMain.handle('get-app-version', () => app.getVersion());
   ipcMain.handle('get-default-download-folder', () => app.getPath('downloads'));
   ipcMain.handle('window-minimize', event => BrowserWindow.fromWebContents(event.sender)?.minimize());
   ipcMain.handle('window-toggle-maximize', event => { const window = BrowserWindow.fromWebContents(event.sender); if (!window) return false; if (window.isMaximized()) window.unmaximize(); else window.maximize(); return window.isMaximized(); });
@@ -127,8 +128,9 @@ app.whenReady().then(() => {
   ipcMain.handle('get-waveform', (_event, file) => createWaveform(file));
   ipcMain.handle('open-folder', (_event, folder) => folder ? shell.openPath(folder) : '');
   ipcMain.handle('open-file', (_event, file) => file ? shell.openPath(file) : '');
+  ipcMain.handle('open-file-folder', (_event, file) => file ? shell.openPath(path.dirname(file)) : '');
   ipcMain.handle('copy-path', (_event, file) => { if (file) clipboard.writeText(file); return file || ''; });
-  ipcMain.handle('tool-versions', async () => { try { const ytdlp = (await run('yt-dlp', ['--version'])).trim(); const ffmpeg = (await run('ffmpeg', ['-version'])).split(/\r?\n/)[0]; return { ytdlp, ffmpeg }; } catch (error) { return { error: error.message }; } });
+  ipcMain.handle('tool-versions', async () => { try { const ytdlp = (await run('yt-dlp', ['--version'])).trim(); const ffmpeg = (await run('ffmpeg', ['-version'])).split(/\r?\n/)[0]; const ffprobe = (await run('ffprobe', ['-version'])).split(/\r?\n/)[0]; return { ytdlp, ffmpeg, ffprobe }; } catch (error) { return { error: error.message }; } });
   ipcMain.handle('preview-url', async (_event, url) => { if (!isSupportedUrl(url)) throw new Error('Cole um link válido do YouTube.'); const data = JSON.parse(await run('yt-dlp', ['--dump-single-json', '--skip-download', '--no-playlist', '--no-warnings', url])); return { id: data.id, title: data.title || 'Sem título', channel: data.channel || data.uploader || 'Canal desconhecido', duration: data.duration_string || '—', thumbnail: data.thumbnail || '', webpageUrl: data.webpage_url || url }; });
   ipcMain.handle('playlist-preview', async (_event, url) => { if (!isSupportedUrl(url)) throw new Error('Link inválido.'); const data = JSON.parse(await run('yt-dlp', ['--flat-playlist', '--dump-single-json', '--skip-download', '--no-warnings', url])); const entries = (data.entries || []).filter(Boolean).map(entry => ({ id: entry.id, title: entry.title || 'Sem título', channel: entry.channel || entry.uploader || '', duration: entry.duration_string || '—', thumbnail: entry.thumbnail || `https://i.ytimg.com/vi/${entry.id}/mqdefault.jpg`, webpageUrl: entry.webpage_url || `https://www.youtube.com/watch?v=${entry.id}` })); return { isPlaylist: data._type === 'playlist' || entries.length > 1, title: data.title || 'Playlist', thumbnail: data.thumbnail || '', entries }; });
   ipcMain.handle('start-download', async (event, item) => {

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.4 — 2026-09-22
+
+- Refinada a central de utilidades e removida a frase promocional da tela inicial.
+- Adicionados feedbacks discretos e confirmações para ações de histórico e preferências.
+- Histórico agora oferece abertura da pasta e limpeza com confirmação.
+- Configurações passaram a exibir a versão instalada e o diagnóstico de yt-dlp, FFmpeg e FFprobe.
+- Atualizada a página pública com uma apresentação mais objetiva do aplicativo e da instalação.
+
 ## 0.2.3 — 2026-09-22
 
 - Removida a marca do cabeçalho do instalador; o assistente agora fica totalmente limpo.

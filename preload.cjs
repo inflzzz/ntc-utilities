@@ -1,6 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('ntc', {
+  appVersion: () => ipcRenderer.invoke('get-app-version'),
   defaultDownloadFolder: () => ipcRenderer.invoke('get-default-download-folder'),
   minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
   toggleMaximize: () => ipcRenderer.invoke('window-toggle-maximize'),
@@ -13,6 +14,7 @@ contextBridge.exposeInMainWorld('ntc', {
   getWaveform: (filePath) => ipcRenderer.invoke('get-waveform', filePath),
   openFolder: (folderPath) => ipcRenderer.invoke('open-folder', folderPath),
   openFile: (filePath) => ipcRenderer.invoke('open-file', filePath),
+  openFileFolder: (filePath) => ipcRenderer.invoke('open-file-folder', filePath),
   copyPath: (filePath) => ipcRenderer.invoke('copy-path', filePath),
   previewUrl: (url) => ipcRenderer.invoke('preview-url', url),
   playlistPreview: (url) => ipcRenderer.invoke('playlist-preview', url),

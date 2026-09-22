@@ -49,10 +49,10 @@
         </header>
 
         <section class="view home-view active" id="homeView">
-          <div class="hero compact"><div class="eyebrow">CENTRAL</div><h1>Utilidades</h1><p>Escolha uma ferramenta para começar.</p></div>
+          <div class="hero compact"><div class="eyebrow">CENTRAL</div><h1>Utilidades</h1></div>
           <div class="tools-grid">
-            <button class="tool-card available" data-open-tool="downloader"><span class="tool-icon">↓</span><span><strong>Downloader</strong><small>Áudio e vídeo</small></span><em>Disponível</em></button>
-            <button class="tool-card available" data-open-tool="converter"><span class="tool-icon">♫</span><span><strong>Editor de áudio</strong><small>Corte, converta e organize</small></span><em>Disponível</em></button>
+            <button class="tool-card available" data-open-tool="downloader"><span class="tool-icon">↓</span><span><strong>Downloader</strong><small>Áudio e vídeo</small></span></button>
+            <button class="tool-card available" data-open-tool="converter"><span class="tool-icon">♫</span><span><strong>Editor de áudio</strong><small>Corte, converta e organize</small></span></button>
             <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
             <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
             <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
@@ -180,12 +180,18 @@
             <div class="setting-row"><div><strong>Abrir pasta ao concluir</strong><p>Exibe a pasta do arquivo assim que a operação for finalizada.</p></div><label class="switch"><input id="openFolderAfter" type="checkbox" /><span></span></label></div>
             <div class="setting-row"><div><strong>Pasta padrão</strong><p id="settingsFolder">Downloads</p></div><button class="outline-button" type="button" id="chooseFolderSettings">Escolher pasta</button></div>
             <div class="setting-row"><div><strong>Arquivos duplicados</strong><p>Como tratar um arquivo que já existe.</p></div><select id="duplicatePolicy"><option value="rename">Criar cópia numerada</option><option value="overwrite">Substituir arquivo</option><option value="ask">Perguntar sempre</option></select></div>
-            <div class="setting-row"><div><strong>Ferramentas instaladas</strong><p id="toolVersions">Verificando yt-dlp e FFmpeg…</p></div><button class="outline-button" type="button" id="checkTools">Verificar</button></div>
+            <div class="setting-row"><div><strong>Ferramentas instaladas</strong><p id="toolVersions">Ainda não verificado.</p></div><button class="outline-button" type="button" id="checkTools">Verificar</button></div>
+          </div>
+          <div class="settings-card settings-card-secondary">
+            <div class="settings-group-label">Aplicativo</div>
+            <div class="setting-row"><div><strong>Versão instalada</strong><p id="appVersion">Consultando…</p></div></div>
+            <div class="setting-row"><div><strong>Histórico local</strong><p>Remove somente os registros salvos pelo NTC Utilities.</p></div><button class="outline-button" type="button" id="clearHistorySettings">Limpar histórico</button></div>
+            <div class="setting-row"><div><strong>Preferências</strong><p>Volta pasta, duplicatas e abertura automática ao padrão.</p></div><button class="outline-button" type="button" id="resetPreferences">Restaurar</button></div>
           </div>
         </section>
 
         <section class="view history-view" id="historyView">
-          <div class="hero compact"><div class="eyebrow">ARQUIVOS</div><h1>Histórico</h1><p>Downloads e conversões feitos nesta sessão.</p></div>
+          <div class="hero compact history-hero"><div><div class="eyebrow">ARQUIVOS</div><h1>Histórico</h1><p>Downloads e conversões feitos nesta sessão.</p></div><button class="outline-button" id="clearHistoryPage" type="button">Limpar histórico</button></div>
           <div class="all-history" id="allHistory"><div class="empty-state"><div class="empty-icon">◷</div><p>Nenhum arquivo concluído ainda.</p></div></div>
         </section>
       </section>
@@ -195,6 +201,10 @@
       <div class="suggestion-copy"><strong>Áudio salvo</strong><span id="downloadedAudioName">Download concluído.</span></div>
       <button class="ghost-button" id="openDownloadedInEditor" type="button">Editar no editor</button>
       <button class="suggestion-close" id="dismissEditAfterDownload" type="button" aria-label="Fechar aviso">×</button>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="confirm-backdrop hidden" id="confirmDialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
+      <div class="confirm-card"><h2 id="confirmTitle">Confirmar ação</h2><p id="confirmMessage"></p><div class="confirm-actions"><button class="ghost-button" id="confirmCancel" type="button">Cancelar</button><button class="primary-button" id="confirmAccept" type="button">Confirmar</button></div></div>
     </div>
     <script src="./app.js"></script>
   </body>
