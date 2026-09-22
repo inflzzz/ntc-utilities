@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 — 2026-09-22
+
+- Corrigido o bloco preto que aparecia no cabeçalho do instalador.
+- Cabeçalho do setup agora usa fundo claro e a marca NTC em contraste discreto.
+
 ## 0.2.1 — 2026-09-22
 
 - Consolidada a experiência do Downloader e do Editor de áudio com a pasta escolhida persistida como padrão.

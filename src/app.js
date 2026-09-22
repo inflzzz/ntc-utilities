@@ -1,6 +1,6 @@
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
-const splash = $('#splash'); const appShell = $('#appShell');
+const splash = $('#splash'); const appShell = $('#appShell'); const loadingProgress = $('#loadingProgress'); const loadingTrack = $('.loading-line');
 const history = JSON.parse(localStorage.getItem('ntc-history') || '[]');
 let folder = localStorage.getItem('ntc-folder') || '';
 let queue = []; let current = null; let preview = null; let playlist = null; let previewTimer; const abortedDownloads = new Set();
@@ -8,7 +8,10 @@ let conversionQueue = []; let currentConversion = null; let editingConversionId 
 let waveformData = []; let waveformFor = null; let waveformHandle = null; let previewAudio = null; let playbackTime = null; let playbackFrame = null;
 let downloadedAudioToEdit = null; let editSuggestionTimer = null;
 
-setTimeout(() => { splash.classList.add('exit'); appShell.classList.add('ready'); appShell.setAttribute('aria-hidden', 'false'); }, 1450);
+let splashValue = 0;
+const advanceSplash = () => { splashValue = Math.min(92, splashValue + (splashValue < 70 ? 4 : 1.5)); loadingProgress.style.width = `${splashValue}%`; loadingTrack.setAttribute('aria-valuenow', String(Math.round(splashValue))); };
+const splashTimer = setInterval(advanceSplash, 110);
+setTimeout(() => { clearInterval(splashTimer); splashValue = 100; loadingProgress.style.width = '100%'; loadingTrack.setAttribute('aria-valuenow', '100'); setTimeout(() => { splash.classList.add('exit'); appShell.classList.add('ready'); appShell.setAttribute('aria-hidden', 'false'); }, 260); }, 2100);
 function formatBytes(bytes) { if (!bytes) return '—'; const units = ['B', 'KB', 'MB', 'GB']; let n = bytes; let i = 0; while (n > 1024 && i < units.length - 1) { n /= 1024; i++; } return `${n.toFixed(i ? 1 : 0)} ${units[i]}`; }
 function safeText(value) { return String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
 function cleanError(value) { return String(value?.message || value || 'Não foi possível concluir a operação.').replace(/^Error invoking remote method ['"]?[^'"]+['"]?: Error:\s*/i, '').replace(/^Error:\s*/i, ''); }
