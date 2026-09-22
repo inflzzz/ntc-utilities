@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.3 — 2026-09-22
+
+- Removida a marca do cabeçalho do instalador; o assistente agora fica totalmente limpo.
+- Mantido o ícone do NTC apenas no executável e nos atalhos do aplicativo.
+
 ## 0.2.2 — 2026-09-22
 
 - Corrigido o bloco preto que aparecia no cabeçalho do instalador.

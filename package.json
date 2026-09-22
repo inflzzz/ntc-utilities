@@ -1,6 +1,6 @@
 {
   "name": "ntc-utilities",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Utilitários desktop minimalistas — por Edu.",
   "author": "NTC Corporation",
   "main": "main.cjs",
@@ -48,7 +48,7 @@
       "include": "build/installer.nsh",
       "installerHeader": "build/installer-header.bmp",
       "installerSidebar": "build/installer-sidebar.bmp",
-      "installerHeaderIcon": "build/installer-icon.png"
+      "installerHeaderIcon": null
     }
   }
 }

@@ -50,7 +50,7 @@ pnpm start
 pnpm package:win
 ```
 
-O instalador será criado em `dist/NTC Utilities Setup 0.2.2.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git. O setup tem tema monocromático próprio, permite escolher a pasta e oferece atalhos no Menu Iniciar e, opcionalmente, na área de trabalho.
+O instalador será criado em `dist/NTC Utilities Setup 0.2.3.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git. O setup tem tema monocromático próprio, permite escolher a pasta e oferece atalhos no Menu Iniciar e, opcionalmente, na área de trabalho.
 
 ## Página pública
 
