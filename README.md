@@ -36,8 +36,6 @@ pnpm install
 pnpm start
 ```
 
-Também é possível abrir o arquivo `Abrir NTC Utilities.bat` depois de instalar as dependências do projeto.
-
 ## Gerar o instalador
 
 ```powershell
