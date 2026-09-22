@@ -1,0 +1,44 @@
+{
+  "name": "ntc-utilities",
+  "version": "0.1.0",
+  "description": "Utilitários desktop minimalistas — por Edu.",
+  "author": "NTC Corporation",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "prepare:bin": "powershell -ExecutionPolicy Bypass -File scripts/fetch-binaries.ps1",
+    "package:win": "pnpm run prepare:bin && electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.ntccorporation.utilities",
+    "productName": "NTC Utilities",
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "src/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/bin",
+        "to": "bin",
+        "filter": [
+          "yt-dlp.exe",
+          "ffmpeg.exe",
+          "ffprobe.exe"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>NTC Utilities</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="splash" id="splash" aria-label="Carregando NTC Utilities">
+      <div class="splash-orbit"></div>
+      <div class="splash-logo">N</div>
+      <div class="splash-name">NTC <span>Utilities</span></div>
+      <p>By NTC Corporation</p>
+      <div class="loading-line"><span></span></div>
+    </div>
+
+    <main class="app-shell" id="appShell" aria-hidden="true">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">N</div>
+          <div><strong>NTC</strong><span>Utilities</span></div>
+        </div>
+
+        <nav class="navigation" aria-label="Navegação principal">
+          <button class="nav-item active" data-view="home"><span class="nav-icon">⌂</span> Início</button>
+          <button class="nav-item" data-view="downloader">
+            <span class="nav-icon">↓</span> Downloader
+          </button>
+          <button class="nav-item" data-view="history">
+            <span class="nav-icon">◷</span> Histórico
+          </button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <button class="nav-item" data-view="settings">
+            <span class="nav-icon">⚙</span> Configurações
+          </button>
+          <div class="by-edu">By NTC Corporation</div>
+        </div>
+      </aside>
+
+      <section class="content">
+        <header class="titlebar">
+          <div class="window-controls" aria-label="Controles da janela"><button class="window-control no-drag" id="minimizeWindow" aria-label="Minimizar">−</button><button class="window-control no-drag" id="maximizeWindow" aria-label="Maximizar">□</button><button class="window-control close no-drag" id="closeWindow" aria-label="Fechar">×</button></div>
+        </header>
+
+        <section class="view home-view active" id="homeView">
+          <div class="hero compact"><div class="eyebrow">CENTRAL</div><h1>Utilidades</h1><p>Escolha uma ferramenta para começar.</p></div>
+          <div class="tools-grid">
+            <button class="tool-card available" data-open-tool="downloader"><span class="tool-icon">↓</span><span><strong>Downloader</strong><small>Áudio e vídeo</small></span><em>Disponível</em></button>
+            <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
+            <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
+            <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
+            <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
+            <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
+          </div>
+        </section>
+
+        <section class="view" id="downloaderView">
+          <div class="hero">
+            <div class="eyebrow">DOWNLOADER</div>
+            <h1>Downloader</h1>
+          </div>
+
+          <form class="download-card" id="downloadForm">
+            <label class="field-label" for="videoUrl">Link do vídeo</label>
+            <div class="url-input-wrap">
+              <span class="link-icon">↗</span>
+              <input id="videoUrl" type="url" placeholder="Cole aqui o link do vídeo" autocomplete="off" required />
+              <span class="valid-indicator" id="validIndicator">✓</span>
+            </div>
+            <div class="preview-card hidden" id="previewCard"><img id="previewImage" alt="Miniatura do vídeo" /><div><strong id="previewTitle">Carregando prévia…</strong><small id="previewMeta">Consultando informações</small></div></div>
+            <button class="outline-button playlist-select hidden" type="button" id="selectPlaylist">Selecionar músicas da playlist</button>
+
+            <div class="options-grid">
+              <div>
+                <span class="field-label">Tipo de download</span>
+                <div class="segmented" role="radiogroup" aria-label="Tipo de download">
+                  <label><input type="radio" name="downloadType" value="audio" checked /><span>Áudio</span></label>
+                  <label><input type="radio" name="downloadType" value="video" /><span>Vídeo</span></label>
+                </div>
+              </div>
+              <label>
+                <span class="field-label">Formato</span>
+                <select id="format"><option value="mp3">MP3</option><option value="m4a">M4A</option><option value="opus">Opus</option></select>
+              </label>
+              <label><span class="field-label">Qualidade</span><select id="quality"><option value="original">Original</option><option value="128">128 kbps</option><option value="192">192 kbps</option><option value="256">256 kbps</option><option value="320">320 kbps</option></select></label>
+            </div>
+
+            <label>
+              <span class="field-label">Salvar em</span>
+              <div class="folder-picker">
+                <span class="folder-icon">□</span>
+                <span id="folderPath">Downloads</span>
+                <button type="button" id="chooseFolder">Alterar</button>
+              </div>
+            </label>
+
+            <button class="primary-button" type="submit" id="downloadButton">
+              <span class="button-icon">↓</span> Iniciar download
+            </button>
+          </form>
+
+          <section class="queue-section" id="queueSection"><div class="section-heading"><h2>Fila</h2><div class="queue-heading-actions"><span id="queueCount">0 itens</span><button class="ghost-button abort-button" id="abortQueue" type="button" disabled>Parar tudo</button></div></div><div id="queueList" class="queue-list"><div class="empty-state"><p>Cole um link, escolha as opções e clique em Iniciar download.</p></div></div></section>
+
+          <section class="progress-card hidden" id="progressCard" aria-live="polite">
+            <div class="progress-topline"><span class="status-pill" id="statusPill">BAIXANDO</span><span id="progressPercent">0%</span></div>
+            <div class="media-info">
+              <div class="media-thumbnail"><span>♫</span></div>
+              <div class="media-copy"><strong id="mediaTitle">Preparando download…</strong><small id="mediaMeta">Conectando ao servidor</small></div>
+              <button class="ghost-button" type="button" id="cancelButton">Cancelar</button>
+            </div>
+            <div class="progress-track"><span id="progressBar"></span></div>
+            <div class="download-stats"><span><b id="downloadSpeed">—</b> velocidade</span><span><b id="timeRemaining">—</b> restante</span></div>
+          </section>
+
+          <section class="recent-section" id="recentSection">
+            <div class="section-heading"><h2>Recentes</h2><button type="button" id="clearHistory">Limpar</button></div>
+            <div class="empty-state" id="emptyHistory"><div class="empty-icon">↓</div><p>Seus downloads recentes aparecerão aqui.</p></div>
+            <div class="history-list hidden" id="historyList"></div>
+          </section>
+        </section>
+
+        <section class="view playlist-view" id="playlistView">
+          <div class="hero compact"><div class="eyebrow">PLAYLIST</div><h1 id="playlistTitle">Playlist</h1><p id="playlistSummary">Selecione as músicas que deseja adicionar à fila.</p></div>
+          <div class="playlist-actions"><button class="outline-button" id="selectAllPlaylist" type="button">Selecionar todas</button><button class="outline-button" id="clearPlaylistSelection" type="button">Limpar seleção</button><button class="primary-button playlist-confirm" id="addSelectedPlaylist" type="button">Adicionar selecionadas à fila</button></div>
+          <div class="playlist-list" id="playlistList"></div>
+        </section>
+
+        <section class="view settings-view" id="settingsView">
+          <div class="hero compact"><div class="eyebrow">PREFERÊNCIAS</div><h1>Configurações</h1><p>Personalize como o NTC Utilities trabalha para você.</p></div>
+          <div class="settings-card">
+            <div class="setting-row"><div><strong>Abrir pasta ao concluir</strong><p>Exibe a pasta do arquivo assim que o download for finalizado.</p></div><label class="switch"><input id="openFolderAfter" type="checkbox" /><span></span></label></div>
+            <div class="setting-row"><div><strong>Pasta padrão</strong><p id="settingsFolder">Downloads</p></div><button class="outline-button" type="button" id="chooseFolderSettings">Escolher pasta</button></div>
+            <div class="setting-row"><div><strong>Arquivos duplicados</strong><p>Como tratar um arquivo que já existe.</p></div><select id="duplicatePolicy"><option value="rename">Criar cópia numerada</option><option value="overwrite">Substituir arquivo</option><option value="ask">Perguntar sempre</option></select></div>
+            <div class="setting-row"><div><strong>Ferramentas instaladas</strong><p id="toolVersions">Verificando yt-dlp e FFmpeg…</p></div><button class="outline-button" type="button" id="checkTools">Verificar</button></div>
+          </div>
+        </section>
+
+        <section class="view history-view" id="historyView">
+          <div class="hero compact"><div class="eyebrow">ARQUIVOS</div><h1>Histórico</h1><p>Downloads feitos nesta sessão.</p></div>
+          <div class="all-history" id="allHistory"><div class="empty-state"><div class="empty-icon">◷</div><p>Nenhum download concluído ainda.</p></div></div>
+        </section>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>
