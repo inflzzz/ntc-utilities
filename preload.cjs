@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('ntc', {
   appVersion: () => ipcRenderer.invoke('get-app-version'),
   defaultDownloadFolder: () => ipcRenderer.invoke('get-default-download-folder'),
+  freeSpace: folderPath => ipcRenderer.invoke('get-free-space', folderPath),
   minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
   toggleMaximize: () => ipcRenderer.invoke('window-toggle-maximize'),
   closeWindow: () => ipcRenderer.invoke('window-close'),
@@ -23,6 +24,14 @@ contextBridge.exposeInMainWorld('ntc', {
   startConversion: (payload) => ipcRenderer.invoke('start-conversion', payload),
   cancelConversion: (conversionId) => ipcRenderer.invoke('cancel-conversion', conversionId),
   toolVersions: () => ipcRenderer.invoke('tool-versions'),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  onUpdateEvent: (callback) => {
+    const listener = (_event, payload) => callback(payload);
+    ipcRenderer.on('update-event', listener);
+    return () => ipcRenderer.removeListener('update-event', listener);
+  },
   onDownloadEvent: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('download-event', listener);

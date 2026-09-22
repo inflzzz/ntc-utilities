@@ -15,6 +15,8 @@ As ferramentas disponíveis são o **Downloader**, para mídias autorizadas do Y
 
 Não é necessário instalar Python, Node.js, `yt-dlp`, FFmpeg, FFprobe, Winget ou qualquer ferramenta separadamente. O instalador inclui tudo o que o app precisa para funcionar.
 
+Quando uma nova versão for publicada, o aplicativo instalado verifica a disponibilidade ao abrir. O download e a instalação só começam depois da confirmação da pessoa, e o aviso mostra as novidades da versão antes de atualizar.
+
 ## O que o Downloader oferece
 
 - Prévia do título, canal, duração e thumbnail antes de baixar.
@@ -50,7 +52,9 @@ pnpm start
 pnpm package:win
 ```
 
-O instalador será criado em `dist/NTC Utilities Setup 0.2.4.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git. O setup tem tema monocromático próprio, permite escolher a pasta e oferece atalhos no Menu Iniciar e, opcionalmente, na área de trabalho.
+O instalador será criado em `dist/NTC Utilities Setup 0.2.5.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git. O setup tem tema monocromático próprio, permite escolher a pasta e oferece atalhos no Menu Iniciar e, opcionalmente, na área de trabalho.
+
+Para uma publicação oficial que suporte atualização dentro do app, use `pnpm release:win` com `GH_TOKEN` configurado. Esse comando envia o instalador e os arquivos de atualização necessários para a Release do GitHub.
 
 ## Página pública
 

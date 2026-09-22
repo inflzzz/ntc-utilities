@@ -9,7 +9,7 @@
   </head>
   <body>
     <div class="splash" id="splash" aria-label="Carregando NTC Utilities">
-      <div class="splash-logo">N</div>
+      <div class="splash-logo wordmark">NTC</div>
       <div class="splash-name">NTC <span>Utilities</span></div>
       <p>By NTC Corporation</p>
       <div class="loading-line" role="progressbar" aria-label="Carregando" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="loadingProgress"></span></div>
@@ -18,7 +18,7 @@
     <main class="app-shell" id="appShell" aria-hidden="true">
       <aside class="sidebar">
         <div class="brand">
-          <div class="brand-mark">N</div>
+          <div class="brand-mark wordmark">NTC</div>
           <div><strong>NTC</strong><span>Utilities</span></div>
         </div>
 
@@ -47,6 +47,8 @@
         <header class="titlebar">
           <div class="window-controls" aria-label="Controles da janela"><button class="window-control no-drag" id="minimizeWindow" aria-label="Minimizar">−</button><button class="window-control no-drag" id="maximizeWindow" aria-label="Maximizar">□</button><button class="window-control close no-drag" id="closeWindow" aria-label="Fechar">×</button></div>
         </header>
+
+        <div class="content-scroll">
 
         <section class="view home-view active" id="homeView">
           <div class="hero compact"><div class="eyebrow">CENTRAL</div><h1>Utilidades</h1></div>
@@ -89,6 +91,7 @@
               </label>
               <label><span class="field-label">Qualidade</span><select id="quality"><option value="original">Original</option><option value="128">128 kbps</option><option value="192">192 kbps</option><option value="256">256 kbps</option><option value="320">320 kbps</option></select></label>
             </div>
+            <div class="download-options-extra"><label><span class="field-label">Limite de velocidade</span><select id="speedLimit"><option value="">Sem limite</option><option value="1M">1 MB/s</option><option value="3M">3 MB/s</option><option value="5M">5 MB/s</option><option value="10M">10 MB/s</option></select></label></div>
 
             <label>
               <span class="field-label">Salvar em</span>
@@ -97,6 +100,7 @@
                 <span id="folderPath">Downloads</span>
                 <button type="button" id="chooseFolder">Alterar</button>
               </div>
+              <small class="form-note" id="spaceHint">Consultando espaço disponível…</small>
             </label>
 
             <button class="primary-button" type="submit" id="downloadButton">
@@ -104,14 +108,14 @@
             </button>
           </form>
 
-          <section class="queue-section" id="queueSection"><div class="section-heading"><h2>Fila</h2><div class="queue-heading-actions"><span id="queueCount">0 itens</span><button class="ghost-button abort-button" id="abortQueue" type="button" disabled>Parar tudo</button></div></div><div id="queueList" class="queue-list"><div class="empty-state"><p>Cole um link, escolha as opções e clique em Iniciar download.</p></div></div></section>
+          <section class="queue-section" id="queueSection"><div class="section-heading"><h2>Fila</h2><div class="queue-heading-actions"><span id="queueCount">0 itens</span><button class="ghost-button" id="resumeQueue" type="button">Retomar fila</button><button class="ghost-button abort-button" id="abortQueue" type="button" disabled>Parar tudo</button></div></div><div id="queueList" class="queue-list"><div class="empty-state"><p>Cole um link, escolha as opções e clique em Iniciar download.</p></div></div></section>
 
           <section class="progress-card hidden" id="progressCard" aria-live="polite">
             <div class="progress-topline"><span class="status-pill" id="statusPill">BAIXANDO</span><span id="progressPercent">0%</span></div>
             <div class="media-info">
               <div class="media-thumbnail"><span>♫</span></div>
               <div class="media-copy"><strong id="mediaTitle">Preparando download…</strong><small id="mediaMeta">Conectando ao servidor</small></div>
-              <button class="ghost-button" type="button" id="cancelButton">Cancelar</button>
+              <button class="ghost-button" type="button" id="pauseButton">Pausar</button><button class="ghost-button" type="button" id="cancelButton">Cancelar</button>
             </div>
             <div class="progress-track"><span id="progressBar"></span></div>
             <div class="download-stats"><span><b id="downloadSpeed">—</b> velocidade</span><span><b id="timeRemaining">—</b> restante</span></div>
@@ -137,29 +141,32 @@
           </section>
 
           <section class="converter-editor hidden" id="converterEditor">
-            <div class="section-heading"><h2>Editar arquivo</h2><span id="editingMediaName">—</span></div>
+            <div class="section-heading"><h2>Editar arquivo</h2><div class="editor-heading-actions"><button class="ghost-button" id="undoEdit" type="button" aria-label="Desfazer alteração" title="Desfazer" disabled>↶</button><button class="ghost-button" id="redoEdit" type="button" aria-label="Refazer alteração" title="Refazer" disabled>↷</button><span id="editingMediaName">—</span></div></div>
             <div class="converter-grid">
               <label><span class="field-label">Formato</span><select id="converterFormat"><option value="mp3">MP3</option><option value="m4a">M4A</option><option value="wav">WAV</option><option value="flac">FLAC</option><option value="opus">Opus</option></select></label>
               <label><span class="field-label">Qualidade</span><select id="converterQuality"><option value="128">128 kbps</option><option value="192" selected>192 kbps</option><option value="256">256 kbps</option><option value="320">320 kbps</option></select></label>
             </div>
             <div class="waveform-editor" id="waveformEditor">
               <div class="waveform-heading"><span class="field-label">Corte visual</span><span id="waveformDuration">—</span></div>
-              <canvas id="waveformCanvas" role="img" aria-label="Forma de onda do arquivo. Arraste os marcadores para definir o trecho."></canvas>
-              <div class="waveform-toolbar"><button class="ghost-button" id="playSelection" type="button">▶ Ouvir seleção</button><span id="waveformSelection">Arquivo completo</span><span>Arraste os marcadores</span></div>
+              <canvas id="waveformCanvas" role="img" aria-label="Forma de onda do arquivo. Arraste os marcadores para definir o trecho e role o mouse para aplicar zoom." title="Role o mouse para aproximar ou afastar"></canvas>
+              <div class="waveform-toolbar"><button class="ghost-button" id="rewindPreview" type="button" aria-label="Voltar cinco segundos">−5 s</button><button class="ghost-button" id="playSelection" type="button">▶ Ouvir seleção</button><button class="ghost-button" id="forwardPreview" type="button" aria-label="Avançar cinco segundos">+5 s</button><span id="waveformSelection">Arquivo completo</span><span>Arraste os marcadores</span></div>
             </div>
             <div class="converter-grid trim-grid">
               <label><span class="field-label">Início do corte</span><input class="text-input" id="trimStart" placeholder="00:00:00" /></label>
               <label><span class="field-label">Fim do corte</span><input class="text-input" id="trimEnd" placeholder="00:00:00" /></label>
               <label class="normalize-control"><input type="checkbox" id="normalizeAudio" /><span>Normalizar volume</span></label>
             </div>
-            <div class="metadata-grid">
-              <label><span class="field-label">Título</span><input class="text-input" id="metadataTitle" /></label>
-              <label><span class="field-label">Artista</span><input class="text-input" id="metadataArtist" /></label>
-              <label><span class="field-label">Álbum</span><input class="text-input" id="metadataAlbum" /></label>
-              <label><span class="field-label">Ano</span><input class="text-input" id="metadataYear" maxlength="4" /></label>
-              <label><span class="field-label">Gênero</span><input class="text-input" id="metadataGenre" /></label>
-              <div><span class="field-label">Capa</span><div class="cover-actions"><button class="outline-button" id="chooseCover" type="button">Escolher capa</button><button class="ghost-button" id="removeCover" type="button">Remover</button><span id="coverName">Sem alteração</span></div></div>
-            </div>
+            <details class="metadata-details">
+              <summary><span>Metadados e capa</span><small>Opcional</small></summary>
+              <div class="metadata-grid">
+                <label><span class="field-label">Título</span><input class="text-input" id="metadataTitle" /></label>
+                <label><span class="field-label">Artista</span><input class="text-input" id="metadataArtist" /></label>
+                <label><span class="field-label">Álbum</span><input class="text-input" id="metadataAlbum" /></label>
+                <label><span class="field-label">Ano</span><input class="text-input" id="metadataYear" maxlength="4" /></label>
+                <label><span class="field-label">Gênero</span><input class="text-input" id="metadataGenre" /></label>
+                <div><span class="field-label">Capa</span><div class="cover-actions"><button class="outline-button" id="chooseCover" type="button">Escolher capa</button><button class="ghost-button" id="removeCover" type="button">Remover</button><span id="coverName">Sem alteração</span></div></div>
+              </div>
+            </details>
             <div class="converter-footer"><label><span class="field-label">Nome do novo arquivo</span><div class="filename-picker"><input class="text-input" id="converterOutputName" maxlength="150" aria-label="Nome do novo arquivo" /><span id="converterExtension">.mp3</span></div></label><label><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="converterFolderPath">Downloads</span><button type="button" id="chooseConverterFolder">Alterar</button></div></label><button class="outline-button" id="saveConversionEdits" type="button">Criar arquivo editado</button></div>
           </section>
 
@@ -180,20 +187,23 @@
             <div class="setting-row"><div><strong>Abrir pasta ao concluir</strong><p>Exibe a pasta do arquivo assim que a operação for finalizada.</p></div><label class="switch"><input id="openFolderAfter" type="checkbox" /><span></span></label></div>
             <div class="setting-row"><div><strong>Pasta padrão</strong><p id="settingsFolder">Downloads</p></div><button class="outline-button" type="button" id="chooseFolderSettings">Escolher pasta</button></div>
             <div class="setting-row"><div><strong>Arquivos duplicados</strong><p>Como tratar um arquivo que já existe.</p></div><select id="duplicatePolicy"><option value="rename">Criar cópia numerada</option><option value="overwrite">Substituir arquivo</option><option value="ask">Perguntar sempre</option></select></div>
+            <div class="setting-row"><div><strong>Modelo de nome</strong><p>Define o nome inicial dos novos downloads.</p></div><select id="filenameTemplate"><option value="title">Título</option><option value="channel-title">Canal - Título</option><option value="date-title">Data - Título</option></select></div>
             <div class="setting-row"><div><strong>Ferramentas instaladas</strong><p id="toolVersions">Ainda não verificado.</p></div><button class="outline-button" type="button" id="checkTools">Verificar</button></div>
           </div>
           <div class="settings-card settings-card-secondary">
             <div class="settings-group-label">Aplicativo</div>
-            <div class="setting-row"><div><strong>Versão instalada</strong><p id="appVersion">Consultando…</p></div></div>
+            <div class="setting-row"><div><strong>Versão instalada</strong><p id="appVersion">Consultando…</p></div><button class="outline-button" type="button" id="openChangelog">Ver changelog</button></div>
+            <div class="setting-row"><div><strong>Atualizações</strong><p id="updateStatus">Verifique se existe uma nova versão disponível.</p></div><button class="outline-button" type="button" id="checkUpdates">Verificar agora</button></div>
             <div class="setting-row"><div><strong>Histórico local</strong><p>Remove somente os registros salvos pelo NTC Utilities.</p></div><button class="outline-button" type="button" id="clearHistorySettings">Limpar histórico</button></div>
             <div class="setting-row"><div><strong>Preferências</strong><p>Volta pasta, duplicatas e abertura automática ao padrão.</p></div><button class="outline-button" type="button" id="resetPreferences">Restaurar</button></div>
           </div>
         </section>
 
         <section class="view history-view" id="historyView">
-          <div class="hero compact history-hero"><div><div class="eyebrow">ARQUIVOS</div><h1>Histórico</h1><p>Downloads e conversões feitos nesta sessão.</p></div><button class="outline-button" id="clearHistoryPage" type="button">Limpar histórico</button></div>
+          <div class="hero compact history-hero"><div><div class="eyebrow">ARQUIVOS</div><h1>Histórico</h1><p>Downloads e conversões feitos nesta sessão.</p></div><div class="history-actions"><select id="historyFilter" aria-label="Filtrar histórico"><option value="all">Tudo</option><option value="download">Downloads</option><option value="conversion">Conversões</option><option value="failed">Falhas</option></select><button class="outline-button" id="clearHistoryPage" type="button">Limpar histórico</button></div></div>
           <div class="all-history" id="allHistory"><div class="empty-state"><div class="empty-icon">◷</div><p>Nenhum arquivo concluído ainda.</p></div></div>
         </section>
+        </div>
       </section>
     </main>
     <div class="completion-suggestion hidden" id="editAfterDownloadModal" role="status" aria-live="polite">
@@ -202,10 +212,18 @@
       <button class="ghost-button" id="openDownloadedInEditor" type="button">Editar no editor</button>
       <button class="suggestion-close" id="dismissEditAfterDownload" type="button" aria-label="Fechar aviso">×</button>
     </div>
+    <section class="update-notice hidden" id="updateNotice" role="dialog" aria-live="polite" aria-labelledby="updateTitle">
+      <div class="update-notice-copy"><span class="eyebrow">ATUALIZAÇÃO DISPONÍVEL</span><h2 id="updateTitle">Uma nova versão está pronta</h2><p id="updateSummary">Veja as novidades antes de atualizar.</p><ul id="updateNotes" class="update-notes hidden"></ul></div>
+      <div class="update-notice-actions"><button class="ghost-button" id="dismissUpdate" type="button">Agora não</button><button class="primary-button" id="updateAction" type="button">Baixar atualização</button></div>
+    </section>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <div class="confirm-backdrop hidden" id="confirmDialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
       <div class="confirm-card"><h2 id="confirmTitle">Confirmar ação</h2><p id="confirmMessage"></p><div class="confirm-actions"><button class="ghost-button" id="confirmCancel" type="button">Cancelar</button><button class="primary-button" id="confirmAccept" type="button">Confirmar</button></div></div>
     </div>
+    <div class="changelog-backdrop hidden" id="changelogDialog" role="dialog" aria-modal="true" aria-labelledby="changelogTitle">
+      <section class="changelog-card"><div class="changelog-heading"><div><span class="eyebrow">NTC UTILITIES</span><h2 id="changelogTitle">O que mudou</h2></div><button class="suggestion-close" id="closeChangelog" type="button" aria-label="Fechar changelog">×</button></div><div class="changelog-list" id="changelogList"></div></section>
+    </div>
+    <script src="./changelog.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

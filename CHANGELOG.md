@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.5 — 2026-09-22
+
+- Adicionado sistema de atualização pelo próprio aplicativo: ao abrir uma versão desatualizada, o NTC Utilities mostra a nova versão, as novidades e permite baixar a atualização com um clique.
+- Incluído changelog interno em **Configurações**, sem redirecionar para o navegador.
+- Refinada a identidade visual com a marca NTC e o ícone do aplicativo atualizados.
+- Metadados e capa no Editor de áudio agora ficam em um painel opcional e recolhido por padrão.
+- Removido o sistema de fade do Editor de áudio para manter o fluxo de corte mais direto.
+- Editor ganhou zoom na waveform pelo scroll, atalhos de reprodução e navegação, desfazer/refazer e prévia da seleção.
+- Downloader passou a exibir miniaturas na fila, estimativa de tamanho, limite de velocidade e retomada de itens pausados.
+- Histórico ganhou filtros, abertura de pasta e a opção de reabrir uma conversão anterior no Editor.
+
 ## 0.2.4 — 2026-09-22
 
 - Refinada a central de utilidades e removida a frase promocional da tela inicial.

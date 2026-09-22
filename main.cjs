@@ -2,16 +2,38 @@ const { app, BrowserWindow, dialog, ipcMain, shell, clipboard } = require('elect
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
+const { autoUpdater } = require('electron-updater');
 
 app.setPath('userData', path.join(__dirname, '.ntc-data'));
 const downloadJobs = new Map();
 const conversionJobs = new Map();
+let mainWindow = null;
+let updateState = { status: 'idle' };
 const hosts = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'];
 const audioExtensions = ['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.opus', '.wma'];
 const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.webm', '.wmv', '.m4v'];
 
 function isSupportedUrl(value) { try { return hosts.includes(new URL(value).hostname); } catch { return false; } }
 function send(sender, channel, payload) { if (!sender.isDestroyed()) sender.send(channel, payload); }
+function sendUpdate(payload) {
+  updateState = payload;
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-event', payload);
+}
+function releaseNotes(value) {
+  if (Array.isArray(value)) return value.map(note => note.note || note).join('\n');
+  return String(value || '').replace(/<[^>]*>/g, ' ').replace(/\\n/g, '\n').trim();
+}
+function configureUpdater() {
+  if (!app.isPackaged) return;
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.on('checking-for-update', () => sendUpdate({ status: 'checking' }));
+  autoUpdater.on('update-available', info => sendUpdate({ status: 'available', version: info.version, notes: releaseNotes(info.releaseNotes) }));
+  autoUpdater.on('update-not-available', () => sendUpdate({ status: 'current', version: app.getVersion() }));
+  autoUpdater.on('download-progress', progress => sendUpdate({ status: 'downloading', percent: Math.round(progress.percent || 0) }));
+  autoUpdater.on('update-downloaded', info => sendUpdate({ status: 'downloaded', version: info.version, notes: releaseNotes(info.releaseNotes) }));
+  autoUpdater.on('error', error => sendUpdate({ status: 'error', message: 'Não foi possível verificar ou baixar a atualização. Tente novamente mais tarde.' }));
+}
 function binaryDirectory() { return app.isPackaged ? path.join(process.resourcesPath, 'bin') : path.join(__dirname, 'resources', 'bin'); }
 function binary(name) { const bundled = path.join(binaryDirectory(), `${name}.exe`); return fs.existsSync(bundled) ? bundled : name; }
 function run(command, args) {
@@ -34,6 +56,7 @@ function buildArgs(item) {
   const output = path.join(item.folder, `${outputName}.%(ext)s`);
   const args = ['--no-playlist', '--newline', '--no-warnings', '--ffmpeg-location', binaryDirectory(), '--progress-template', 'download:PROGRESS|%(progress._percent_str)s|%(progress._speed_str)s|%(progress._eta_str)s', '--print', 'before_dl:TITLE|%(title)s', '--print', 'after_move:FILE|%(filepath)s', '--output', output];
   if (item.duplicate === 'overwrite') args.push('--force-overwrites'); else args.push('--no-overwrites');
+  if (item.speedLimit) args.push('--limit-rate', item.speedLimit);
   if (item.type === 'audio') { if (item.format === 'original') args.push('--format', 'bestaudio/best'); else args.push('--extract-audio', '--audio-format', item.format, '--audio-quality', quality === 'original' ? '0' : `${quality}K`); }
   else { const height = quality === 'best' ? '' : `[height<=${quality}]`; const format = item.format === 'webm' ? 'webm' : 'mp4'; args.push('--format', `bv*${height}+ba/b${height}`, '--merge-output-format', format); }
   args.push(item.url); return args;
@@ -107,13 +130,16 @@ async function createWaveform(file) {
   const peak = Math.max(...values, 0.0001); return values.map(value => Math.min(1, value / peak));
 }
 function createWindow() {
-  const window = new BrowserWindow({ width: 1160, height: 760, minWidth: 930, minHeight: 640, backgroundColor: '#090909', frame: false, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false } });
-  window.loadFile(path.join(__dirname, 'src', 'index.html'));
+  mainWindow = new BrowserWindow({ width: 1160, height: 760, minWidth: 930, minHeight: 640, icon: path.join(__dirname, 'build', 'ntc-logo.png'), backgroundColor: '#090909', frame: false, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false } });
+  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
 }
 
 app.whenReady().then(() => {
+  app.setAppUserModelId('com.ntccorporation.utilities');
   ipcMain.handle('get-app-version', () => app.getVersion());
   ipcMain.handle('get-default-download-folder', () => app.getPath('downloads'));
+  ipcMain.handle('get-free-space', (_event, folder) => { try { const stat = fs.statfsSync(folder || app.getPath('downloads')); return Number(stat.bavail) * Number(stat.bsize); } catch { return null; } });
   ipcMain.handle('window-minimize', event => BrowserWindow.fromWebContents(event.sender)?.minimize());
   ipcMain.handle('window-toggle-maximize', event => { const window = BrowserWindow.fromWebContents(event.sender); if (!window) return false; if (window.isMaximized()) window.unmaximize(); else window.maximize(); return window.isMaximized(); });
   ipcMain.handle('window-close', event => BrowserWindow.fromWebContents(event.sender)?.close());
@@ -131,7 +157,18 @@ app.whenReady().then(() => {
   ipcMain.handle('open-file-folder', (_event, file) => file ? shell.openPath(path.dirname(file)) : '');
   ipcMain.handle('copy-path', (_event, file) => { if (file) clipboard.writeText(file); return file || ''; });
   ipcMain.handle('tool-versions', async () => { try { const ytdlp = (await run('yt-dlp', ['--version'])).trim(); const ffmpeg = (await run('ffmpeg', ['-version'])).split(/\r?\n/)[0]; const ffprobe = (await run('ffprobe', ['-version'])).split(/\r?\n/)[0]; return { ytdlp, ffmpeg, ffprobe }; } catch (error) { return { error: error.message }; } });
-  ipcMain.handle('preview-url', async (_event, url) => { if (!isSupportedUrl(url)) throw new Error('Cole um link válido do YouTube.'); const data = JSON.parse(await run('yt-dlp', ['--dump-single-json', '--skip-download', '--no-playlist', '--no-warnings', url])); return { id: data.id, title: data.title || 'Sem título', channel: data.channel || data.uploader || 'Canal desconhecido', duration: data.duration_string || '—', thumbnail: data.thumbnail || '', webpageUrl: data.webpage_url || url }; });
+  ipcMain.handle('check-for-updates', async () => {
+    if (!app.isPackaged) return { status: 'unavailable', message: 'A verificação de atualização funciona na versão instalada.' };
+    try { await autoUpdater.checkForUpdates(); return updateState; } catch { return { status: 'error', message: 'Não foi possível verificar atualizações agora.' }; }
+  });
+  ipcMain.handle('download-update', async () => {
+    if (!app.isPackaged || updateState.status !== 'available') return { status: 'unavailable' };
+    try { await autoUpdater.downloadUpdate(); return updateState; } catch { return { status: 'error', message: 'Não foi possível baixar a atualização.' }; }
+  });
+  ipcMain.handle('install-update', () => {
+    if (app.isPackaged && updateState.status === 'downloaded') autoUpdater.quitAndInstall(false, true);
+  });
+  ipcMain.handle('preview-url', async (_event, url) => { if (!isSupportedUrl(url)) throw new Error('Cole um link válido do YouTube.'); const data = JSON.parse(await run('yt-dlp', ['--dump-single-json', '--skip-download', '--no-playlist', '--no-warnings', url])); const sizes = [data.filesize, data.filesize_approx, ...(data.formats || []).map(format => format.filesize || format.filesize_approx || 0)]; const estimatedSize = Math.max(0, ...sizes.map(value => Number(value) || 0)); return { id: data.id, title: data.title || 'Sem título', channel: data.channel || data.uploader || 'Canal desconhecido', duration: data.duration_string || '—', thumbnail: data.thumbnail || '', estimatedSize, webpageUrl: data.webpage_url || url }; });
   ipcMain.handle('playlist-preview', async (_event, url) => { if (!isSupportedUrl(url)) throw new Error('Link inválido.'); const data = JSON.parse(await run('yt-dlp', ['--flat-playlist', '--dump-single-json', '--skip-download', '--no-warnings', url])); const entries = (data.entries || []).filter(Boolean).map(entry => ({ id: entry.id, title: entry.title || 'Sem título', channel: entry.channel || entry.uploader || '', duration: entry.duration_string || '—', thumbnail: entry.thumbnail || `https://i.ytimg.com/vi/${entry.id}/mqdefault.jpg`, webpageUrl: entry.webpage_url || `https://www.youtube.com/watch?v=${entry.id}` })); return { isPlaylist: data._type === 'playlist' || entries.length > 1, title: data.title || 'Playlist', thumbnail: data.thumbnail || '', entries }; });
   ipcMain.handle('start-download', async (event, item) => {
     if (!item?.downloadId || !isSupportedUrl(item.url)) throw new Error('Link inválido.'); if (!item.folder || !['audio', 'video'].includes(item.type)) throw new Error('Dados de download inválidos.');
@@ -169,6 +206,6 @@ app.whenReady().then(() => {
     });
   });
   ipcMain.handle('cancel-conversion', (_event, conversionId) => conversionJobs.get(conversionId)?.cancel?.());
-  createWindow(); app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
+  configureUpdater(); createWindow(); if (app.isPackaged) setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 2500); app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

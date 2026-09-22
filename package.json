@@ -1,13 +1,14 @@
 {
   "name": "ntc-utilities",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Utilitários desktop minimalistas, locais e privados.",
   "author": "NTC Corporation",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
     "prepare:bin": "powershell -ExecutionPolicy Bypass -File scripts/fetch-binaries.ps1",
-    "package:win": "pnpm run prepare:bin && electron-builder --win nsis"
+    "package:win": "pnpm run prepare:bin && electron-builder --win nsis",
+    "release:win": "pnpm run prepare:bin && electron-builder --win nsis --publish always"
   },
   "devDependencies": {
     "electron": "^39.2.7",
@@ -38,6 +39,13 @@
       "target": "nsis",
       "icon": "build/ntc-logo.png"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "inflzzz",
+        "repo": "ntc-utilities"
+      }
+    ],
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -50,5 +58,8 @@
       "installerSidebar": "build/installer-sidebar.bmp",
       "installerHeaderIcon": null
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }
