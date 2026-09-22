@@ -28,6 +28,9 @@
           <button class="nav-item" data-view="downloader">
             <span class="nav-icon">↓</span> Downloader
           </button>
+          <button class="nav-item" data-view="converter">
+            <span class="nav-icon">♫</span> Editor de áudio
+          </button>
           <button class="nav-item" data-view="history">
             <span class="nav-icon">◷</span> Histórico
           </button>
@@ -50,7 +53,7 @@
           <div class="hero compact"><div class="eyebrow">CENTRAL</div><h1>Utilidades</h1><p>Escolha uma ferramenta para começar.</p></div>
           <div class="tools-grid">
             <button class="tool-card available" data-open-tool="downloader"><span class="tool-icon">↓</span><span><strong>Downloader</strong><small>Áudio e vídeo</small></span><em>Disponível</em></button>
-            <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
+            <button class="tool-card available" data-open-tool="converter"><span class="tool-icon">♫</span><span><strong>Editor de áudio</strong><small>Corte, converta e organize</small></span><em>Disponível</em></button>
             <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
             <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
             <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
@@ -60,14 +63,13 @@
 
         <section class="view" id="downloaderView">
           <div class="hero">
-            <div class="eyebrow">DOWNLOADER</div>
             <h1>Downloader</h1>
           </div>
 
           <form class="download-card" id="downloadForm">
             <label class="field-label" for="videoUrl">Link do vídeo</label>
             <div class="url-input-wrap">
-              <span class="link-icon">↗</span>
+              <span class="link-icon" aria-hidden="true">→</span>
               <input id="videoUrl" type="url" placeholder="Cole aqui o link do vídeo" autocomplete="off" required />
               <span class="valid-indicator" id="validIndicator">✓</span>
             </div>
@@ -123,6 +125,51 @@
           </section>
         </section>
 
+        <section class="view converter-view" id="converterView">
+          <div class="hero">
+            <div class="eyebrow">ÁUDIO</div>
+            <h1>Editor de áudio</h1>
+            <p>Converta arquivos de áudio e extraia o som de vídeos locais.</p>
+          </div>
+
+          <section class="converter-import">
+            <button class="primary-button" id="chooseMedia" type="button"><span class="button-icon">＋</span> Selecionar arquivos</button>
+            <div class="media-dropzone" id="mediaDropzone" tabindex="0" role="button" aria-label="Arraste arquivos ou selecione arquivos"><strong>Arraste arquivos aqui</strong><span>ou selecione áudios e vídeos do computador</span></div>
+          </section>
+
+          <section class="converter-editor hidden" id="converterEditor">
+            <div class="section-heading"><h2>Editar arquivo</h2><span id="editingMediaName">—</span></div>
+            <div class="converter-grid">
+              <label><span class="field-label">Formato</span><select id="converterFormat"><option value="mp3">MP3</option><option value="m4a">M4A</option><option value="wav">WAV</option><option value="flac">FLAC</option><option value="opus">Opus</option></select></label>
+              <label><span class="field-label">Qualidade</span><select id="converterQuality"><option value="128">128 kbps</option><option value="192" selected>192 kbps</option><option value="256">256 kbps</option><option value="320">320 kbps</option></select></label>
+            </div>
+            <div class="waveform-editor" id="waveformEditor">
+              <div class="waveform-heading"><span class="field-label">Corte visual</span><span id="waveformDuration">—</span></div>
+              <canvas id="waveformCanvas" role="img" aria-label="Forma de onda do arquivo. Arraste os marcadores para definir o trecho."></canvas>
+              <div class="waveform-toolbar"><button class="ghost-button" id="playSelection" type="button">▶ Ouvir seleção</button><span id="waveformSelection">Arquivo completo</span><span>Arraste os marcadores</span></div>
+            </div>
+            <div class="converter-grid trim-grid">
+              <label><span class="field-label">Início do corte</span><input class="text-input" id="trimStart" placeholder="00:00:00" /></label>
+              <label><span class="field-label">Fim do corte</span><input class="text-input" id="trimEnd" placeholder="00:00:00" /></label>
+              <label class="normalize-control"><input type="checkbox" id="normalizeAudio" /><span>Normalizar volume</span></label>
+            </div>
+            <div class="metadata-grid">
+              <label><span class="field-label">Título</span><input class="text-input" id="metadataTitle" /></label>
+              <label><span class="field-label">Artista</span><input class="text-input" id="metadataArtist" /></label>
+              <label><span class="field-label">Álbum</span><input class="text-input" id="metadataAlbum" /></label>
+              <label><span class="field-label">Ano</span><input class="text-input" id="metadataYear" maxlength="4" /></label>
+              <label><span class="field-label">Gênero</span><input class="text-input" id="metadataGenre" /></label>
+              <div><span class="field-label">Capa</span><div class="cover-actions"><button class="outline-button" id="chooseCover" type="button">Escolher capa</button><button class="ghost-button" id="removeCover" type="button">Remover</button><span id="coverName">Sem alteração</span></div></div>
+            </div>
+            <div class="converter-footer"><label><span class="field-label">Nome do novo arquivo</span><div class="filename-picker"><input class="text-input" id="converterOutputName" maxlength="150" aria-label="Nome do novo arquivo" /><span id="converterExtension">.mp3</span></div></label><label><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="converterFolderPath">Downloads</span><button type="button" id="chooseConverterFolder">Alterar</button></div></label><button class="outline-button" id="saveConversionEdits" type="button">Criar arquivo editado</button></div>
+            <p class="converter-output-note">Este é o nome do arquivo salvo. O campo Título altera apenas as informações internas da música; o original nunca é modificado.</p>
+          </section>
+
+          <section class="queue-section converter-queue"><div class="section-heading"><h2>Fila de conversão</h2><div class="queue-heading-actions"><span id="conversionQueueCount">0 itens</span><button class="ghost-button abort-button" id="abortConversions" type="button" disabled>Parar tudo</button></div></div><div class="queue-list" id="conversionQueueList"><div class="empty-state"><p>Selecione arquivos para preparar conversões.</p></div></div><button class="primary-button" id="startConversions" type="button" disabled>Iniciar conversões</button></section>
+
+          <section class="progress-card hidden" id="conversionProgress" aria-live="polite"><div class="progress-topline"><span class="status-pill" id="conversionStatus">CONVERTENDO</span><span id="conversionPercent">0%</span></div><div class="media-info"><div class="media-thumbnail"><span>♫</span></div><div class="media-copy"><strong id="conversionTitle">Preparando conversão…</strong><small id="conversionMeta">FFmpeg</small></div><button class="ghost-button" id="cancelConversion" type="button">Cancelar</button></div><div class="progress-track"><span id="conversionProgressBar"></span></div><div class="download-stats"><span><b id="conversionEta">—</b> restante</span></div></section>
+        </section>
+
         <section class="view playlist-view" id="playlistView">
           <div class="hero compact"><div class="eyebrow">PLAYLIST</div><h1 id="playlistTitle">Playlist</h1><p id="playlistSummary">Selecione as músicas que deseja adicionar à fila.</p></div>
           <div class="playlist-actions"><button class="outline-button" id="selectAllPlaylist" type="button">Selecionar todas</button><button class="outline-button" id="clearPlaylistSelection" type="button">Limpar seleção</button><button class="primary-button playlist-confirm" id="addSelectedPlaylist" type="button">Adicionar selecionadas à fila</button></div>
@@ -132,7 +179,7 @@
         <section class="view settings-view" id="settingsView">
           <div class="hero compact"><div class="eyebrow">PREFERÊNCIAS</div><h1>Configurações</h1><p>Personalize como o NTC Utilities trabalha para você.</p></div>
           <div class="settings-card">
-            <div class="setting-row"><div><strong>Abrir pasta ao concluir</strong><p>Exibe a pasta do arquivo assim que o download for finalizado.</p></div><label class="switch"><input id="openFolderAfter" type="checkbox" /><span></span></label></div>
+            <div class="setting-row"><div><strong>Abrir pasta ao concluir</strong><p>Exibe a pasta do arquivo assim que a operação for finalizada.</p></div><label class="switch"><input id="openFolderAfter" type="checkbox" /><span></span></label></div>
             <div class="setting-row"><div><strong>Pasta padrão</strong><p id="settingsFolder">Downloads</p></div><button class="outline-button" type="button" id="chooseFolderSettings">Escolher pasta</button></div>
             <div class="setting-row"><div><strong>Arquivos duplicados</strong><p>Como tratar um arquivo que já existe.</p></div><select id="duplicatePolicy"><option value="rename">Criar cópia numerada</option><option value="overwrite">Substituir arquivo</option><option value="ask">Perguntar sempre</option></select></div>
             <div class="setting-row"><div><strong>Ferramentas instaladas</strong><p id="toolVersions">Verificando yt-dlp e FFmpeg…</p></div><button class="outline-button" type="button" id="checkTools">Verificar</button></div>
@@ -140,11 +187,17 @@
         </section>
 
         <section class="view history-view" id="historyView">
-          <div class="hero compact"><div class="eyebrow">ARQUIVOS</div><h1>Histórico</h1><p>Downloads feitos nesta sessão.</p></div>
-          <div class="all-history" id="allHistory"><div class="empty-state"><div class="empty-icon">◷</div><p>Nenhum download concluído ainda.</p></div></div>
+          <div class="hero compact"><div class="eyebrow">ARQUIVOS</div><h1>Histórico</h1><p>Downloads e conversões feitos nesta sessão.</p></div>
+          <div class="all-history" id="allHistory"><div class="empty-state"><div class="empty-icon">◷</div><p>Nenhum arquivo concluído ainda.</p></div></div>
         </section>
       </section>
     </main>
+    <div class="completion-suggestion hidden" id="editAfterDownloadModal" role="status" aria-live="polite">
+      <div class="modal-icon">♫</div>
+      <div class="suggestion-copy"><strong>Áudio salvo</strong><span id="downloadedAudioName">Download concluído.</span></div>
+      <button class="ghost-button" id="openDownloadedInEditor" type="button">Editar no editor</button>
+      <button class="suggestion-close" id="dismissEditAfterDownload" type="button" aria-label="Fechar aviso">×</button>
+    </div>
     <script src="./app.js"></script>
   </body>
 </html>

@@ -2,7 +2,7 @@
 
 Utilitários desktop livres, privados e diretos ao ponto.
 
-O primeiro módulo disponível é o **Downloader**: ele salva áudios e vídeos permitidos em uma pasta escolhida pelo usuário, com prévia, seleção de formato e qualidade, fila, progresso, histórico e suporte a playlists.
+As ferramentas disponíveis são o **Downloader**, para mídias autorizadas do YouTube, e o **Editor de áudio**, para editar, converter arquivos locais de áudio ou extrair o som de vídeos.
 
 > O projeto está em desenvolvimento. A primeira versão pública para Windows será disponibilizada na aba **Releases** deste repositório.
 
@@ -27,6 +27,14 @@ Não é necessário instalar Python, Node.js, `yt-dlp`, FFmpeg, FFprobe, Winget 
 
 Use o aplicativo somente para conteúdos que você possui ou tem permissão para salvar.
 
+## Editor de áudio
+
+- Converte arquivos locais de áudio e extrai áudio de vídeos.
+- Saída em MP3, M4A, WAV, FLAC e Opus.
+- Fila local, progresso, cancelamento e retry.
+- Corte de início e fim, normalização de volume, metadados e capa por arquivo.
+- Mantém a pasta padrão, a regra de arquivos duplicados e a preferência de abrir a pasta ao concluir.
+
 ## Desenvolver localmente
 
 Pré-requisitos: [Node.js](https://nodejs.org/) 20 ou superior e [pnpm](https://pnpm.io/).
@@ -42,7 +50,7 @@ pnpm start
 pnpm package:win
 ```
 
-O instalador será criado em `dist/NTC Utilities Setup 0.1.0.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git.
+O instalador será criado em `dist/NTC Utilities Setup 0.2.0.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git.
 
 ## Página pública
 
