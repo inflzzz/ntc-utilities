@@ -76,7 +76,7 @@
         </section>
 
         <section class="view recorder-view" id="recorderView">
-          <div class="hero compact"><div class="eyebrow">CAPTURA</div><h1>Gravador de tela</h1><p>Capture a tela inteira em um vídeo MP4 local.</p></div>
+          <div class="hero compact"><div class="eyebrow">CAPTURA</div><h1>Gravador de tela</h1></div>
           <section class="recorder-card">
             <div class="recorder-status" id="recorderStatus" aria-live="polite"><span class="record-dot" id="recordDot"></span><div><strong id="recorderState">Pronto para gravar</strong><small id="recorderTimer">00:00:00</small></div></div>
             <button class="primary-button recorder-button" id="toggleRecording" type="button">Iniciar gravação</button>
@@ -158,7 +158,6 @@
           <div class="hero">
             <div class="eyebrow">ÁUDIO</div>
             <h1>Editor de áudio</h1>
-            <p>Converta arquivos de áudio e extraia o som de vídeos locais.</p>
           </div>
 
           <section class="converter-import">
@@ -214,7 +213,7 @@
         </section>
 
         <section class="view media-tool-view" id="videoView">
-          <div class="hero"><div class="eyebrow">VÍDEO</div><h1>Conversor de vídeo</h1><p>Converta arquivos locais para MP4, MKV ou WebM.</p></div>
+          <div class="hero"><div class="eyebrow">VÍDEO</div><h1>Conversor de vídeo</h1></div>
           <section class="converter-import"><button class="primary-button" id="chooseVideo" type="button">Selecionar vídeos</button><div class="media-dropzone" id="videoDropzone" tabindex="0"><strong>Arraste vídeos aqui</strong><span>MP4, MKV, MOV, AVI, WebM e mais</span></div></section>
           <section class="tool-options"><label><span class="field-label">Formato</span><select id="videoFormat"><option value="mp4">MP4</option><option value="mkv">MKV</option><option value="webm">WebM</option></select></label><label><span class="field-label">Codec</span><select id="videoCodec"><option value="h264">H.264</option><option value="h265">H.265</option><option value="vp9">VP9</option></select></label><label><span class="field-label">Resolução</span><select id="videoResolution"><option value="original">Original</option><option value="2160">2160p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label><label><span class="field-label">Qualidade</span><select id="videoQuality"><option value="alta">Alta</option><option value="equilibrada" selected>Equilibrada</option><option value="economica">Econômica</option></select></label><label><span class="field-label">Áudio</span><select id="videoAudio"><option value="keep">Preservar</option><option value="mute">Remover</option></select></label></section>
           <label class="tool-destination"><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="videoFolderPath">Downloads</span><button type="button" id="chooseVideoFolder">Alterar</button></div></label>
@@ -222,7 +221,7 @@
         </section>
 
         <section class="view media-tool-view" id="imageView">
-          <div class="hero"><div class="eyebrow">IMAGENS</div><h1>Conversor de imagens</h1><p>Converta e redimensione imagens localmente.</p></div>
+          <div class="hero"><div class="eyebrow">IMAGENS</div><h1>Conversor de imagens</h1></div>
           <section class="converter-import"><button class="primary-button" id="chooseImages" type="button">Selecionar imagens</button><div class="media-dropzone" id="imageDropzone" tabindex="0"><strong>Arraste imagens aqui</strong><span>JPG, PNG, WebP, BMP e TIFF</span></div></section>
           <section class="tool-options image-options"><label><span class="field-label">Formato</span><select id="imageFormat"><option value="jpg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option></select></label><label><span class="field-label">Qualidade (1–100%)</span><input class="text-input" id="imageQuality" type="number" min="1" max="100" value="85" /></label><label><span class="field-label">Escala (%)</span><input class="text-input" id="imageScale" type="number" min="1" value="100" placeholder="100" /></label><label><span class="field-label">Largura</span><input class="text-input" id="imageWidth" type="number" min="1" placeholder="Original" /></label><label><span class="field-label">Altura</span><input class="text-input" id="imageHeight" type="number" min="1" placeholder="Original" /></label><label class="normalize-control"><input id="imageKeepRatio" type="checkbox" checked /><span>Manter proporção</span></label></section>
           <section class="image-preview-card hidden" id="imagePreviewCard"><div class="image-preview-comparison"><figure><img id="imagePreviewOriginal" alt="Imagem original" /><figcaption>Original</figcaption></figure><figure><img id="imagePreview" alt="Resultado com os ajustes selecionados" /><figcaption>Resultado</figcaption></figure></div><div><span class="field-label">Comparação de resultado</span><strong id="imagePreviewTitle">Imagem selecionada</strong><small id="imagePreviewMeta">Ajuste qualidade e tamanho para atualizar.</small></div></section>
