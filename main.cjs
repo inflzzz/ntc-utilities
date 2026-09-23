@@ -72,7 +72,7 @@ function buildArgs(item) {
   if (item.speedLimit) args.push('--limit-rate', item.speedLimit);
   if (item.type === 'audio') { if (item.format === 'original') args.push('--format', 'bestaudio/best'); else args.push('--extract-audio', '--audio-format', item.format, '--audio-quality', quality === 'original' ? '0' : `${quality}K`); }
   else if (item.type === 'thumbnail') args.push('--skip-download', '--write-thumbnail', '--convert-thumbnails', item.format === 'png' ? 'png' : 'jpg');
-  else { const height = quality === 'best' ? '' : `[height<=${quality}]`; const format = item.format === 'webm' ? 'webm' : 'mp4'; args.push('--format', `bv*${height}+ba/b${height}`, '--merge-output-format', format); }
+  else { const height = quality === 'best' ? '' : `[height<=${quality}]`; const format = item.format === 'webm' ? 'webm' : 'mp4'; const compatibleMp4 = `bv*${height}[vcodec^=avc1][ext=mp4]+ba[acodec^=mp4a][ext=m4a]/b${height}[vcodec^=avc1][ext=mp4]/bv*${height}[vcodec^=avc1]+ba[acodec^=mp4a]/b${height}[vcodec^=avc1]`; args.push('--format', format === 'mp4' ? compatibleMp4 : `bv*${height}+ba/b${height}`, '--merge-output-format', format); }
   args.push(item.url); return args;
 }
 function availableFilename(folder, filename, duplicate) {
