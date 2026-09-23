@@ -31,6 +31,7 @@
             <span class="nav-icon">♫</span> Editor de áudio
           </button>
           <button class="nav-item" data-view="video"><span class="nav-icon">▸</span> Conversor de vídeo</button>
+          <button class="nav-item" data-view="videoEditor"><span class="nav-icon">✂</span> Editor de vídeo</button>
           <button class="nav-item" data-view="image"><span class="nav-icon">▧</span> Conversor de imagens</button>
           <button class="nav-item" data-view="recorder"><span class="nav-icon">●</span> Gravador de tela</button>
           <button class="nav-item" data-view="compressor"><span class="nav-icon">⇣</span> Compressor</button>
@@ -60,6 +61,7 @@
             <button class="tool-card available" data-open-tool="downloader"><span class="tool-icon">↓</span><span><strong>Downloader</strong><small>Áudio e vídeo</small></span></button>
             <button class="tool-card available" data-open-tool="converter"><span class="tool-icon">♫</span><span><strong>Editor de áudio</strong><small>Corte, converta e organize</small></span></button>
             <button class="tool-card available" data-open-tool="video"><span class="tool-icon">▸</span><span><strong>Conversor de vídeo</strong><small>MP4, MKV e WebM</small></span></button>
+            <button class="tool-card available" data-open-tool="videoEditor"><span class="tool-icon">✂</span><span><strong>Editor de vídeo</strong></span></button>
             <button class="tool-card available" data-open-tool="image"><span class="tool-icon">▧</span><span><strong>Conversor de imagens</strong><small>JPG, PNG e WebP</small></span></button>
             <button class="tool-card available" data-open-tool="recorder"><span class="tool-icon record-tool-icon">●</span><span><strong>Gravador de tela</strong><small>Captura simples em MP4</small></span></button>
             <button class="tool-card available" data-open-tool="compressor"><span class="tool-icon">⇣</span><span><strong>Compressor</strong><small>Vídeo e áudio</small></span></button>
@@ -217,6 +219,25 @@
           <section class="tool-options"><label><span class="field-label">Formato</span><select id="videoFormat"><option value="mp4">MP4</option><option value="mkv">MKV</option><option value="webm">WebM</option></select></label><label><span class="field-label">Codec</span><select id="videoCodec"><option value="h264">H.264</option><option value="h265">H.265</option><option value="vp9">VP9</option></select></label><label><span class="field-label">Resolução</span><select id="videoResolution"><option value="original">Original</option><option value="2160">2160p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label><label><span class="field-label">Qualidade</span><select id="videoQuality"><option value="alta">Alta</option><option value="equilibrada" selected>Equilibrada</option><option value="economica">Econômica</option></select></label><label><span class="field-label">Áudio</span><select id="videoAudio"><option value="keep">Preservar</option><option value="mute">Remover</option></select></label></section>
           <label class="tool-destination"><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="videoFolderPath">Downloads</span><button type="button" id="chooseVideoFolder">Alterar</button></div></label>
           <section class="queue-section"><div class="section-heading"><h2>Fila de vídeo</h2><span id="videoQueueCount">0 itens</span></div><div class="queue-list" id="videoQueueList"><div class="empty-state"><p>Adicione vídeos para converter.</p></div></div><button class="primary-button" id="startVideos" type="button">Iniciar conversões</button></section><section class="progress-card hidden" id="videoProgress"><div class="progress-topline"><span class="status-pill" id="videoStatus">CONVERTENDO</span><span id="videoPercent">0%</span></div><div class="media-info"><div class="media-thumbnail"><span>▸</span></div><div class="media-copy"><strong id="videoTitle">Preparando vídeo…</strong><small id="videoMeta">FFmpeg</small></div><button class="ghost-button" id="cancelVideo" type="button">Cancelar</button></div><div class="progress-track"><span id="videoProgressBar"></span></div></section>
+        </section>
+
+        <section class="view video-editor-view" id="videoEditorView">
+          <div class="hero"><div class="eyebrow">EDIÇÃO</div><h1>Editor de vídeo</h1></div>
+          <section class="converter-import" id="videoEditorImport"><button class="primary-button" id="chooseVideoEditor" type="button">Selecionar vídeo</button><div class="media-dropzone" id="videoEditorDropzone" tabindex="0"><strong>Arraste um vídeo aqui</strong><span>MP4, MKV, MOV, AVI e WebM</span></div></section>
+          <section class="video-editor-workspace hidden" id="videoEditorWorkspace">
+            <div class="video-preview-shell"><video id="videoEditorPlayer" controls preload="metadata"></video><div class="video-preview-meta"><strong id="videoEditorName">—</strong><span id="videoEditorTime">00:00:00 / 00:00:00</span></div></div>
+            <section class="timeline-editor" id="videoTimelineEditor">
+              <div class="timeline-heading"><strong>Timeline</strong><span id="videoEditorDuration">—</span></div>
+              <div class="timeline-ruler" id="videoTimeline" role="slider" tabindex="0" aria-label="Timeline do vídeo"><span class="timeline-playhead" id="videoTimelinePlayhead"></span><span class="timeline-selection" id="videoTimelineSelection"></span></div>
+              <div class="timeline-actions"><button class="ghost-button" id="removeVideoCut" type="button">Remover trecho</button><button class="ghost-button" id="undoVideoCut" type="button">Desfazer corte</button><span id="videoCutSummary">Nenhum trecho removido</span></div>
+              <div class="audio-timeline-heading"><strong>Áudio original</strong><div><label class="inline-control">Volume <input class="text-input" id="videoOriginalVolume" type="number" min="0" max="300" value="100" />%</label><label class="inline-control"><input id="videoMuteOriginal" type="checkbox" /> Silenciar</label></div></div>
+              <div class="audio-timeline-track base-audio-track" id="videoOriginalTrack"></div>
+              <div class="audio-timeline-heading"><strong>Músicas e áudios</strong><button class="ghost-button" id="addVideoEditorAudio" type="button">Adicionar áudio</button></div>
+              <div id="videoEditorAudioTracks" class="video-audio-tracks"><div class="empty-state"><p>Adicione músicas ou áudios para misturar.</p></div></div>
+            </section>
+            <div class="video-editor-output"><label><span class="field-label">Nome do arquivo</span><input class="text-input" id="videoEditorOutputName" /></label><label class="tool-destination"><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="videoEditorFolderPath">Downloads</span><button type="button" id="chooseVideoEditorFolder">Alterar</button></div></label><button class="primary-button" id="exportVideoEdit" type="button">Exportar MP4</button></div>
+            <section class="progress-card hidden" id="videoEditorProgress" aria-live="polite"><div class="progress-topline"><span class="status-pill" id="videoEditorStatus">EXPORTANDO</span><span id="videoEditorPercent">0%</span></div><div class="media-info"><div class="media-thumbnail"><span>✂</span></div><div class="media-copy"><strong id="videoEditorProgressTitle">Preparando vídeo…</strong><small id="videoEditorProgressMeta">MP4 · H.264</small></div><button class="ghost-button" id="cancelVideoEdit" type="button">Cancelar</button></div><div class="progress-track"><span id="videoEditorProgressBar"></span></div></section>
+          </section>
         </section>
 
         <section class="view media-tool-view" id="imageView">

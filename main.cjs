@@ -14,6 +14,7 @@ if (!app.isPackaged) app.setPath('userData', path.join(__dirname, '.ntc-data'));
 const downloadJobs = new Map();
 const conversionJobs = new Map();
 const videoJobs = new Map();
+const videoEditJobs = new Map();
 const imageJobs = new Map();
 const recordingSessions = new Map();
 let mainWindow = null;
@@ -146,6 +147,13 @@ async function inspectVideo(file) {
   if (!video) throw new Error('Este arquivo não possui vídeo.');
   const duration = Number(data.format?.duration || video.duration || 0);
   return { path: file, name: path.basename(file), baseName: path.basename(file, path.extname(file)), duration: Number.isFinite(duration) ? duration : 0, durationLabel: duration ? new Date(duration * 1000).toISOString().slice(11, 19) : '—', width: video.width || 0, height: video.height || 0, hasAudio: (data.streams || []).some(stream => stream.codec_type === 'audio'), format: path.extname(file).slice(1) };
+}
+function normalizedCuts(cuts, duration) {
+  const sorted = (Array.isArray(cuts) ? cuts : []).map(cut => ({ start: Math.max(0, Math.min(duration, Number(cut.start) || 0)), end: Math.max(0, Math.min(duration, Number(cut.end) || 0)) })).filter(cut => cut.end - cut.start > .05).sort((a, b) => a.start - b.start);
+  return sorted.reduce((result, cut) => { const previous = result.at(-1); if (previous && cut.start <= previous.end + .05) previous.end = Math.max(previous.end, cut.end); else result.push(cut); return result; }, []);
+}
+function keptVideoSegments(cuts, duration) {
+  const segments = []; let cursor = 0; normalizedCuts(cuts, duration).forEach(cut => { if (cut.start > cursor + .05) segments.push({ start: cursor, end: cut.start }); cursor = Math.max(cursor, cut.end); }); if (duration > cursor + .05) segments.push({ start: cursor, end: duration }); return segments;
 }
 async function inspectImage(file) {
   if (!file || !fs.existsSync(file)) throw new Error('Imagem não encontrada.');
@@ -284,6 +292,25 @@ app.whenReady().then(() => {
     return startFfmpegJob(event, videoJobs, item.id, args, output, Number(item.duration || 0), 'video-event');
   });
   ipcMain.handle('cancel-video-conversion', (_event, id) => videoJobs.get(id)?.cancel?.());
+  ipcMain.handle('choose-video-editor-file', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha um vídeo para editar', properties: ['openFile'], filters: [{ name: 'Vídeos', extensions: videoExtensions.map(extension => extension.slice(1)) }] }); return result.canceled ? null : result.filePaths[0]; });
+  ipcMain.handle('choose-video-editor-audio', async () => { const result = await dialog.showOpenDialog({ title: 'Adicionar áudios à timeline', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Áudios', extensions: audioExtensions.map(extension => extension.slice(1)) }] }); return result.canceled ? [] : result.filePaths; });
+  ipcMain.handle('start-video-edit', async (event, item) => {
+    if (!item?.id || !item.source || !item.folder || !fs.existsSync(item.source)) throw new Error('Escolha um vídeo e uma pasta de destino antes de exportar.');
+    const duration = Math.max(0, Number(item.duration) || 0); if (!duration) throw new Error('Não foi possível identificar a duração do vídeo.');
+    const segments = keptVideoSegments(item.cuts, duration); if (!segments.length) throw new Error('Os cortes removem o vídeo inteiro. Desfaça ao menos um trecho.');
+    const finalDuration = segments.reduce((total, segment) => total + segment.end - segment.start, 0); const outputName = safeName(item.outputName || `${path.basename(item.source, path.extname(item.source))} editado`); const filename = availableFilename(item.folder, `${outputName}.mp4`, item.duplicate || 'rename'); const output = path.join(item.folder, filename);
+    const tracks = (Array.isArray(item.audioTracks) ? item.audioTracks : []).filter(track => track?.source && fs.existsSync(track.source)); const args = ['-hide_banner', '-y', '-i', item.source]; tracks.forEach(track => { if (track.loop) args.push('-stream_loop', '-1'); args.push('-i', track.source); });
+    const filters = []; const hasOriginalAudio = Boolean(item.hasAudio); const videoParts = []; const audioParts = [];
+    segments.forEach((segment, index) => { filters.push(`[0:v:0]trim=start=${segment.start}:end=${segment.end},setpts=PTS-STARTPTS[v${index}]`); videoParts.push(`[v${index}]`); if (hasOriginalAudio) { filters.push(`[0:a:0]atrim=start=${segment.start}:end=${segment.end},asetpts=PTS-STARTPTS[a${index}]`); audioParts.push(`[a${index}]`); } });
+    filters.push(`${videoParts.join('')}concat=n=${segments.length}:v=1:a=0[vbase]`);
+    if (hasOriginalAudio) { filters.push(`${audioParts.join('')}concat=n=${segments.length}:v=0:a=1[abase]`); const originalVolume = item.muteOriginal ? 0 : Math.max(0, Math.min(300, Number(item.originalVolume) || 100)); filters.push(`[abase]volume=${originalVolume / 100},atrim=duration=${finalDuration}[amaster]`); }
+    const mixInputs = hasOriginalAudio ? ['[amaster]'] : [];
+    tracks.forEach((track, index) => { const inputIndex = index + 1; const position = Math.max(0, Math.min(finalDuration, Number(track.position) || 0)); const trimStart = Math.max(0, Number(track.trimStart) || 0); const requestedDuration = Math.max(.05, Number(track.duration) || finalDuration); const usableDuration = Math.max(.05, Math.min(requestedDuration, finalDuration - position)); const volume = Math.max(0, Math.min(300, Number(track.volume) || 100)); filters.push(`[${inputIndex}:a:0]atrim=start=${trimStart}:duration=${usableDuration},asetpts=PTS-STARTPTS,volume=${volume / 100},adelay=${Math.round(position * 1000)}:all=1[aext${index}]`); mixInputs.push(`[aext${index}]`); });
+    if (mixInputs.length) filters.push(`${mixInputs.join('')}amix=inputs=${mixInputs.length}:duration=longest:dropout_transition=0,atrim=duration=${finalDuration}[aout]`);
+    args.push('-filter_complex', filters.join(';'), '-map', '[vbase]'); if (mixInputs.length) args.push('-map', '[aout]'); else args.push('-an'); args.push('-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-pix_fmt', 'yuv420p'); if (mixInputs.length) args.push('-c:a', 'aac', '-b:a', '192k'); args.push('-movflags', '+faststart', '-progress', 'pipe:1', '-nostats', output);
+    return startFfmpegJob(event, videoEditJobs, item.id, args, output, finalDuration, 'video-editor-event');
+  });
+  ipcMain.handle('cancel-video-edit', (_event, id) => videoEditJobs.get(id)?.cancel?.());
   ipcMain.handle('start-image-conversion', async (event, item) => {
     if (!item?.id || !item.source || !item.folder || !fs.existsSync(item.source)) throw new Error('Dados da imagem inválidos.'); const format = ['jpg', 'png', 'webp'].includes(item.format) ? item.format : 'jpg'; const filename = availableFilename(item.folder, `${safeName(item.outputName || path.basename(item.source, path.extname(item.source)))}.${format}`, item.duplicate); const output = path.join(item.folder, filename); let cancelled = false; imageJobs.set(item.id, { cancel: () => { cancelled = true; } }); send(event.sender, 'image-event', { id: item.id, status: 'converting', percent: 10 });
     try { let pipeline = sharp(item.source).rotate(); const metadata = await sharp(item.source).metadata(); const { width, height } = imageDimensions(metadata, item); const quality = Math.max(1, Math.min(100, Number(item.quality) || 85)); if (width || height) pipeline = pipeline.resize(width, height, { fit: item.keepRatio === false ? 'fill' : 'inside', withoutEnlargement: false }); pipeline = applyLowQualityPixelation(pipeline, width, height, quality); if (format === 'jpg') pipeline = pipeline.flatten({ background: '#ffffff' }).jpeg({ quality }); if (format === 'png') pipeline = pipeline.png({ palette: true, quality, compressionLevel: 9 }); if (format === 'webp') pipeline = pipeline.webp({ quality }); await pipeline.toFile(output); imageJobs.delete(item.id); if (cancelled) { if (fs.existsSync(output)) fs.unlinkSync(output); throw new Error('Operação cancelada.'); } const stat = fs.statSync(output); send(event.sender, 'image-event', { id: item.id, status: 'complete', file: output, size: stat.size, filename }); return { file: output, size: stat.size, filename }; } catch (error) { imageJobs.delete(item.id); throw error; }

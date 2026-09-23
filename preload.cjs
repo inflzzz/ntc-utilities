@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('ntc', {
   chooseDownloadFolder: () => ipcRenderer.invoke('choose-download-folder'),
   chooseMediaFiles: () => ipcRenderer.invoke('choose-media-files'),
   chooseVideoFiles: () => ipcRenderer.invoke('choose-video-files'),
+  chooseVideoEditorFile: () => ipcRenderer.invoke('choose-video-editor-file'),
+  chooseVideoEditorAudio: () => ipcRenderer.invoke('choose-video-editor-audio'),
   chooseImageFiles: () => ipcRenderer.invoke('choose-image-files'),
   chooseCompressorFiles: () => ipcRenderer.invoke('choose-compressor-files'),
   chooseCoverFile: () => ipcRenderer.invoke('choose-cover-file'),
@@ -33,6 +35,8 @@ contextBridge.exposeInMainWorld('ntc', {
   cancelConversion: (conversionId) => ipcRenderer.invoke('cancel-conversion', conversionId),
   startVideoConversion: (payload) => ipcRenderer.invoke('start-video-conversion', payload),
   cancelVideoConversion: (id) => ipcRenderer.invoke('cancel-video-conversion', id),
+  startVideoEdit: (payload) => ipcRenderer.invoke('start-video-edit', payload),
+  cancelVideoEdit: (id) => ipcRenderer.invoke('cancel-video-edit', id),
   startImageConversion: (payload) => ipcRenderer.invoke('start-image-conversion', payload),
   cancelImageConversion: (id) => ipcRenderer.invoke('cancel-image-conversion', id),
   startCompression: (payload) => ipcRenderer.invoke('start-compression', payload),
@@ -63,7 +67,8 @@ contextBridge.exposeInMainWorld('ntc', {
     return () => ipcRenderer.removeListener('conversion-event', listener);
   },
   onVideoEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('video-event', listener); return () => ipcRenderer.removeListener('video-event', listener); },
-  onImageEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('image-event', listener); return () => ipcRenderer.removeListener('image-event', listener); }
+  onImageEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('image-event', listener); return () => ipcRenderer.removeListener('image-event', listener); },
+  onVideoEditorEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('video-editor-event', listener); return () => ipcRenderer.removeListener('video-editor-event', listener); }
   ,onScreenHotkey: (callback) => { const listener = () => callback(); ipcRenderer.on('screen-hotkey', listener); return () => ipcRenderer.removeListener('screen-hotkey', listener); },
   onScreenCloseRequest: (callback) => { const listener = () => callback(); ipcRenderer.on('screen-close-request', listener); return () => ipcRenderer.removeListener('screen-close-request', listener); }
 });
