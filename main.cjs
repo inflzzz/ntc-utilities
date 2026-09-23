@@ -1,9 +1,11 @@
-const { app, BrowserWindow, dialog, ipcMain, shell, clipboard, desktopCapturer, globalShortcut } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell, clipboard, desktopCapturer, globalShortcut, screen, nativeImage, Notification, Tray, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const { autoUpdater } = require('electron-updater');
 const sharp = require('sharp');
+const { normalizeQrUrl, normalizeQrOptions, renderQr, saveQrImage } = require('./src/qr.cjs');
+const { TIERS: rngTiers, TITLES: rngTitles, normalizeState: normalizeRngState, luckForState, rollBatch: rollRngBatch, publicCatalog: publicRngCatalog, publicProgress: publicRngProgress, debugGrantTitle, debugRemoveTitle, debugClearTitles, debugGrantTierTitles, debugGrantTotalTitles, debugReadyBonusRoll } = require('./src/rng.cjs');
 
 // Evita artefatos visuais que alguns drivers de vídeo exibem apenas no monitor.
 // A captura de tela continua normal nesses casos porque ela lê o frame antes da
@@ -18,9 +20,27 @@ const videoEditJobs = new Map();
 const imageJobs = new Map();
 const recordingSessions = new Map();
 let mainWindow = null;
+let trayIcon = null;
 let forceClose = false;
 let screenShortcut = null;
+let screenshotShortcut = null;
+let screenshotShortcutBusy = false;
+let quickScreenshotShortcut = null;
+let quickScreenshotShortcutBusy = false;
+let quickScreenshotFolder = '';
+let launchAtLoginEnabled = true;
 let updateState = { status: 'idle' };
+let rngGame = normalizeRngState();
+let rngAppSessionStartedAt = 0;
+let rngAppAccountedAt = 0;
+let rngAutoRollStartedAt = 0;
+let rngAutoAccountedAt = 0;
+let rngNextAutoRollAt = 0;
+let rngClock = null;
+let rngLastPersistAt = 0;
+let rngShutdownSaved = false;
+let rngLatestResult = null;
+let rngLatestResults = [];
 const hosts = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'];
 const audioExtensions = ['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.opus', '.wma'];
 const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.webm', '.wmv', '.m4v'];
@@ -28,6 +48,119 @@ const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tif
 
 function isSupportedUrl(value) { try { return hosts.includes(new URL(value).hostname); } catch { return false; } }
 function send(sender, channel, payload) { if (!sender.isDestroyed()) sender.send(channel, payload); }
+function rngStatePath() { return path.join(app.getPath('userData'), 'ntc-rng-state.json'); }
+function rngBackupPath() { return path.join(app.getPath('userData'), 'ntc-rng-state.backup.json'); }
+function loadRngGame() {
+  try {
+    rngGame = normalizeRngState(JSON.parse(fs.readFileSync(rngStatePath(), 'utf8')));
+  } catch {
+    try {
+      rngGame = normalizeRngState(JSON.parse(fs.readFileSync(rngBackupPath(), 'utf8')));
+      fs.mkdirSync(path.dirname(rngStatePath()), { recursive: true });
+      fs.copyFileSync(rngBackupPath(), rngStatePath());
+    } catch { rngGame = normalizeRngState(); }
+  }
+}
+function accountRngTime(now = Date.now()) {
+  if (rngAppAccountedAt) { const elapsed = Math.floor((now - rngAppAccountedAt) / 1000); if (elapsed > 0) { rngGame.totalAppSeconds += elapsed; rngAppAccountedAt += elapsed * 1000; } }
+  if (rngAutoRollStartedAt && rngAutoAccountedAt) { const elapsed = Math.floor((now - rngAutoAccountedAt) / 1000); if (elapsed > 0) { rngGame.totalAutoRollSeconds += elapsed; rngAutoAccountedAt += elapsed * 1000; rngGame.lastAutoRollSessionSeconds = Math.floor((now - rngAutoRollStartedAt) / 1000); } }
+}
+function persistRngGame() {
+  try {
+    const file = rngStatePath(); const temporary = `${file}.tmp`; const backup = rngBackupPath(); const backupTemporary = `${backup}.tmp`; const serialized = JSON.stringify(rngGame);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(temporary, serialized);
+    if (fs.existsSync(file)) {
+      fs.copyFileSync(file, backupTemporary);
+      fs.renameSync(backupTemporary, backup);
+    }
+    fs.renameSync(temporary, file);
+    if (!fs.existsSync(backup)) fs.copyFileSync(file, backup);
+    rngLastPersistAt = Date.now();
+  } catch {
+    try { if (fs.existsSync(`${rngStatePath()}.tmp`)) fs.unlinkSync(`${rngStatePath()}.tmp`); } catch { /* Keep the previous durable save. */ }
+    try { if (fs.existsSync(`${rngBackupPath()}.tmp`)) fs.unlinkSync(`${rngBackupPath()}.tmp`); } catch { /* Keep the previous backup. */ }
+  }
+}
+function rngSnapshot(now = Date.now()) {
+  accountRngTime(now);
+  const luck = luckForState(rngGame);
+  return {
+    tiers: rngTiers,
+    catalog: publicRngCatalog(rngGame),
+    collectedIds: rngGame.collectedIds,
+    recentDiscoveries: rngGame.recentDiscoveries,
+    ...publicRngProgress(rngGame),
+    lastTitleId: rngGame.lastTitleId,
+    totalRolls: rngGame.totalRolls,
+    totalTitles: rngTitles.length,
+    totalAppSeconds: rngGame.totalAppSeconds,
+    appSessionStartedAt: rngAppSessionStartedAt,
+    appSessionSeconds: rngAppSessionStartedAt ? Math.floor((now - rngAppSessionStartedAt) / 1000) : 0,
+    totalAutoRollSeconds: rngGame.totalAutoRollSeconds,
+    autoRollStartedAt: rngAutoRollStartedAt || 0,
+    autoRollSessionSeconds: rngAutoRollStartedAt ? Math.floor((now - rngAutoRollStartedAt) / 1000) : rngGame.lastAutoRollSessionSeconds,
+    autoRollActive: Boolean(rngAutoRollStartedAt),
+    latestResult: rngLatestResult,
+    latestResults: rngLatestResults,
+    passiveLuckBps: luck.passiveBps,
+    totalLuckBps: luck.totalBps,
+    rollsPerCycle: luck.rollsPerCycle,
+    bonusMultiplier: luck.bonusMultiplier,
+    bonusRollEvery: luck.bonusRollEvery,
+    snapshotAt: now
+  };
+}
+function sendRngState() {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('rng-state', rngSnapshot());
+}
+function performRngRoll() {
+  const outcome = rollRngBatch(rngGame);
+  rngGame = outcome.state;
+  rngLatestResults = outcome.results.map(result => ({
+    title: { id: result.title.id, name: result.title.name, tier: result.title.tier, tierLabel: result.title.tierLabel },
+    isNew: result.isNew,
+    currentOdds: result.currentOdds,
+    roll: result.roll,
+    isBonusRoll: result.isBonusRoll,
+    rollBonusMultiplier: result.rollBonusMultiplier
+  }));
+  rngLatestResult = rngLatestResults[rngLatestResults.length - 1] || null;
+  persistRngGame();
+  sendRngState();
+  return rngLatestResults;
+}
+function startRngClock() {
+  const now = Date.now(); rngAppSessionStartedAt = now; rngAppAccountedAt = now; rngLastPersistAt = now;
+  rngAutoRollStartedAt = now; rngAutoAccountedAt = now; rngNextAutoRollAt = now + 1000; rngGame.lastAutoRollSessionSeconds = 0;
+  if (rngClock) clearInterval(rngClock);
+  rngClock = setInterval(() => {
+    const tick = Date.now();
+    if (rngAutoRollStartedAt && tick >= rngNextAutoRollAt) { rngNextAutoRollAt = tick + 1000; performRngRoll(); }
+    if (tick - rngLastPersistAt >= 5000) { accountRngTime(tick); persistRngGame(); }
+  }, 200);
+}
+function loginAtStartupPath() { return path.join(app.getPath('userData'), 'ntc-launch-at-login.json'); }
+function loginAtStartupOptions(enabled) { return app.isPackaged ? { openAtLogin: Boolean(enabled) } : { openAtLogin: Boolean(enabled), path: process.execPath, args: [app.getAppPath()] }; }
+function initializeLoginAtStartup() {
+  if (process.platform !== 'win32') return;
+  try {
+    const saved = JSON.parse(fs.readFileSync(loginAtStartupPath(), 'utf8'));
+    if (typeof saved.enabled === 'boolean') launchAtLoginEnabled = saved.enabled;
+  } catch {}
+  try { app.setLoginItemSettings(loginAtStartupOptions(launchAtLoginEnabled)); }
+  catch (error) { console.error('Não foi possível configurar a inicialização com o Windows:', error); }
+}
+function setLoginAtStartup(enabled) {
+  if (process.platform !== 'win32') return { ok: false, message: 'A inicialização automática está disponível no Windows.' };
+  try {
+    app.setLoginItemSettings(loginAtStartupOptions(enabled));
+    fs.mkdirSync(path.dirname(loginAtStartupPath()), { recursive: true });
+    fs.writeFileSync(loginAtStartupPath(), JSON.stringify({ enabled: Boolean(enabled) }));
+    launchAtLoginEnabled = Boolean(enabled);
+    return { ok: true, enabled: launchAtLoginEnabled };
+  } catch (error) { return { ok: false, message: error.message || 'Não foi possível alterar a inicialização do Windows.' }; }
+}
 function sendUpdate(payload) {
   updateState = payload;
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-event', payload);
@@ -46,6 +179,50 @@ function configureUpdater() {
   autoUpdater.on('download-progress', progress => sendUpdate({ status: 'downloading', percent: Math.round(progress.percent || 0) }));
   autoUpdater.on('update-downloaded', info => sendUpdate({ status: 'downloaded', version: info.version, notes: releaseNotes(info.releaseNotes) }));
   autoUpdater.on('error', error => sendUpdate({ status: 'error', message: 'Não foi possível verificar ou baixar a atualização. Tente novamente mais tarde.' }));
+}
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+  return true;
+}
+function showScreenshotWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isMaximized()) mainWindow.maximize();
+  mainWindow.show();
+  mainWindow.focus();
+  return true;
+}
+function ensureTray() {
+  if (trayIcon || process.platform !== 'win32') return;
+  let icon = nativeImage.createFromPath(path.join(__dirname, 'build', 'ntc-logo.png'));
+  if (icon.isEmpty()) icon = nativeImage.createFromDataURL('data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" rx="7" fill="#dedede"/><text x="16" y="21" text-anchor="middle" font-family="Arial" font-size="13" font-weight="700" fill="#111">NTC</text></svg>'));
+  trayIcon = new Tray(icon.resize({ width: 16, height: 16 }));
+  updateTrayStatus();
+  trayIcon.on('click', showMainWindow);
+  trayIcon.on('double-click', showMainWindow);
+}
+function updateTrayStatus() {
+  if (!trayIcon) return;
+  const active = Boolean(rngAutoRollStartedAt);
+  trayIcon.setToolTip(`NTC Utilities — Auto-roll ${active ? 'ativo' : 'pausado'}`);
+  trayIcon.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Abrir NTC Utilities', click: showMainWindow },
+    { label: `Auto-roll ${active ? 'ativo em segundo plano' : 'pausado'}`, enabled: false },
+    { type: 'separator' },
+    { label: 'Sair do NTC Utilities', click: requestExitFromTray }
+  ]));
+}
+function requestExitFromTray() {
+  if (recordingSessions.size && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('screen-close-request');
+    showMainWindow();
+    return;
+  }
+  forceClose = true;
+  app.quit();
 }
 function binaryDirectory() { return app.isPackaged ? path.join(process.resourcesPath, 'bin') : path.join(__dirname, 'resources', 'bin'); }
 function binary(name) { const bundled = path.join(binaryDirectory(), `${name}.exe`); return fs.existsSync(bundled) ? bundled : name; }
@@ -80,6 +257,52 @@ function availableFilename(folder, filename, duplicate) {
   const ext = path.extname(filename); const stem = path.basename(filename, ext); let candidate = filename; let n = 1;
   while (fs.existsSync(path.join(folder, candidate))) candidate = `${stem} (${n++})${ext}`;
   return candidate;
+}
+async function captureDesktopScreenshot() {
+  const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  const width = Math.max(1, Math.min(16_384, Math.round(display.size.width * display.scaleFactor)));
+  const height = Math.max(1, Math.min(16_384, Math.round(display.size.height * display.scaleFactor)));
+  const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width, height }, fetchWindowIcons: false });
+  const source = sources.find(item => String(item.display_id) === String(display.id)) || sources[0];
+  if (!source || source.thumbnail.isEmpty()) throw new Error('Não foi possível capturar esta tela.');
+  const size = source.thumbnail.getSize();
+  return { dataUrl: source.thumbnail.toDataURL(), width: size.width, height: size.height };
+}
+async function inspectScreenshotBuffer(value) {
+  const data = Buffer.from(value || []);
+  if (!data.length || data.length > 150 * 1024 * 1024) throw new Error('A imagem capturada está vazia ou excede o limite de tamanho.');
+  const metadata = await sharp(data, { limitInputPixels: 268_402_689 }).metadata();
+  if (metadata.format !== 'png' || !metadata.width || !metadata.height) throw new Error('A captura precisa ser uma imagem PNG válida.');
+  return { data, metadata };
+}
+function screenshotTimestamp() {
+  const now = new Date();
+  const pad = value => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+}
+async function saveRawScreenshot(folder, value) {
+  const destination = path.resolve(String(folder || ''));
+  if (!destination || !fs.existsSync(destination) || !fs.statSync(destination).isDirectory()) throw new Error('Escolha uma pasta válida para salvar as capturas.');
+  const { data, metadata } = await inspectScreenshotBuffer(value);
+  const filename = availableFilename(destination, `Captura de tela ${screenshotTimestamp()}.png`, 'rename');
+  const file = path.join(destination, filename);
+  await sharp(data).png().toFile(file);
+  const stat = fs.statSync(file);
+  return { file, filename, size: stat.size, width: metadata.width, height: metadata.height };
+}
+function registerAppShortcut(value, activeShortcut, otherShortcuts, callback, restoreCallback) {
+  if (!value) return { ok: false, message: 'Escolha uma tecla para o atalho.' };
+  if ((Array.isArray(otherShortcuts) ? otherShortcuts : [otherShortcuts]).includes(value)) return { ok: false, message: 'Esse atalho já está configurado para outra função do NTC.' };
+  if (value === activeShortcut) return { ok: true, accelerator: value };
+  if (globalShortcut.isRegistered(value)) return { ok: false, message: 'Esta tecla já está sendo usada pelo sistema ou por outro atalho.' };
+  if (activeShortcut) globalShortcut.unregister(activeShortcut);
+  try {
+    if (!globalShortcut.register(value, callback)) throw new Error('Esta tecla já está sendo usada pelo sistema.');
+    return { ok: true, accelerator: value };
+  } catch (error) {
+    if (activeShortcut && restoreCallback) globalShortcut.register(activeShortcut, restoreCallback);
+    return { ok: false, message: error.message || 'Essa tecla não pode ser usada como atalho global.' };
+  }
 }
 function findDownloadedFile(item, reportedFile) {
   if (reportedFile && fs.existsSync(reportedFile)) return reportedFile;
@@ -197,17 +420,85 @@ async function createWaveform(file) {
 }
 function createWindow() {
   mainWindow = new BrowserWindow({ width: 1160, height: 760, minWidth: 930, minHeight: 640, icon: path.join(__dirname, 'build', 'ntc-logo.png'), backgroundColor: '#090909', frame: false, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false } });
-  mainWindow.on('close', event => { if (forceClose || !recordingSessions.size) return; event.preventDefault(); if (!mainWindow.isDestroyed()) mainWindow.webContents.send('screen-close-request'); });
+  mainWindow.on('minimize', event => { event.preventDefault(); ensureTray(); mainWindow.hide(); });
+  mainWindow.on('close', event => {
+    if (forceClose || process.platform !== 'win32') return;
+    event.preventDefault(); ensureTray(); mainWindow.hide();
+  });
+  mainWindow.on('maximize', () => { if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-maximized', true); });
+  mainWindow.on('unmaximize', () => { if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-maximized', false); });
   mainWindow.on('closed', () => { mainWindow = null; });
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
 }
 
 app.whenReady().then(() => {
   app.setAppUserModelId('com.ntccorporation.utilities');
+  initializeLoginAtStartup();
+  loadRngGame(); startRngClock();
   ipcMain.handle('get-app-version', () => app.getVersion());
+  ipcMain.handle('get-launch-at-login', () => ({ enabled: launchAtLoginEnabled, supported: process.platform === 'win32' }));
+  ipcMain.handle('set-launch-at-login', (_event, enabled) => setLoginAtStartup(enabled));
+  ipcMain.handle('is-development-build', () => !app.isPackaged);
+  ipcMain.handle('get-rng-state', () => rngSnapshot());
+  ipcMain.handle('roll-rng', () => {
+    if (rngAutoRollStartedAt) throw new Error('Pause o Auto-roll para fazer uma rolagem manual.');
+    return performRngRoll();
+  });
+  ipcMain.handle('set-rng-auto-roll', (_event, active) => {
+    const now = Date.now();
+    if (active && !rngAutoRollStartedAt) {
+      rngAutoRollStartedAt = now; rngAutoAccountedAt = now; rngNextAutoRollAt = now + 1000; rngGame.lastAutoRollSessionSeconds = 0;
+      const result = performRngRoll();
+      updateTrayStatus();
+      return { active: true, result, state: rngSnapshot(now) };
+    }
+    if (!active && rngAutoRollStartedAt) {
+      accountRngTime(now); rngGame.lastAutoRollSessionSeconds = Math.floor((now - rngAutoRollStartedAt) / 1000);
+      rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0; persistRngGame(); sendRngState();
+      updateTrayStatus();
+    }
+    return { active: Boolean(rngAutoRollStartedAt), state: rngSnapshot(now) };
+  });
+  if (!app.isPackaged) {
+    ipcMain.handle('debug-rng-add-title', (_event, titleId) => {
+      const oddsBeforeAdd = publicRngCatalog(rngGame).find(title => title.id === titleId)?.currentOdds;
+      const result = debugGrantTitle(rngGame, titleId);
+      rngGame = result.state; persistRngGame(); sendRngState();
+      return {
+        added: result.added,
+        title: { id: result.title.id, name: result.title.name, tier: result.title.tier, tierLabel: result.title.tierLabel },
+        currentOdds: oddsBeforeAdd,
+        state: rngSnapshot()
+      };
+    });
+    ipcMain.handle('debug-rng-remove-title', (_event, titleId) => {
+      const result = debugRemoveTitle(rngGame, titleId);
+      rngGame = result.state; persistRngGame(); sendRngState();
+      return { removed: result.removed, state: rngSnapshot() };
+    });
+    ipcMain.handle('debug-rng-clear-titles', () => {
+      const result = debugClearTitles(rngGame);
+      rngGame = result.state; persistRngGame(); sendRngState();
+      return { removedCount: result.removedCount, state: rngSnapshot() };
+    });
+    ipcMain.handle('debug-rng-grant-tier', (_event, tierId, count) => {
+      const result = debugGrantTierTitles(rngGame, tierId, count);
+      rngGame = result.state; persistRngGame(); sendRngState();
+      return { granted: result.granted, tierId: result.tierId, state: rngSnapshot() };
+    });
+    ipcMain.handle('debug-rng-grant-total', (_event, count) => {
+      const result = debugGrantTotalTitles(rngGame, count);
+      rngGame = result.state; persistRngGame(); sendRngState();
+      return { granted: result.granted, target: result.target, state: rngSnapshot() };
+    });
+    ipcMain.handle('debug-rng-ready-bonus-roll', () => {
+      rngGame = debugReadyBonusRoll(rngGame); persistRngGame(); sendRngState();
+      return rngSnapshot();
+    });
+  }
   ipcMain.handle('get-default-download-folder', () => app.getPath('downloads'));
   ipcMain.handle('get-free-space', (_event, folder) => { try { const stat = fs.statfsSync(folder || app.getPath('downloads')); return Number(stat.bavail) * Number(stat.bsize); } catch { return null; } });
-  ipcMain.handle('window-minimize', event => BrowserWindow.fromWebContents(event.sender)?.minimize());
+  ipcMain.handle('window-minimize', event => { const window = BrowserWindow.fromWebContents(event.sender); if (!window) return false; ensureTray(); window.hide(); return true; });
   ipcMain.handle('window-toggle-maximize', event => { const window = BrowserWindow.fromWebContents(event.sender); if (!window) return false; if (window.isMaximized()) window.unmaximize(); else window.maximize(); return window.isMaximized(); });
   ipcMain.handle('window-close', event => BrowserWindow.fromWebContents(event.sender)?.close());
   ipcMain.handle('window-force-close', event => { forceClose = true; BrowserWindow.fromWebContents(event.sender)?.close(); });
@@ -229,11 +520,28 @@ app.whenReady().then(() => {
     const metadata = await sharp(item.source).metadata(); const { width, height } = imageDimensions(metadata, item);
     const quality = Math.max(1, Math.min(100, Number(item.quality) || 85)); const format = ['jpg', 'png', 'webp'].includes(item.format) ? item.format : 'jpg'; let pipeline = sharp(item.source).rotate().resize(width, height, { fit: item.keepRatio === false ? 'fill' : 'inside', withoutEnlargement: false }); pipeline = applyLowQualityPixelation(pipeline, width, height, quality).resize({ width: 1100, height: 700, fit: 'inside', withoutEnlargement: true }); if (format === 'jpg') pipeline = pipeline.flatten({ background: '#ffffff' }).jpeg({ quality }); if (format === 'png') pipeline = pipeline.png({ palette: true, quality, compressionLevel: 9 }); if (format === 'webp') pipeline = pipeline.webp({ quality }); const output = await pipeline.toBuffer(); const mime = format === 'jpg' ? 'image/jpeg' : `image/${format}`; return { dataUrl: `data:${mime};base64,${output.toString('base64')}`, width, height };
   });
+  ipcMain.handle('preview-qr', async (_event, item) => {
+    const result = await renderQr(item?.url, item);
+    return { dataUrl: result.dataUrl, url: result.text, format: result.format, size: result.size };
+  });
+  ipcMain.handle('generate-qr', async (event, item) => {
+    if (!item?.id) throw new Error('Identificador de QR Code inválido.');
+    send(event.sender, 'qr-event', { id: item.id, status: 'generating' });
+    try {
+      const saved = await saveQrImage({ ...item, folder: item.folder || app.getPath('downloads') });
+      send(event.sender, 'qr-event', { ...saved, status: 'complete' });
+      return saved;
+    } catch (error) {
+      send(event.sender, 'qr-event', { id: item.id, status: 'failed', error: error.message });
+      throw error;
+    }
+  });
   ipcMain.handle('get-waveform', (_event, file) => createWaveform(file));
   ipcMain.handle('open-folder', (_event, folder) => folder ? shell.openPath(folder) : '');
   ipcMain.handle('open-file', (_event, file) => file ? shell.openPath(file) : '');
   ipcMain.handle('open-file-folder', (_event, file) => file ? shell.openPath(path.dirname(file)) : '');
   ipcMain.handle('copy-path', (_event, file) => { if (file) clipboard.writeText(file); return file || ''; });
+  ipcMain.handle('copy-text', (_event, text) => { clipboard.writeText(String(text || '')); return true; });
   ipcMain.handle('tool-versions', async () => { try { const ytdlp = (await run('yt-dlp', ['--version'])).trim(); const ffmpeg = (await run('ffmpeg', ['-version'])).split(/\r?\n/)[0]; const ffprobe = (await run('ffprobe', ['-version'])).split(/\r?\n/)[0]; return { ytdlp, ffmpeg, ffprobe }; } catch (error) { return { error: error.message }; } });
   ipcMain.handle('check-for-updates', async () => {
     if (!app.isPackaged) return { status: 'unavailable', message: 'A verificação de atualização funciona na versão instalada.' };
@@ -324,6 +632,18 @@ app.whenReady().then(() => {
     args.push(output); await run('ffmpeg', args); const stat = fs.statSync(output); return { file: output, size: stat.size, kind: isVideo ? 'video' : 'audio' };
   });
   ipcMain.handle('screen-sources', async () => (await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } })).map(source => ({ id: source.id, name: source.name })));
+  ipcMain.handle('screen-capture', () => captureDesktopScreenshot());
+  ipcMain.handle('screen-capture-save', (_event, folder, buffer) => saveRawScreenshot(folder, buffer));
+  ipcMain.handle('screen-capture-copy', async (_event, buffer) => {
+    const { data } = await inspectScreenshotBuffer(buffer);
+    const image = nativeImage.createFromBuffer(data);
+    if (image.isEmpty()) throw new Error('A imagem não pôde ser copiada.');
+    clipboard.writeImage(image);
+    return true;
+  });
+  ipcMain.handle('screen-capture-show-window', () => {
+    return showScreenshotWindow();
+  });
   ipcMain.handle('screen-recording-start', async (_event, options) => {
     if (!options?.folder) throw new Error('Escolha uma pasta para salvar a gravação.');
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`; const temp = path.join(app.getPath('temp'), `ntc-recording-${id}.webm`); const output = path.join(options.folder, recordingOutputName(options.folder));
@@ -332,8 +652,69 @@ app.whenReady().then(() => {
   ipcMain.handle('screen-recording-chunk', (_event, id, chunk) => { const session = recordingSessions.get(id); if (!session || !chunk) throw new Error('Gravação não encontrada.'); return session.stream.write(Buffer.from(chunk)); });
   ipcMain.handle('screen-recording-stop', async (_event, id) => { const session = recordingSessions.get(id); if (!session) throw new Error('Gravação não encontrada.'); recordingSessions.delete(id); try { return await finalizeScreenRecording(session); } catch (error) { if (fs.existsSync(session.temp)) fs.unlinkSync(session.temp); throw new Error(`Não foi possível finalizar a gravação: ${error.message}`); } });
   ipcMain.handle('screen-recording-cancel', (_event, id) => { const session = recordingSessions.get(id); if (!session) return false; recordingSessions.delete(id); session.stream.destroy(); if (fs.existsSync(session.temp)) fs.unlinkSync(session.temp); return true; });
-  ipcMain.handle('register-screen-shortcut', (_event, accelerator) => { const value = String(accelerator || '').trim(); if (!value) return { ok: false, message: 'Escolha uma tecla para o atalho.' }; if (screenShortcut) globalShortcut.unregister(screenShortcut); try { const ok = globalShortcut.register(value, () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('screen-hotkey'); }); if (!ok) return { ok: false, message: 'Esta tecla já está sendo usada pelo sistema.' }; screenShortcut = value; return { ok: true, accelerator: value }; } catch { return { ok: false, message: 'Essa tecla não pode ser usada como atalho global.' }; } });
+  ipcMain.handle('register-screen-shortcut', (_event, accelerator) => {
+    const value = String(accelerator || '').trim();
+    const restore = () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('screen-hotkey'); };
+    const result = registerAppShortcut(value, screenShortcut, [screenshotShortcut, quickScreenshotShortcut], restore, restore);
+    if (result.ok) screenShortcut = value;
+    return result;
+  });
   ipcMain.handle('unregister-screen-shortcut', () => { if (screenShortcut) globalShortcut.unregister(screenShortcut); screenShortcut = null; return true; });
+  ipcMain.handle('register-screenshot-shortcut', (_event, accelerator) => {
+    const value = String(accelerator || '').trim();
+    const capture = async () => {
+      if (screenshotShortcutBusy) return;
+      screenshotShortcutBusy = true;
+      try {
+        const result = await captureDesktopScreenshot();
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('screenshot-hotkey-capture', result);
+      } catch (error) {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('screenshot-hotkey-error', error.message || String(error));
+      } finally { screenshotShortcutBusy = false; }
+    };
+    const restore = () => { void capture(); };
+    const result = registerAppShortcut(value, screenshotShortcut, [screenShortcut, quickScreenshotShortcut], restore, restore);
+    if (result.ok) screenshotShortcut = value;
+    return result;
+  });
+  ipcMain.handle('unregister-screenshot-shortcut', () => { if (screenshotShortcut) globalShortcut.unregister(screenshotShortcut); screenshotShortcut = null; return true; });
+  ipcMain.handle('register-quick-screenshot-shortcut', (_event, accelerator, folder) => {
+    const value = String(accelerator || '').trim();
+    if (!value) return { ok: false, message: 'Escolha uma tecla para o atalho.' };
+    const destination = path.resolve(String(folder || app.getPath('downloads')));
+    if (!fs.existsSync(destination) || !fs.statSync(destination).isDirectory()) return { ok: false, message: 'Escolha uma pasta válida para as capturas.' };
+    const capture = async () => {
+      if (quickScreenshotShortcutBusy) return;
+      quickScreenshotShortcutBusy = true;
+      try {
+        const screenshot = await captureDesktopScreenshot();
+        const match = /^data:image\/png;base64,([\s\S]+)$/.exec(screenshot.dataUrl || '');
+        if (!match) throw new Error('A captura rápida não gerou uma imagem PNG válida.');
+        const saved = await saveRawScreenshot(quickScreenshotFolder || destination, Buffer.from(match[1], 'base64'));
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('quick-screenshot-saved', saved);
+        if ((!mainWindow || !mainWindow.isVisible()) && Notification.isSupported()) new Notification({ title: 'Captura rápida salva', body: saved.filename }).show();
+      } catch (error) {
+        const message = error.message || String(error);
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('quick-screenshot-error', message);
+        if ((!mainWindow || !mainWindow.isVisible()) && Notification.isSupported()) new Notification({ title: 'Falha na captura rápida', body: message }).show();
+      } finally { quickScreenshotShortcutBusy = false; }
+    };
+    const result = registerAppShortcut(value, quickScreenshotShortcut, [screenShortcut, screenshotShortcut], capture, capture);
+    if (result.ok) { quickScreenshotShortcut = value; quickScreenshotFolder = destination; }
+    return result;
+  });
+  ipcMain.handle('unregister-quick-screenshot-shortcut', () => { if (quickScreenshotShortcut) globalShortcut.unregister(quickScreenshotShortcut); quickScreenshotShortcut = null; quickScreenshotFolder = ''; return true; });
   configureUpdater(); createWindow(); if (app.isPackaged) setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 2500); app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
+});
+app.on('before-quit', () => {
+  if (rngShutdownSaved) return;
+  rngShutdownSaved = true;
+  const now = Date.now(); accountRngTime(now);
+  if (rngAutoRollStartedAt) rngGame.lastAutoRollSessionSeconds = Math.floor((now - rngAutoRollStartedAt) / 1000);
+  rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0;
+  if (rngClock) clearInterval(rngClock);
+  globalShortcut.unregisterAll();
+  if (trayIcon) { trayIcon.destroy(); trayIcon = null; }
+  persistRngGame();
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

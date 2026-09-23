@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('ntc', {
   appVersion: () => ipcRenderer.invoke('get-app-version'),
+  getLaunchAtLogin: () => ipcRenderer.invoke('get-launch-at-login'),
+  setLaunchAtLogin: enabled => ipcRenderer.invoke('set-launch-at-login', enabled),
   defaultDownloadFolder: () => ipcRenderer.invoke('get-default-download-folder'),
   freeSpace: folderPath => ipcRenderer.invoke('get-free-space', folderPath),
   minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
@@ -9,6 +11,7 @@ contextBridge.exposeInMainWorld('ntc', {
   closeWindow: () => ipcRenderer.invoke('window-close'),
   forceCloseWindow: () => ipcRenderer.invoke('window-force-close'),
   isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  onWindowMaximized: callback => { const listener = (_event, maximized) => callback(maximized); ipcRenderer.on('window-maximized', listener); return () => ipcRenderer.removeListener('window-maximized', listener); },
   chooseDownloadFolder: () => ipcRenderer.invoke('choose-download-folder'),
   chooseMediaFiles: () => ipcRenderer.invoke('choose-media-files'),
   chooseVideoFiles: () => ipcRenderer.invoke('choose-video-files'),
@@ -21,12 +24,25 @@ contextBridge.exposeInMainWorld('ntc', {
   inspectVideo: (filePath) => ipcRenderer.invoke('inspect-video', filePath),
   inspectImage: (filePath) => ipcRenderer.invoke('inspect-image', filePath),
   previewImage: (payload) => ipcRenderer.invoke('preview-image', payload),
+  previewQr: (payload) => ipcRenderer.invoke('preview-qr', payload),
+  generateQr: (payload) => ipcRenderer.invoke('generate-qr', payload),
+  getRngState: () => ipcRenderer.invoke('get-rng-state'),
+  rollRng: () => ipcRenderer.invoke('roll-rng'),
+  setRngAutoRoll: (active) => ipcRenderer.invoke('set-rng-auto-roll', active),
+  isDevelopmentBuild: () => ipcRenderer.invoke('is-development-build'),
+  debugAddRngTitle: titleId => ipcRenderer.invoke('debug-rng-add-title', titleId),
+  debugRemoveRngTitle: titleId => ipcRenderer.invoke('debug-rng-remove-title', titleId),
+  debugClearRngTitles: () => ipcRenderer.invoke('debug-rng-clear-titles'),
+  debugGrantRngTier: (tierId, count) => ipcRenderer.invoke('debug-rng-grant-tier', tierId, count),
+  debugGrantRngTotal: count => ipcRenderer.invoke('debug-rng-grant-total', count),
+  debugReadyRngBonusRoll: () => ipcRenderer.invoke('debug-rng-ready-bonus-roll'),
   pathForFile: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } },
   getWaveform: (filePath) => ipcRenderer.invoke('get-waveform', filePath),
   openFolder: (folderPath) => ipcRenderer.invoke('open-folder', folderPath),
   openFile: (filePath) => ipcRenderer.invoke('open-file', filePath),
   openFileFolder: (filePath) => ipcRenderer.invoke('open-file-folder', filePath),
   copyPath: (filePath) => ipcRenderer.invoke('copy-path', filePath),
+  copyText: (text) => ipcRenderer.invoke('copy-text', text),
   previewUrl: (url) => ipcRenderer.invoke('preview-url', url),
   playlistPreview: (url) => ipcRenderer.invoke('playlist-preview', url),
   startDownload: (payload) => ipcRenderer.invoke('start-download', payload),
@@ -51,6 +67,14 @@ contextBridge.exposeInMainWorld('ntc', {
   cancelScreenRecording: (id) => ipcRenderer.invoke('screen-recording-cancel', id),
   registerScreenShortcut: (accelerator) => ipcRenderer.invoke('register-screen-shortcut', accelerator),
   unregisterScreenShortcut: () => ipcRenderer.invoke('unregister-screen-shortcut'),
+  captureScreenshot: () => ipcRenderer.invoke('screen-capture'),
+  saveScreenshot: (folder, buffer) => ipcRenderer.invoke('screen-capture-save', folder, buffer),
+  copyScreenshot: buffer => ipcRenderer.invoke('screen-capture-copy', buffer),
+  showWindowFromScreenshot: () => ipcRenderer.invoke('screen-capture-show-window'),
+  registerScreenshotShortcut: accelerator => ipcRenderer.invoke('register-screenshot-shortcut', accelerator),
+  unregisterScreenshotShortcut: () => ipcRenderer.invoke('unregister-screenshot-shortcut'),
+  registerQuickScreenshotShortcut: (accelerator, folder) => ipcRenderer.invoke('register-quick-screenshot-shortcut', accelerator, folder),
+  unregisterQuickScreenshotShortcut: () => ipcRenderer.invoke('unregister-quick-screenshot-shortcut'),
   onUpdateEvent: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('update-event', listener);
@@ -69,6 +93,12 @@ contextBridge.exposeInMainWorld('ntc', {
   onVideoEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('video-event', listener); return () => ipcRenderer.removeListener('video-event', listener); },
   onImageEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('image-event', listener); return () => ipcRenderer.removeListener('image-event', listener); },
   onVideoEditorEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('video-editor-event', listener); return () => ipcRenderer.removeListener('video-editor-event', listener); }
+  ,onQrEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('qr-event', listener); return () => ipcRenderer.removeListener('qr-event', listener); }
+  ,onRngState: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('rng-state', listener); return () => ipcRenderer.removeListener('rng-state', listener); }
   ,onScreenHotkey: (callback) => { const listener = () => callback(); ipcRenderer.on('screen-hotkey', listener); return () => ipcRenderer.removeListener('screen-hotkey', listener); },
+  onScreenshotHotkeyCapture: callback => { const listener = (_event, capture) => callback(capture); ipcRenderer.on('screenshot-hotkey-capture', listener); return () => ipcRenderer.removeListener('screenshot-hotkey-capture', listener); },
+  onScreenshotHotkeyError: callback => { const listener = (_event, message) => callback(message); ipcRenderer.on('screenshot-hotkey-error', listener); return () => ipcRenderer.removeListener('screenshot-hotkey-error', listener); },
+  onQuickScreenshotSaved: callback => { const listener = (_event, result) => callback(result); ipcRenderer.on('quick-screenshot-saved', listener); return () => ipcRenderer.removeListener('quick-screenshot-saved', listener); },
+  onQuickScreenshotError: callback => { const listener = (_event, message) => callback(message); ipcRenderer.on('quick-screenshot-error', listener); return () => ipcRenderer.removeListener('quick-screenshot-error', listener); },
   onScreenCloseRequest: (callback) => { const listener = () => callback(); ipcRenderer.on('screen-close-request', listener); return () => ipcRenderer.removeListener('screen-close-request', listener); }
 });

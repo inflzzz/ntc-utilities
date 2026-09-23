@@ -1,7 +1,9 @@
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const splash = $('#splash'); const appShell = $('#appShell'); const loadingProgress = $('#loadingProgress'); const loadingTrack = $('.loading-line');
+const hadExistingAppData = ['ntc-folder', 'ntc-history', 'ntc-download-queue', 'ntc-theme', 'ntc-screenshot-folder', 'ntc-qr-history'].some(key => localStorage.getItem(key) !== null);
 const history = JSON.parse(localStorage.getItem('ntc-history') || '[]');
+const qrHistory = (() => { try { return JSON.parse(localStorage.getItem('ntc-qr-history') || '[]').slice(0, 50); } catch { return []; } })();
 let folder = localStorage.getItem('ntc-folder') || '';
 let queue = (() => { try { return JSON.parse(localStorage.getItem('ntc-download-queue') || '[]').map(item => ({ ...item, status: item.status === 'baixando' ? 'pausado' : item.status, percent: 0 })); } catch { return []; } })(); let current = null; let preview = null; let playlist = null; let previewTimer; const abortedDownloads = new Set(); const pausedDownloads = new Set();
 let conversionQueue = []; let currentConversion = null; let editingConversionId = null; const abortedConversions = new Set();
@@ -11,8 +13,11 @@ let editorUndoStack = []; let editorRedoStack = []; let editorDraft = null;
 let audioMarkers = []; let spectrumVisible = false; let videoQueue = []; let currentVideo = null; let imageQueue = []; let currentImage = null; let lastFailedImage = null;
 let screenRecorder = { recorder: null, stream: null, id: null, startedAt: 0, timer: null, chunkChain: Promise.resolve(), withAudio: false };
 let screenRecorderStarting = false;
+let screenshotCaptureBusy = false;
 let compressionQueue = []; let compressionRunning = false;
+let qrQueue = []; let qrRunning = false; let qrPreparing = false; let qrCancelRequested = false; let qrSelectedId = null; let qrPreviewTimer = null; let qrPreviewRequestId = 0;
 let videoEdit = { source: null, meta: null, cuts: [], audioTracks: [], selectionStart: 0, selectionEnd: 0, outputName: '', exporting: false }; let videoEditDrag = null; let videoEditWaveform = [];
+let rngState = null; let rngSelectedTier = 'basic'; let rngRequestRunning = false; let rngTimer = null; let rngUnlockTimer = null; let rngDebugEnabled = false; let rngDebugPopulated = false;
 
 let splashValue = 0;
 const advanceSplash = () => { splashValue = Math.min(92, splashValue + (splashValue < 70 ? 4 : 1.5)); loadingProgress.style.width = `${splashValue}%`; loadingTrack.setAttribute('aria-valuenow', String(Math.round(splashValue))); };
@@ -23,26 +28,255 @@ function safeText(value) { return String(value || '').replace(/[&<>'"]/g, char =
 function cleanError(value) { const message = String(value?.message || value || 'Não foi possível concluir a operação.').replace(/^Error invoking remote method ['"]?[^'"]+['"]?: Error:\s*/i, '').replace(/^Error:\s*/i, ''); if (/no space|espaço|disk full/i.test(message)) return 'Sem espaço suficiente na pasta escolhida. Escolha outra pasta ou libere espaço.'; if (/network|connection|timed out|conex/i.test(message)) return 'Falha de conexão. Verifique a internet e tente novamente.'; if (/permission|access is denied|acesso negado|notallowed|denied/i.test(message)) return 'A permissão foi recusada. Verifique o microfone ou escolha gravar somente a tela.'; if (/too large|maximum dimension|jpeg format/i.test(message)) return 'A imagem ficou grande demais para este formato. Diminua largura, altura ou escala e tente novamente.'; if (/invalid|corrupt|corromp/i.test(message)) return 'O arquivo não pôde ser lido. Verifique se ele está completo e em um formato suportado.'; return message; }
 let toastTimer = null; let confirmResolver = null;
 function showToast(message) { const toast = $('#toast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2800); }
+function qrFailureMessage(error) { const message = String(error?.message || error || 'Não foi possível gerar o QR Code.'); if (/ENOSPC|no space|disk full/i.test(message)) return 'Sem espaço livre para salvar. Libere espaço ou escolha outra pasta.'; if (/EACCES|EPERM|access is denied|acesso negado/i.test(message)) return 'O app não tem permissão para salvar nessa pasta. Escolha outra pasta.'; if (/ENOENT|pasta de destino não existe/i.test(message)) return 'A pasta de destino não existe. Escolha outra pasta.'; if (/too long to fit|link é longo demais|amount of data/i.test(message)) return 'Este link é longo demais para caber em um QR Code. Use um link menor.'; return cleanError(message); }
 function formatRecordingTime(milliseconds) { const seconds = Math.floor(Math.max(0, milliseconds) / 1000); const hours = String(Math.floor(seconds / 3600)).padStart(2, '0'); const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0'); return `${hours}:${minutes}:${String(seconds % 60).padStart(2, '0')}`; }
+function formatRngDuration(seconds) { const total = Math.max(0, Math.floor(Number(seconds) || 0)); const hours = Math.floor(total / 3600); const minutes = Math.floor((total % 3600) / 60); return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`; }
+function formatRngPercent(basisPoints) { return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format((Number(basisPoints) || 0) / 100)}%`; }
+function showRngUnlock(result) {
+  if (!result?.title) return;
+  const notice = $('#rngUnlockNotice');
+  notice.dataset.tier = result.title.tier || '';
+  $('#rngUnlockTitle').textContent = result.title.name || 'Título novo';
+  $('#rngUnlockDetails').textContent = result.simulation
+    ? `${result.title.tierLabel || ''} · ${result.currentOdds || ''} · Simulação visual, sem rolagem`
+    : `${result.title.tierLabel || ''} · ${result.currentOdds || ''} · Rolagem #${new Intl.NumberFormat('pt-BR').format(result.roll || 0)}`;
+  notice.setAttribute('aria-hidden', 'false');
+  notice.classList.add('show');
+  clearTimeout(rngUnlockTimer);
+  rngUnlockTimer = setTimeout(() => { notice.classList.remove('show'); notice.setAttribute('aria-hidden', 'true'); }, 4200);
+}
+function updateRngDebugControls(state = rngState) {
+  if (!rngDebugEnabled || !state?.catalog?.length) return;
+  const select = $('#rngDebugTitleSelect');
+  if (!rngDebugPopulated) {
+    select.innerHTML = state.tiers.map(tier => `<optgroup label="${safeText(tier.label)}">${state.catalog.filter(title => title.tier === tier.id).map(title => `<option value="${safeText(title.id)}">${safeText(title.name)}</option>`).join('')}</optgroup>`).join('');
+    select.value = state.catalog.at(-1)?.id || '';
+    rngDebugPopulated = true;
+  }
+  const title = state.catalog.find(item => item.id === select.value);
+  const collected = Boolean(title?.collected);
+  $('#rngDebugSelectionState').textContent = title ? `${title.tierLabel} · ${collected ? 'Na coleção' : 'Ainda não coletado'} · ${title.currentOdds}` : '';
+  $('#rngDebugAdd').disabled = !title || collected;
+  $('#rngDebugRemove').disabled = !title || !collected;
+  $('#rngDebugSimulate').disabled = !title;
+  $('#rngDebugClearAll').disabled = state.collectedIds.length === 0;
+  const previousTier = $('#rngDebugTierSelect').value;
+  $('#rngDebugTierSelect').innerHTML = state.tiers.map(tier => `<option value="${safeText(tier.id)}">${safeText(tier.label)}</option>`).join('');
+  if (state.tiers.some(tier => tier.id === previousTier)) $('#rngDebugTierSelect').value = previousTier;
+  $('#rngDebugGrantTier').disabled = !state.tiers.some(tier => tier.id === $('#rngDebugTierSelect').value);
+  const previousTotal = $('#rngDebugTotalMilestone').value;
+  $('#rngDebugTotalMilestone').innerHTML = [50, 100, 175, 200].map(count => `<option value="${count}">${count} títulos encontrados</option>`).join('');
+  if ([...$('#rngDebugTotalMilestone').options].some(option => option.value === previousTotal)) $('#rngDebugTotalMilestone').value = previousTotal;
+  $('#rngDebugGrantTotalTitles').disabled = state.collectedIds.length >= Number($('#rngDebugTotalMilestone').value || 50);
+}
+async function initializeRngDebug() {
+  try {
+    rngDebugEnabled = await window.ntc.isDevelopmentBuild();
+    if (!rngDebugEnabled) return;
+    $('#rngDebugTrigger').classList.remove('hidden');
+    updateRngDebugControls();
+  } catch { rngDebugEnabled = false; }
+}
+function openRngDebug() {
+  if (!rngDebugEnabled) return;
+  const dialog = $('#rngDebugDialog');
+  dialog.classList.remove('hidden'); dialog.setAttribute('aria-hidden', 'false');
+  updateRngDebugControls(); $('#rngDebugTitleSelect').focus();
+}
+function closeRngDebug() {
+  const dialog = $('#rngDebugDialog');
+  if (dialog.classList.contains('hidden')) return;
+  dialog.classList.add('hidden'); dialog.setAttribute('aria-hidden', 'true'); $('#rngDebugTrigger').focus();
+}
+function simulateRngUnlock() {
+  const title = rngState?.catalog.find(item => item.id === $('#rngDebugTitleSelect').value);
+  if (!rngDebugEnabled || !title) return;
+  showRngUnlock({ title, currentOdds: title.currentOdds, simulation: true });
+  $('#rngDebugStatus').textContent = 'Animação exibida; coleção e rolagens não foram alteradas.';
+}
+async function debugAddSelectedRngTitle() {
+  if (!rngDebugEnabled) return;
+  try {
+    const result = await window.ntc.debugAddRngTitle($('#rngDebugTitleSelect').value);
+    renderRngState(result.state);
+    if (result.added) {
+      showRngUnlock({ title: result.title, currentOdds: result.currentOdds, simulation: true });
+      $('#rngDebugStatus').textContent = `${result.title.name} adicionado ao perfil de desenvolvimento.`;
+    } else $('#rngDebugStatus').textContent = 'Esse título já está na coleção.';
+  } catch (error) { $('#rngDebugStatus').textContent = cleanError(error); }
+}
+async function debugRemoveSelectedRngTitle() {
+  if (!rngDebugEnabled) return;
+  const selected = rngState?.catalog.find(item => item.id === $('#rngDebugTitleSelect').value);
+  try {
+    const result = await window.ntc.debugRemoveRngTitle($('#rngDebugTitleSelect').value);
+    renderRngState(result.state);
+    $('#rngDebugStatus').textContent = result.removed ? `${selected?.name || 'Título'} removido do perfil de desenvolvimento.` : 'Esse título não está na coleção.';
+  } catch (error) { $('#rngDebugStatus').textContent = cleanError(error); }
+}
+async function debugClearRngCollection() {
+  if (!rngDebugEnabled || !rngState?.collectedIds.length) return;
+  const accepted = await confirmAction('Remover todos os títulos?', 'A coleção e as descobertas registradas serão limpas. Rolagens e tempos serão mantidos.', 'Remover todos');
+  if (!accepted) return;
+  try {
+    const result = await window.ntc.debugClearRngTitles();
+    renderRngState(result.state);
+    $('#rngDebugStatus').textContent = `${result.removedCount} ${result.removedCount === 1 ? 'título removido' : 'títulos removidos'}; rolagens e tempos mantidos.`;
+  } catch (error) { $('#rngDebugStatus').textContent = cleanError(error); }
+}
+async function debugRngAction(action) {
+  if (!rngDebugEnabled) return;
+  const status = $('#rngDebugStatus');
+  try {
+    if (action === 'bonus') {
+      renderRngState(await window.ntc.debugReadyRngBonusRoll());
+      status.textContent = 'A próxima rolagem será uma rolagem bônus.';
+    } else if (action === 'tier') {
+      const tierId = $('#rngDebugTierSelect').value;
+      const count = Number($('#rngDebugMilestone').value || 5);
+      const result = await window.ntc.debugGrantRngTier(tierId, count);
+      renderRngState(result.state);
+      const tier = rngState.tiers.find(item => item.id === tierId);
+      status.textContent = `${result.granted} título${result.granted === 1 ? '' : 's'} novo${result.granted === 1 ? '' : 's'} de ${tier?.label || tierId}; marco de ${count} testado.`;
+    } else if (action === 'total') {
+      const target = Number($('#rngDebugTotalMilestone').value || 50);
+      const result = await window.ntc.debugGrantRngTotal(target);
+      renderRngState(result.state);
+      status.textContent = result.granted ? `${result.granted} título${result.granted === 1 ? '' : 's'} adicionado${result.granted === 1 ? '' : 's'}; marco de ${target} títulos testado.` : `A coleção já tem ${target} títulos ou mais.`;
+    }
+  } catch (error) { status.textContent = cleanError(error); }
+}
+function updateRngTimers() {
+  if (!rngState) return;
+  const elapsed = Math.max(0, Math.floor((Date.now() - rngState.snapshotAt) / 1000));
+  $('#rngAppSessionTime').textContent = formatRngDuration(rngState.appSessionSeconds + elapsed);
+  $('#rngAppTotalTime').textContent = formatRngDuration(rngState.totalAppSeconds + elapsed);
+  $('#rngAutoSessionTime').textContent = formatRngDuration(rngState.autoRollActive ? rngState.autoRollSessionSeconds + elapsed : rngState.autoRollSessionSeconds);
+  $('#rngAutoTotalTime').textContent = formatRngDuration(rngState.totalAutoRollSeconds + (rngState.autoRollActive ? elapsed : 0));
+}
+function renderRngState(state) {
+  if (!state?.catalog?.length) return;
+  const previousRoll = rngState?.totalRolls ?? null;
+  rngState = state;
+  const totalCollected = state.collectedIds.length;
+  $('#rngCollectionCount').textContent = `${totalCollected} / ${state.totalTitles}`;
+  $('#rngRollCount').textContent = new Intl.NumberFormat('pt-BR').format(state.totalRolls);
+  $('#rngProgressBar').style.width = `${Math.min(100, totalCollected / state.totalTitles * 100)}%`;
+  $('#rngProgressBar').parentElement.setAttribute('aria-valuenow', String(totalCollected));
+  $('#rngProgressBar').parentElement.setAttribute('aria-valuemax', String(state.totalTitles));
+  $('#rngLuckValue').textContent = `+${formatRngPercent(state.totalLuckBps - 10_000)}`;
+  $('#rngCollectionLuck').textContent = `+${formatRngPercent(state.passiveLuckBps)} coleção`;
+  $('#rngAutoButton').textContent = state.autoRollActive ? 'Pausar Auto-roll' : 'Iniciar Auto-roll';
+  $('#rngAutoButton').classList.toggle('is-active', state.autoRollActive);
+  $('#rngRollButton').disabled = Boolean(state.autoRollActive || rngRequestRunning);
+  $('#rngRollButton').textContent = state.rollsPerCycle > 1 ? `Rolar (${state.rollsPerCycle}×)` : 'Rolar';
+  $('#rngAutoButton').disabled = rngRequestRunning;
+  $('#rngRollBatchInfo').textContent = `${state.rollsPerCycle} ${state.rollsPerCycle === 1 ? 'rolagem' : 'rolagens'} por ciclo`;
+  const rollsUntilBonus = state.bonusRollEvery - state.bonusRollCounter;
+  $('#rngBonusRollInfo').textContent = `Rolagem bônus ×${state.bonusMultiplier} em ${rollsUntilBonus} ${rollsUntilBonus === 1 ? 'rolagem' : 'rolagens'}`;
+
+  const latest = state.latestResult;
+  const resultCard = $('#rngLastResult');
+  resultCard.classList.toggle('is-new', Boolean(latest?.isNew));
+  resultCard.dataset.tier = latest?.title?.tier || '';
+  $('#rngResultCaption').textContent = latest ? `${latest.isNew ? 'NOVO TÍTULO' : 'REPETIDO'} · ${safeText(latest.title.tierLabel || '')}` : 'ÚLTIMO RESULTADO';
+  $('#rngResultTitle').textContent = latest?.title?.name || 'Ainda sem rolagens';
+  $('#rngResultOdds').textContent = latest ? `Chance na rolagem · ${latest.currentOdds}${latest.isBonusRoll ? ` · bônus ×${latest.rollBonusMultiplier || state.bonusMultiplier}` : ''} · #${new Intl.NumberFormat('pt-BR').format(latest.roll)}` : 'O título e a chance aparecem aqui.';
+  const results = Array.isArray(state.latestResults) ? state.latestResults : [];
+  const newlyUnlocked = results.filter(result => result.roll > (previousRoll ?? 0) && result.isNew).at(-1);
+  if (previousRoll !== null && newlyUnlocked) showRngUnlock(newlyUnlocked);
+  const batchResults = $('#rngBatchResults');
+  batchResults.classList.toggle('hidden', results.length < 2);
+  batchResults.innerHTML = results.length < 2 ? '' : results.map(result => `<article class="rng-batch-result${result.isNew ? ' is-new' : ''}" data-tier="${safeText(result.title?.tier || '')}"><span>${result.isNew ? 'NOVO TÍTULO' : 'REPETIDO'} · #${new Intl.NumberFormat('pt-BR').format(result.roll)}${result.isBonusRoll ? ' · BONUS ROLL' : ''}</span><strong>${safeText(result.title?.name || '')}</strong><span>${safeText(result.title?.tierLabel || '')} · ${safeText(result.currentOdds || '')}</span></article>`).join('');
+
+  const discoveries = Array.isArray(state.recentDiscoveries) ? state.recentDiscoveries : [];
+  $('#rngDiscoveryCount').textContent = `${discoveries.length} ${discoveries.length === 1 ? 'registrada' : 'registradas'}`;
+  $('#rngDiscoveryLog').innerHTML = discoveries.map(discovery => {
+    const title = state.catalog.find(item => item.id === discovery.titleId);
+    if (!title) return '';
+    const chanceLabel = `Chance na rolagem${discovery.isBonusRoll ? ` · bônus ×${discovery.rollBonusMultiplier || state.bonusMultiplier}` : ''}`;
+    return `<article class="rng-discovery-card" data-tier="${safeText(title.tier)}"><span class="rng-discovery-mark" aria-hidden="true">✦</span><div class="rng-discovery-copy"><strong>${safeText(title.name)}</strong><span>${safeText(title.tierLabel)}</span></div><div class="rng-discovery-detail"><span><small>Rolagem</small><strong>#${new Intl.NumberFormat('pt-BR').format(discovery.roll)}</strong></span><span><small>${safeText(chanceLabel)}</small><strong>${safeText(discovery.currentOdds)}</strong></span></div></article>`;
+  }).filter(Boolean).join('') || '<div class="rng-discovery-empty">Os títulos inéditos e a rolagem em que apareceram vão ficar registrados aqui.</div>';
+
+  const tiers = state.tiers;
+  if (!tiers.some(tier => tier.id === rngSelectedTier)) rngSelectedTier = tiers[0]?.id || 'basic';
+  $('#rngTierFilters').innerHTML = tiers.map(tier => {
+    const inTier = state.catalog.filter(title => title.tier === tier.id);
+    const found = inTier.filter(title => title.collected).length;
+    return `<button class="rng-tier-tab${tier.id === rngSelectedTier ? ' active' : ''}" type="button" role="tab" aria-selected="${tier.id === rngSelectedTier}" data-rng-tier="${tier.id}"><span>${safeText(tier.label)}</span><small>${found}/${inTier.length}</small></button>`;
+  }).join('');
+  const visible = state.catalog.filter(title => title.tier === rngSelectedTier);
+  const selectedTier = tiers.find(tier => tier.id === rngSelectedTier);
+  $('#rngTierCount').textContent = `${visible.filter(title => title.collected).length} / ${visible.length} · ${safeText(selectedTier?.label || '')}`;
+  $('#rngCatalog').innerHTML = visible.map(title => `<article class="rng-title-row${title.collected ? ' collected' : ' locked'}"><span class="rng-title-mark">${title.collected ? '✧' : '·'}</span><div class="rng-title-info"><strong>${safeText(title.name)}</strong><span>${title.collected ? 'Obtido' : 'Não encontrado'}</span></div><div class="rng-title-odds"><strong>${safeText(title.currentOdds)}</strong><small>Chance atual</small>${title.currentOdds !== title.baseOdds ? `<small>Base ${safeText(title.baseOdds)}</small>` : ''}</div></article>`).join('');
+  updateRngDebugControls(state);
+  updateRngTimers();
+}
+async function loadRngState() { try { renderRngState(await window.ntc.getRngState()); } catch (error) { showToast(`NTC RNG indisponível: ${cleanError(error)}`); } }
+async function performManualRngRoll() {
+  if (rngRequestRunning || rngState?.autoRollActive) return;
+  rngRequestRunning = true; if (rngState) renderRngState(rngState);
+  try { await window.ntc.rollRng(); } catch (error) { showToast(cleanError(error)); }
+  finally { rngRequestRunning = false; if (rngState) renderRngState(rngState); }
+}
+async function toggleRngAutoRoll() {
+  if (rngRequestRunning) return;
+  rngRequestRunning = true; if (rngState) renderRngState(rngState);
+  try { await window.ntc.setRngAutoRoll(!rngState?.autoRollActive); }
+  catch (error) { showToast(cleanError(error)); }
+  finally { rngRequestRunning = false; if (rngState) renderRngState(rngState); }
+}
 function updateRecorderStatus(recording = Boolean(screenRecorder.recorder)) { const status = $('#recorderStatus'); if (!status) return; status.classList.toggle('is-recording', recording); $('#recorderState').textContent = recording ? 'Gravando tela' : 'Pronto para gravar'; $('#toggleRecording').textContent = recording ? 'Parar gravação' : 'Iniciar gravação'; if (!recording) $('#recorderTimer').textContent = '00:00:00'; }
-function recordingAudioChoice() { const promise = confirmAction('Microfone da gravação', 'Deseja adicionar o microfone ao áudio do computador?', 'Adicionar microfone'); $('#confirmCancel').textContent = 'Som do computador'; return promise.finally(() => { $('#confirmCancel').textContent = 'Cancelar'; }); }
 async function loadMicrophones() { try { const devices = await navigator.mediaDevices.enumerateDevices(); const select = $('#recordMicrophone'); const selected = localStorage.getItem('ntc-record-microphone') || ''; select.innerHTML = '<option value="">Microfone padrão</option>' + devices.filter(device => device.kind === 'audioinput').map((device, index) => `<option value="${safeText(device.deviceId)}">${safeText(device.label || `Microfone ${index + 1}`)}</option>`).join(''); select.value = selected; } catch { } }
 async function getScreenStream(withSystemAudio, withMicrophone, microphoneId = '') {
   const sources = await window.ntc.screenSources(); if (!sources?.length) throw new Error('Nenhuma tela disponível para capturar.');
   const sourceId = sources[0].id; const screen = await Promise.race([navigator.mediaDevices.getUserMedia({ audio: withSystemAudio ? { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId } } : false, video: { mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: sourceId, minFrameRate: 15, maxFrameRate: 30 } } }), new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo esgotado ao iniciar a captura da tela.')), 8000))]);
-  if (!withMicrophone) return screen;
-  try { const microphone = await Promise.race([navigator.mediaDevices.getUserMedia({ audio: microphoneId ? { deviceId: { exact: microphoneId } } : true, video: false }), new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo esgotado ao solicitar o microfone.')), 8000))]); microphone.getAudioTracks().forEach(track => screen.addTrack(track)); return screen; } catch (error) { screen.getTracks().forEach(track => track.stop()); throw error; }
+  const systemAudioAvailable = screen.getAudioTracks().length > 0;
+  if (!withMicrophone) return { stream: screen, withMicrophone: false, systemAudioAvailable };
+  try { const microphone = await Promise.race([navigator.mediaDevices.getUserMedia({ audio: microphoneId ? { deviceId: { exact: microphoneId } } : true, video: false }), new Promise((_, reject) => setTimeout(() => reject(new Error('Tempo esgotado ao solicitar o microfone.')), 8000))]); microphone.getAudioTracks().forEach(track => screen.addTrack(track)); return { stream: screen, withMicrophone: microphone.getAudioTracks().length > 0, systemAudioAvailable }; }
+  catch (microphoneError) { return { stream: screen, withMicrophone: false, systemAudioAvailable, microphoneError }; }
 }
 async function startScreenRecording() {
   if (screenRecorder.recorder) return stopScreenRecording(); if (screenRecorderStarting) return; screenRecorderStarting = true;
   const chosenFolder = localStorage.getItem('ntc-recorder-folder') || folder || await window.ntc.defaultDownloadFolder(); if (!chosenFolder) { screenRecorderStarting = false; return; }
-  let withMicrophone = await recordingAudioChoice(); let stream; const withSystemAudio = true; const microphoneId = $('#recordMicrophone').value;
-  try { stream = await getScreenStream(withSystemAudio, withMicrophone, microphoneId); } catch (error) { if (withMicrophone) { const fallbackMic = await confirmAction('Microfone indisponível', 'Não foi possível acessar o microfone. Deseja continuar com o áudio do computador?', 'Continuar com áudio do PC'); if (fallbackMic) { try { stream = await getScreenStream(withSystemAudio, false); withMicrophone = false; } catch (systemError) { showToast(`Não foi possível capturar o áudio do computador: ${cleanError(systemError)}`); screenRecorderStarting = false; return; } } else { screenRecorderStarting = false; return; } } else { const fallback = await confirmAction('Áudio do computador indisponível', 'O sistema não permitiu capturar o áudio do computador. Deseja gravar somente a tela?', 'Gravar sem áudio'); if (!fallback) { screenRecorderStarting = false; return; } try { stream = await getScreenStream(false, false); } catch (fallbackError) { showToast(`Não foi possível iniciar a captura: ${cleanError(fallbackError)}`); screenRecorderStarting = false; return; } } }
+  let stream; let audioWarning = ''; const microphoneId = $('#recordMicrophone').value; let capture;
+  try { capture = await getScreenStream(true, true, microphoneId); stream = capture.stream; if (capture.microphoneError) audioWarning = `Microfone indisponível; a gravação seguirá com o áudio do computador. ${cleanError(capture.microphoneError)}`; }
+  catch (systemAudioError) {
+    try { capture = await getScreenStream(false, true, microphoneId); stream = capture.stream; audioWarning = `Não foi possível capturar o áudio do computador. ${cleanError(systemAudioError)}${capture.microphoneError ? ` Microfone indisponível: ${cleanError(capture.microphoneError)}` : ''}`; }
+    catch (screenError) { showToast(`Não foi possível iniciar a captura: ${cleanError(screenError)}`); screenRecorderStarting = false; return; }
+  }
+  const withMicrophone = capture.withMicrophone;
   const resolution = $('#recordResolution').value || localStorage.getItem('ntc-record-resolution') || 'original'; localStorage.setItem('ntc-record-resolution', resolution); const quality = resolution === 'original' ? 'equilibrada' : 'alta'; const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus') ? 'video/webm;codecs=vp9,opus' : 'video/webm'; const recorder = new MediaRecorder(stream, { mimeType }); let session; try { session = await window.ntc.startScreenRecording({ folder: chosenFolder, resolution, quality, withAudio: stream.getAudioTracks().length > 0 }); } catch (error) { stream.getTracks().forEach(track => track.stop()); screenRecorderStarting = false; showToast(`Não foi possível preparar a gravação: ${cleanError(error)}`); return; }
-  screenRecorder = { recorder, stream, id: session.id, startedAt: Date.now(), timer: null, chunkChain: Promise.resolve(), withAudio: stream.getAudioTracks().length > 0 }; screenRecorderStarting = false; recorder.ondataavailable = event => { if (event.data.size) screenRecorder.chunkChain = screenRecorder.chunkChain.then(() => event.data.arrayBuffer()).then(buffer => window.ntc.sendScreenRecordingChunk(session.id, buffer)); }; recorder.onerror = () => showToast('A captura encontrou um erro. Tente novamente.'); recorder.onstop = async () => { clearInterval(screenRecorder.timer); try { const result = await Promise.race([screenRecorder.chunkChain.then(() => window.ntc.stopScreenRecording(session.id)), new Promise((_, reject) => setTimeout(() => reject(new Error('A finalização demorou demais.')), 30000))]); addHistory({ title: result.filename, type: 'video', format: 'mp4', quality: 'H.264', size: formatBytes(result.size), file: result.file, time: 'Agora', operation: 'recording' }); showToast('Gravação salva no histórico.'); } catch (error) { await window.ntc.cancelScreenRecording(session.id).catch(() => {}); showToast(cleanError(error)); } finally { stream.getTracks().forEach(track => track.stop()); screenRecorder = { recorder: null, stream: null, id: null, startedAt: 0, timer: null, chunkChain: Promise.resolve(), withAudio: false }; updateRecorderStatus(false); } }; recorder.start(1000); screenRecorder.timer = setInterval(() => { $('#recorderTimer').textContent = formatRecordingTime(Date.now() - screenRecorder.startedAt); }, 250); updateRecorderStatus(true); showToast(withMicrophone ? 'Áudio do computador e microfone ativados.' : 'Áudio do computador ativado.'); }
+  screenRecorder = { recorder, stream, id: session.id, startedAt: Date.now(), timer: null, chunkChain: Promise.resolve(), withAudio: stream.getAudioTracks().length > 0 }; screenRecorderStarting = false; recorder.ondataavailable = event => { if (event.data.size) screenRecorder.chunkChain = screenRecorder.chunkChain.then(() => event.data.arrayBuffer()).then(buffer => window.ntc.sendScreenRecordingChunk(session.id, buffer)); }; recorder.onerror = () => showToast('A captura encontrou um erro. Tente novamente.'); recorder.onstop = async () => { clearInterval(screenRecorder.timer); try { const result = await Promise.race([screenRecorder.chunkChain.then(() => window.ntc.stopScreenRecording(session.id)), new Promise((_, reject) => setTimeout(() => reject(new Error('A finalização demorou demais.')), 30000))]); addHistory({ title: result.filename, type: 'video', format: 'mp4', quality: 'H.264', size: formatBytes(result.size), file: result.file, time: 'Agora', operation: 'recording' }); showToast('Gravação salva no histórico.'); } catch (error) { await window.ntc.cancelScreenRecording(session.id).catch(() => {}); showToast(cleanError(error)); } finally { stream.getTracks().forEach(track => track.stop()); screenRecorder = { recorder: null, stream: null, id: null, startedAt: 0, timer: null, chunkChain: Promise.resolve(), withAudio: false }; updateRecorderStatus(false); } }; recorder.start(1000); screenRecorder.timer = setInterval(() => { $('#recorderTimer').textContent = formatRecordingTime(Date.now() - screenRecorder.startedAt); }, 250); updateRecorderStatus(true); showToast(audioWarning || (capture.systemAudioAvailable ? (withMicrophone ? 'Áudio do computador e microfone ativados.' : 'Microfone indisponível; gravação com áudio do computador.') : (withMicrophone ? 'Microfone ativado; o áudio do computador não está disponível.' : 'Gravação iniciada sem áudio.'))); }
 async function stopScreenRecording() { if (!screenRecorder.recorder) return; $('#recorderState').textContent = 'Finalizando gravação…'; $('#toggleRecording').disabled = true; const recorder = screenRecorder.recorder; recorder.stop(); await new Promise(resolve => { const wait = setInterval(() => { if (!screenRecorder.recorder) { clearInterval(wait); resolve(); } }, 50); }); $('#toggleRecording').disabled = false; }
 async function configureRecordingShortcut(value) { const shortcut = String(value || '').trim(); if (!shortcut) { await window.ntc.unregisterScreenShortcut(); localStorage.removeItem('ntc-record-shortcut'); return true; } const result = await window.ntc.registerScreenShortcut(shortcut); if (!result.ok) { showToast(result.message || 'Não foi possível registrar esse atalho.'); return false; } localStorage.setItem('ntc-record-shortcut', shortcut); return true; }
+async function configureScreenshotShortcut(value) { const shortcut = String(value || '').trim(); if (!shortcut) { await window.ntc.unregisterScreenshotShortcut(); localStorage.removeItem('ntc-screenshot-shortcut'); return true; } const result = await window.ntc.registerScreenshotShortcut(shortcut); if (!result.ok) { showToast(result.message || 'Não foi possível registrar esse atalho.'); return false; } localStorage.setItem('ntc-screenshot-shortcut', shortcut); return true; }
+async function configureQuickScreenshotShortcut(value) { const shortcut = String(value || '').trim(); if (!shortcut) { await window.ntc.unregisterQuickScreenshotShortcut(); localStorage.removeItem('ntc-quick-screenshot-shortcut'); return true; } const destination = localStorage.getItem('ntc-screenshot-folder') || folder || await window.ntc.defaultDownloadFolder(); const result = await window.ntc.registerQuickScreenshotShortcut(shortcut, destination); if (!result.ok) { showToast(result.message || 'Não foi possível registrar o atalho de captura rápida.'); return false; } localStorage.setItem('ntc-quick-screenshot-shortcut', shortcut); return true; }
 function shortcutFromEvent(event) { const ignored = ['Control', 'Shift', 'Alt', 'Meta']; if (ignored.includes(event.key)) return ''; const keyNames = { ' ': 'Space', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', '+': 'Plus' }; const key = keyNames[event.key] || (event.key.length === 1 ? event.key.toUpperCase() : event.key); const parts = []; if (event.ctrlKey || event.metaKey) parts.push('CommandOrControl'); if (event.altKey) parts.push('Alt'); if (event.shiftKey) parts.push('Shift'); parts.push(key); return parts.join('+'); }
+async function captureAndEditScreenshot(capture) {
+  if (screenshotCaptureBusy || !$('#screenshotEditorDialog').classList.contains('hidden')) return;
+  screenshotCaptureBusy = true;
+  try {
+    if (!capture?.dataUrl) throw new Error('A captura não contém uma imagem válida.');
+    const destination = localStorage.getItem('ntc-screenshot-folder') || folder || await window.ntc.defaultDownloadFolder();
+    await window.ntc.showWindowFromScreenshot();
+    let savedOrCopied = false;
+    window.NTC_ScreenshotEditor.open({
+      dataUrl: capture.dataUrl,
+      onSave: async blob => {
+        const result = await window.ntc.saveScreenshot(destination, new Uint8Array(await blob.arrayBuffer()));
+        addHistory({ title: result.filename, type: 'image', format: 'PNG', quality: 'captura anotada', size: formatBytes(result.size), file: result.file, time: 'Agora', operation: 'screenshot' });
+        savedOrCopied = true; showToast('Captura anotada salva no Histórico.');
+      },
+      onCopy: async blob => { await window.ntc.copyScreenshot(new Uint8Array(await blob.arrayBuffer())); savedOrCopied = true; showToast('Imagem copiada para a área de transferência.'); },
+      onClose: () => { if (!savedOrCopied) showToast('Captura descartada sem salvar.'); }
+    });
+  } catch (error) {
+    await window.ntc.showWindowFromScreenshot().catch(() => {});
+    showToast(`Não foi possível capturar a tela: ${cleanError(error)}`);
+  } finally { screenshotCaptureBusy = false; }
+}
+async function captureScreenshotNow() { if (screenshotCaptureBusy) return; try { await captureAndEditScreenshot(await window.ntc.captureScreenshot()); } catch (error) { showToast(`Não foi possível capturar a tela: ${cleanError(error)}`); } }
 function openChangelog() {
   const list = $('#changelogList'); list.replaceChildren(...(window.NTC_CHANGELOG || []).map(entry => {
     const article = document.createElement('article'); article.className = 'changelog-entry';
@@ -50,6 +284,12 @@ function openChangelog() {
     const changes = document.createElement('ul'); entry.changes.forEach(change => { const line = document.createElement('li'); line.textContent = change; changes.append(line); }); article.append(heading, changes); return article;
   }));
   $('#changelogDialog').classList.remove('hidden'); $('#closeChangelog').focus();
+}
+function showChangelogAfterUpgrade(version) {
+  const key = 'ntc-last-seen-changelog-version'; const previousVersion = localStorage.getItem(key);
+  const shouldShow = previousVersion ? previousVersion !== version : hadExistingAppData;
+  if (shouldShow) window.setTimeout(() => { localStorage.setItem(key, version); openChangelog(); }, 2500);
+  else localStorage.setItem(key, version);
 }
 function changelogLines(notes) { return String(notes || '').split(/\r?\n/).map(line => line.replace(/^\s*[-*•#]+\s*/, '').trim()).filter(Boolean).slice(0, 6); }
 function showUpdateNotice(update) {
@@ -70,7 +310,7 @@ function showUpdateNotice(update) {
 }
 function closeConfirm(result) { $('#confirmDialog').classList.add('hidden'); const resolver = confirmResolver; confirmResolver = null; resolver?.(result); }
 function confirmAction(title, message, acceptLabel = 'Confirmar') { $('#confirmTitle').textContent = title; $('#confirmMessage').textContent = message; $('#confirmAccept').textContent = acceptLabel; $('#confirmDialog').classList.remove('hidden'); $('#confirmCancel').focus(); return new Promise(resolve => { confirmResolver = resolve; }); }
-function syncSettings() { $('#folderPath').textContent = folder || 'Downloads'; $('#settingsFolder').textContent = folder || 'Downloads'; if (!editingConversionId) $('#converterFolderPath').textContent = folder || 'Downloads'; $('#videoFolderPath').textContent = folder || 'Downloads'; $('#videoEditorFolderPath').textContent = folder || 'Downloads'; $('#imageFolderPath').textContent = folder || 'Downloads'; $('#recorderFolderPath').textContent = localStorage.getItem('ntc-recorder-folder') || folder || 'Downloads'; $('#openFolderAfter').checked = localStorage.getItem('ntc-open-folder') === 'true'; $('#duplicatePolicy').value = localStorage.getItem('ntc-duplicate') || 'rename'; $('#filenameTemplate').value = localStorage.getItem('ntc-filename-template') || 'title'; $('#themePreference').value = localStorage.getItem('ntc-theme') || 'dark'; document.body.classList.toggle('theme-light', $('#themePreference').value === 'light'); document.documentElement.style.colorScheme = $('#themePreference').value; }
+function syncSettings() { $('#folderPath').textContent = folder || 'Downloads'; $('#settingsFolder').textContent = folder || 'Downloads'; if (!editingConversionId) $('#converterFolderPath').textContent = folder || 'Downloads'; $('#videoFolderPath').textContent = folder || 'Downloads'; $('#videoEditorFolderPath').textContent = folder || 'Downloads'; $('#imageFolderPath').textContent = folder || 'Downloads'; $('#recorderFolderPath').textContent = localStorage.getItem('ntc-recorder-folder') || folder || 'Downloads'; $('#screenshotFolderPath').textContent = localStorage.getItem('ntc-screenshot-folder') || folder || 'Downloads'; $('#qrFolderPath').textContent = folder || 'Downloads'; $('#openFolderAfter').checked = localStorage.getItem('ntc-open-folder') === 'true'; $('#duplicatePolicy').value = localStorage.getItem('ntc-duplicate') || 'rename'; $('#filenameTemplate').value = localStorage.getItem('ntc-filename-template') || 'title'; $('#themePreference').value = localStorage.getItem('ntc-theme') || 'dark'; document.body.classList.toggle('theme-light', $('#themePreference').value === 'light'); document.documentElement.style.colorScheme = $('#themePreference').value; }
 async function refreshSpaceHint(estimatedSize = 0) { if (!folder) return; try { const free = await window.ntc.freeSpace(folder); if (!Number.isFinite(free)) { $('#spaceHint').textContent = 'Espaço disponível não informado.'; return; } $('#spaceHint').textContent = estimatedSize ? `Espaço livre: ${formatBytes(free)} · estimativa: ~${formatBytes(estimatedSize)}` : `Espaço livre: ${formatBytes(free)}`; } catch { $('#spaceHint').textContent = 'Espaço disponível não informado.'; } }
 function addHistory(item) { history.unshift(item); history.splice(50); localStorage.setItem('ntc-history', JSON.stringify(history)); renderHistory(); }
 function compressionIsImage(file) { return /\.(jpe?g|png|webp|bmp|tiff?)$/i.test(file || ''); }
@@ -98,6 +338,7 @@ function showEditAfterDownload(file, title) { downloadedAudioToEdit = { file, ti
 function hideEditAfterDownload() { clearTimeout(editSuggestionTimer); editSuggestionTimer = null; downloadedAudioToEdit = null; $('#editAfterDownloadModal').classList.add('hidden'); }
 
 function renderHistory() {
+  renderQrHistory();
   const list = $('#historyList'); const empty = $('#emptyHistory'); const all = $('#allHistory');
   if (!history.length) { list.classList.add('hidden'); empty.classList.remove('hidden'); all.innerHTML = '<div class="empty-state"><div class="empty-icon">◷</div><p>Nenhum arquivo concluído ainda.</p></div>'; return; }
   const filter = $('#historyFilter')?.value || 'all'; const visible = history.map((item, index) => ({ item, index })).filter(({ item }) => filter === 'all' || (filter === 'failed' ? item.state === 'erro' : item.operation === filter));
@@ -106,6 +347,154 @@ function renderHistory() {
   $$('[data-open]').forEach(button => button.onclick = async () => { const result = await window.ntc.openFile(history[button.dataset.open].file); if (result) showToast('Não foi possível abrir o arquivo.'); });
   $$('[data-folder]').forEach(button => button.onclick = async () => { const result = await window.ntc.openFileFolder(history[button.dataset.folder].file); if (result) showToast('Não foi possível abrir a pasta.'); });
   $$('[data-edit-audio]').forEach(button => button.onclick = async () => { const item = history[button.dataset.editAudio]; const source = item?.file || item?.source; if (!source) return; await addMediaFiles([source]); $$('.nav-item').forEach(nav => nav.classList.toggle('active', nav.dataset.view === 'converter')); $$('.view').forEach(view => view.classList.toggle('active', view.id === 'converterView')); });
+}
+
+function setHistoryTab(tab) {
+  const qr = tab === 'qr';
+  $('#filesHistoryTab').classList.toggle('active', !qr); $('#filesHistoryTab').setAttribute('aria-selected', String(!qr));
+  $('#qrHistoryTab').classList.toggle('active', qr); $('#qrHistoryTab').setAttribute('aria-selected', String(qr));
+  $('#filesHistoryPanel').classList.toggle('hidden', qr); $('#qrHistoryPanel').classList.toggle('hidden', !qr);
+  $('#filesHistoryActions').classList.toggle('hidden', qr); $('#qrHistoryActions').classList.toggle('hidden', !qr);
+}
+
+function renderQrHistory() {
+  const list = $('#qrHistoryList');
+  if (!list) return;
+  if (!qrHistory.length) { list.innerHTML = '<div class="empty-state"><div class="empty-icon">▦</div><p>Nenhum QR Code gerado ainda.</p></div>'; return; }
+  list.innerHTML = qrHistory.map((item, index) => `<article class="history-item qr-history-item"><div class="history-icon">▦</div><div class="history-copy"><strong>${safeText(item.title)}</strong><span>${safeText(item.url)} · ${safeText(item.format?.toUpperCase() || 'PNG')} · ${safeText(formatBytes(item.size))} · ${safeText(item.time || '')}</span></div><button class="ghost-button" data-qr-history-open="${index}" type="button">Abrir</button><button class="ghost-button" data-qr-history-folder="${index}" type="button">Pasta</button><button class="ghost-button" data-qr-history-copy="${index}" type="button">Copiar link</button></article>`).join('');
+  $$('[data-qr-history-open]').forEach(button => button.onclick = async () => { const result = await window.ntc.openFile(qrHistory[Number(button.dataset.qrHistoryOpen)].file); if (result) showToast('Não foi possível abrir o QR Code.'); });
+  $$('[data-qr-history-folder]').forEach(button => button.onclick = async () => { const result = await window.ntc.openFileFolder(qrHistory[Number(button.dataset.qrHistoryFolder)].file); if (result) showToast('Não foi possível abrir a pasta.'); });
+  $$('[data-qr-history-copy]').forEach(button => button.onclick = async () => { await window.ntc.copyText(qrHistory[Number(button.dataset.qrHistoryCopy)].url); showToast('Link copiado.'); });
+}
+
+function normalizeQrInput(value) {
+  const raw = String(value || '').trim();
+  if (!raw) throw new Error('Link vazio.');
+  const webProtocol = /^https?:\/\//i.test(raw);
+  const hostWithPort = /^[^/:\s]+:\d+(?:[/?#]|$)/.test(raw);
+  if (/^[a-z][a-z\d+.-]*:/i.test(raw) && !webProtocol && !hostWithPort) throw new Error('Use um link que comece com http:// ou https://.');
+  const candidate = webProtocol ? raw : `https://${raw}`;
+  let url;
+  try { url = new URL(candidate); } catch { throw new Error('Link inválido. Confira o endereço.'); }
+  if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) throw new Error('Use um link que comece com http:// ou https://.');
+  return url.href;
+}
+
+function qrSettings() { return { format: $('#qrFormat').value, size: Number($('#qrSize').value), foreground: $('#qrForeground').value, background: $('#qrBackground').value }; }
+function initializeQrSettings() {
+  const savedFormat = localStorage.getItem('ntc-qr-format'); if (['png', 'svg'].includes(savedFormat)) $('#qrFormat').value = savedFormat;
+  const savedSize = Number(localStorage.getItem('ntc-qr-size')); if (Number.isInteger(savedSize) && savedSize >= 128 && savedSize <= 4096) $('#qrSize').value = String(savedSize);
+  for (const [id, key] of [['qrForeground', 'ntc-qr-foreground'], ['qrBackground', 'ntc-qr-background']]) { const saved = localStorage.getItem(key); if (/^#[\da-f]{6}$/i.test(saved || '')) $(`#${id}`).value = saved; }
+  $('#qrForegroundValue').textContent = $('#qrForeground').value.toUpperCase(); $('#qrBackgroundValue').textContent = $('#qrBackground').value.toUpperCase(); updateQrContrastWarning();
+}
+function colorLuminance(hex) { const channels = hex.slice(1).match(/.{2}/g).map(channel => parseInt(channel, 16) / 255).map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4); return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2]; }
+function updateQrContrastWarning() { const first = colorLuminance($('#qrForeground').value); const second = colorLuminance($('#qrBackground').value); const contrast = (Math.max(first, second) + .05) / (Math.min(first, second) + .05); $('#qrContrastWarning').classList.toggle('hidden', contrast >= 4); }
+function onQrSettingsChange() {
+  if (qrRunning) return;
+  $('#qrForegroundValue').textContent = $('#qrForeground').value.toUpperCase(); $('#qrBackgroundValue').textContent = $('#qrBackground').value.toUpperCase();
+  updateQrContrastWarning();
+  persistQrSettings(); queueQrPreview();
+}
+function persistQrSettings() { const settings = qrSettings(); for (const [key, value] of Object.entries(settings)) localStorage.setItem(`ntc-qr-${key}`, String(value)); }
+function queueQrPreview(itemId = qrSelectedId) {
+  qrSelectedId = itemId;
+  clearTimeout(qrPreviewTimer);
+  qrPreviewTimer = setTimeout(() => renderQrPreview(), 120);
+}
+async function renderQrPreview() {
+  const requestId = ++qrPreviewRequestId;
+  const item = qrQueue.find(entry => entry.id === qrSelectedId && entry.url);
+  if (!item) { $('#qrPreviewImage').classList.add('hidden'); $('#qrPreviewEmpty').classList.remove('hidden'); $('#qrPreviewStatus').textContent = 'Adicione ou selecione um link válido'; $('#qrPreviewLink').textContent = 'A prévia será exibida aqui.'; return; }
+  $('#qrPreviewStatus').textContent = 'Atualizando prévia…'; $('#qrPreviewLink').textContent = item.url;
+  try {
+    const result = await window.ntc.previewQr({ url: item.url, ...qrSettings() });
+    if (requestId !== qrPreviewRequestId) return;
+    $('#qrPreviewImage').src = result.dataUrl; $('#qrPreviewImage').classList.remove('hidden'); $('#qrPreviewEmpty').classList.add('hidden'); $('#qrPreviewStatus').textContent = `${result.size} × ${result.size} · ${result.format.toUpperCase()}`;
+  } catch (error) {
+    if (requestId !== qrPreviewRequestId) return;
+    $('#qrPreviewImage').classList.add('hidden'); $('#qrPreviewEmpty').classList.remove('hidden'); $('#qrPreviewStatus').textContent = qrFailureMessage(error);
+  }
+}
+
+function qrStatusText(item) { return item.status === 'gerando' ? 'Gerando…' : item.status === 'concluido' ? 'Concluído' : item.status === 'erro' ? 'Falhou' : item.status === 'cancelado' ? 'Cancelado' : 'Aguardando'; }
+function renderQrQueue() {
+  const list = $('#qrQueueList');
+  $('#qrQueueCount').textContent = `${qrQueue.length} ${qrQueue.length === 1 ? 'link' : 'links'}`;
+  if (!qrQueue.length) list.innerHTML = '<div class="empty-state"><p>Adicione links para começar.</p></div>';
+  else list.innerHTML = qrQueue.map((item, index) => `<article class="queue-item qr-queue-item${item.status === 'erro' ? ' has-error' : ''}${item.id === qrSelectedId ? ' selected' : ''}" data-qr-row="${item.id}"><button class="qr-queue-preview" data-qr-preview="${item.id}" type="button" aria-label="Ver prévia do link ${index + 1}">▦</button><div class="queue-item-main"><strong>${safeText(item.url || item.input)}</strong><span>${safeText(item.error || qrStatusText(item))}</span></div>${item.status === 'erro' && item.url ? `<button class="ghost-button" data-qr-retry="${item.id}" type="button"${qrRunning || qrPreparing ? ' disabled' : ''}>Tentar novamente</button>` : ''}<button class="ghost-button" data-qr-remove="${item.id}" type="button"${qrRunning || qrPreparing ? ' disabled' : ''}>Remover</button></article>`).join('');
+  $$('[data-qr-preview]').forEach(button => button.onclick = () => { queueQrPreview(button.dataset.qrPreview); renderQrQueue(); });
+  $$('[data-qr-retry]').forEach(button => button.onclick = () => { const item = qrQueue.find(entry => entry.id === button.dataset.qrRetry); if (!item?.url || qrRunning || qrPreparing) return; item.status = 'aguardando'; item.error = ''; renderQrQueue(); processQrQueue([item.id]); });
+  $$('[data-qr-remove]').forEach(button => button.onclick = () => { if (qrRunning || qrPreparing) return; qrQueue = qrQueue.filter(item => item.id !== button.dataset.qrRemove); if (qrSelectedId === button.dataset.qrRemove) qrSelectedId = qrQueue.find(item => item.url)?.id || null; renderQrQueue(); queueQrPreview(); });
+  $('#generateQrCodes').disabled = qrRunning || qrPreparing || !qrQueue.some(item => ['aguardando', 'cancelado'].includes(item.status));
+  $('#generateQrCodes').textContent = qrPreparing ? 'Preparando…' : qrRunning ? 'Gerando…' : 'Gerar QR Codes';
+  $('#cancelQrQueue').classList.toggle('hidden', !qrRunning);
+  $('#cancelQrQueue').disabled = qrCancelRequested; $('#cancelQrQueue').textContent = qrCancelRequested ? 'Parando…' : 'Cancelar fila';
+  $('#chooseQrFolder').disabled = qrRunning || qrPreparing;
+  [$('#qrLinks'), $('#addQrLinks'), $('#qrForeground'), $('#qrBackground'), $('#qrSize'), $('#qrFormat')].forEach(control => { control.disabled = qrRunning || qrPreparing; });
+}
+
+function addQrLinks() {
+  const values = $('#qrLinks').value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+  if (!values.length) { showToast('Cole ao menos um link para continuar.'); return; }
+  const added = values.map(input => {
+    const item = { id: toolId(), input, url: '', status: 'aguardando', error: '' };
+    try { item.url = normalizeQrInput(input); } catch (error) { item.status = 'erro'; item.error = error.message; }
+    qrQueue.push(item);
+    return item;
+  });
+  const first = added.find(item => item.url);
+  if (first) qrSelectedId = first.id;
+  $('#qrLinks').value = '';
+  renderQrQueue(); queueQrPreview();
+  showToast(`${added.length} ${added.length === 1 ? 'link adicionado' : 'links adicionados'} à fila.`);
+}
+
+function qrOutputName(item, index) {
+  const host = item.url ? new URL(item.url).hostname.replace(/^www\./i, '') : 'link-invalido';
+  return `QR-${String(index + 1).padStart(2, '0')}-${host}`;
+}
+
+async function processQrQueue(targetIds = null) {
+  if (qrRunning || qrPreparing) return;
+  const ids = targetIds || qrQueue.filter(item => ['aguardando', 'cancelado'].includes(item.status)).map(item => item.id);
+  const items = ids.map(id => qrQueue.find(item => item.id === id)).filter(item => item?.url);
+  if (!items.length) { showToast('Não há links válidos aguardando geração.'); return; }
+  qrPreparing = true; renderQrQueue();
+  let outputFolder = folder || localStorage.getItem('ntc-folder') || '';
+  if (!outputFolder) { try { outputFolder = await window.ntc.defaultDownloadFolder(); } catch { qrPreparing = false; renderQrQueue(); showToast('Não foi possível escolher a pasta de destino.'); return; } }
+  if (!folder) { folder = outputFolder; localStorage.setItem('ntc-folder', folder); syncSettings(); }
+  qrPreparing = false; qrRunning = true; qrCancelRequested = false;
+  const options = qrSettings();
+  [$('#qrLinks'), $('#addQrLinks'), $('#qrForeground'), $('#qrBackground'), $('#qrSize'), $('#qrFormat')].forEach(control => { control.disabled = true; });
+  renderQrQueue();
+  let completed = 0; let failed = 0;
+  try {
+    for (const item of items) {
+      if (qrCancelRequested) { for (const remaining of items.slice(items.indexOf(item))) if (remaining.status === 'aguardando') remaining.status = 'cancelado'; break; }
+      item.status = 'gerando'; item.error = ''; renderQrQueue();
+      try {
+        const result = await window.ntc.generateQr({ id: item.id, url: item.url, name: qrOutputName(item, qrQueue.indexOf(item)), folder: outputFolder, duplicate: localStorage.getItem('ntc-duplicate') || 'rename', ...options });
+        item.status = 'concluido'; item.error = ''; item.result = result; completed++;
+        qrHistory.unshift({ title: result.filename, url: result.url, file: result.file, format: result.format, size: result.size, time: 'Agora' });
+        qrHistory.splice(50); localStorage.setItem('ntc-qr-history', JSON.stringify(qrHistory)); renderQrHistory();
+      } catch (error) { item.status = 'erro'; item.error = qrFailureMessage(error); failed++; }
+      renderQrQueue();
+    }
+  } finally {
+    qrRunning = false;
+    [$('#qrLinks'), $('#addQrLinks'), $('#qrForeground'), $('#qrBackground'), $('#qrSize'), $('#qrFormat')].forEach(control => { control.disabled = false; });
+    renderQrQueue();
+  }
+  if (completed || failed) { const summary = []; if (completed) summary.push(`${completed} ${completed === 1 ? 'QR Code salvo' : 'QR Codes salvos'} em ${outputFolder}`); if (failed) summary.push(`${failed} ${failed === 1 ? 'link falhou' : 'links falharam'}; veja os motivos na fila`); showToast(`${summary.join(' · ')}.`); }
+  if (completed && $('#openFolderAfter').checked) await window.ntc.openFolder(outputFolder);
+}
+
+function clearQrHistoryWithConfirm() {
+  if (!qrHistory.length) { showToast('O histórico de QR Codes já está vazio.'); return; }
+  confirmAction('Limpar histórico de QR Codes?', 'Serão removidos apenas os registros locais. Os arquivos gerados não serão apagados.', 'Limpar QR Codes').then(accepted => {
+    if (!accepted) return;
+    qrHistory.length = 0; localStorage.removeItem('ntc-qr-history'); renderQrHistory(); showToast('Histórico de QR Codes limpo.');
+  });
 }
 
 function persistQueue() { localStorage.setItem('ntc-download-queue', JSON.stringify(queue.map(item => ({ ...item, status: item.status === 'baixando' ? 'pausado' : item.status, percent: 0 })))); }
@@ -305,7 +694,7 @@ $$('input[name="downloadType"]').forEach(input => input.addEventListener('change
 $('#chooseFolder').onclick = chooseFolder; $('#chooseFolderSettings').onclick = chooseFolder;
 $('#openFolderAfter').onchange = event => localStorage.setItem('ntc-open-folder', event.target.checked); $('#duplicatePolicy').onchange = event => localStorage.setItem('ntc-duplicate', event.target.value); $('#filenameTemplate').onchange = event => { localStorage.setItem('ntc-filename-template', event.target.value); showToast('Modelo de nome atualizado.'); };
 async function clearHistoryWithConfirm() { if (!history.length) { showToast('O histórico já está vazio.'); return; } if (!await confirmAction('Limpar histórico?', 'Os registros locais serão removidos. Os arquivos baixados não serão apagados.', 'Limpar')) return; history.length = 0; localStorage.removeItem('ntc-history'); renderHistory(); showToast('Histórico limpo.'); }
-async function resetPreferences() { if (!await confirmAction('Restaurar preferências?', 'A pasta, a abertura automática, a regra de duplicatas e o modelo de nome voltarão ao padrão.', 'Restaurar')) return; localStorage.removeItem('ntc-folder'); localStorage.removeItem('ntc-open-folder'); localStorage.removeItem('ntc-duplicate'); localStorage.removeItem('ntc-filename-template'); folder = await window.ntc.defaultDownloadFolder(); localStorage.setItem('ntc-folder', folder); syncSettings(); showToast('Preferências restauradas.'); }
+async function resetPreferences() { if (!await confirmAction('Restaurar preferências?', 'A pasta, os atalhos de captura, a abertura automática, a regra de duplicatas e o modelo de nome voltarão ao padrão.', 'Restaurar')) return; localStorage.removeItem('ntc-folder'); localStorage.removeItem('ntc-open-folder'); localStorage.removeItem('ntc-duplicate'); localStorage.removeItem('ntc-filename-template'); localStorage.removeItem('ntc-screenshot-folder'); await configureScreenshotShortcut(''); await configureQuickScreenshotShortcut(''); $('#screenshotShortcut').value = ''; $('#quickScreenshotShortcut').value = ''; folder = await window.ntc.defaultDownloadFolder(); localStorage.setItem('ntc-folder', folder); syncSettings(); showToast('Preferências restauradas.'); }
 async function checkTools() { const button = $('#checkTools'); button.disabled = true; $('#toolVersions').textContent = 'Verificando yt-dlp, FFmpeg e FFprobe…'; try { const version = await window.ntc.toolVersions(); if (version.error) { $('#toolVersions').textContent = `Erro: ${cleanError(version.error)}`; showToast('Não foi possível verificar as ferramentas.'); } else { $('#toolVersions').textContent = `yt-dlp ${version.ytdlp} · FFmpeg ${version.ffmpeg.match(/ffmpeg version\s+([^\s]+)/i)?.[1] || 'instalado'} · FFprobe ${version.ffprobe.match(/ffprobe version\s+([^\s]+)/i)?.[1] || 'instalado'}`; showToast('Ferramentas verificadas.'); } } catch (error) { $('#toolVersions').textContent = `Erro: ${cleanError(error)}`; showToast('Não foi possível verificar as ferramentas.'); } finally { button.disabled = false; } }
 async function checkUpdates() { const button = $('#checkUpdates'); button.disabled = true; $('#updateStatus').textContent = 'Verificando atualizações…'; try { showUpdateNotice(await window.ntc.checkForUpdates()); } catch { showUpdateNotice({ status: 'error', message: 'Não foi possível verificar atualizações agora.' }); } finally { button.disabled = false; } }
 let imagePreviewTimer = null;
@@ -333,12 +722,52 @@ $('#videoOriginalVolume').oninput = () => { $('#videoOriginalVolume').value = Ma
 $('#videoEditorPlayer').addEventListener('timeupdate', event => { const player = event.currentTarget; const cut = videoEdit.cuts.find(item => player.currentTime >= item.start && player.currentTime < item.end); if (cut) player.currentTime = cut.end; renderVideoEditorTimeline(); });
 document.addEventListener('pointermove', updateVideoEditorAudioDrag); document.addEventListener('pointerup', () => { videoEditDrag = null; });
 $('#clearHistory').onclick = clearHistoryWithConfirm; $('#clearHistorySettings').onclick = clearHistoryWithConfirm; $('#clearHistoryPage').onclick = clearHistoryWithConfirm; $('#resetPreferences').onclick = resetPreferences; $('#checkTools').onclick = checkTools; $('#checkUpdates').onclick = checkUpdates;
+$('#filesHistoryTab').onclick = () => setHistoryTab('files'); $('#qrHistoryTab').onclick = () => setHistoryTab('qr'); $('#clearQrHistory').onclick = clearQrHistoryWithConfirm;
+$('#addQrLinks').onclick = addQrLinks; $('#qrLinks').addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); addQrLinks(); } });
+$('#generateQrCodes').onclick = () => { qrQueue.filter(item => item.status === 'cancelado').forEach(item => { item.status = 'aguardando'; }); processQrQueue(); };
+$('#cancelQrQueue').onclick = () => { qrCancelRequested = true; $('#cancelQrQueue').disabled = true; $('#cancelQrQueue').textContent = 'Parando…'; };
+$('#chooseQrFolder').onclick = async () => { const chosen = await window.ntc.chooseDownloadFolder(); if (!chosen) return; folder = chosen; localStorage.setItem('ntc-folder', folder); syncSettings(); showToast('Pasta de QR Codes atualizada.'); };
+['qrForeground', 'qrBackground', 'qrSize', 'qrFormat'].forEach(id => { $(`#${id}`).addEventListener('input', onQrSettingsChange); $(`#${id}`).addEventListener('change', onQrSettingsChange); });
+window.ntc.onQrEvent(update => { const item = qrQueue.find(entry => entry.id === update.id); if (!item) return; if (update.status === 'generating') item.status = 'gerando'; if (update.status === 'complete') item.status = 'concluido'; if (update.status === 'failed') { item.status = 'erro'; item.error = qrFailureMessage(update.error); } renderQrQueue(); });
+window.ntc.onRngState(renderRngState);
+$('#rngRollButton').onclick = performManualRngRoll;
+$('#rngAutoButton').onclick = toggleRngAutoRoll;
+$('#rngDebugTrigger').onclick = openRngDebug;
+$('#closeRngDebug').onclick = closeRngDebug;
+$('#rngDebugDialog').addEventListener('click', event => { if (event.target === $('#rngDebugDialog')) closeRngDebug(); });
+$('#rngDebugTitleSelect').onchange = () => { $('#rngDebugStatus').textContent = ''; updateRngDebugControls(); };
+$('#rngDebugSimulate').onclick = simulateRngUnlock;
+$('#rngDebugAdd').onclick = debugAddSelectedRngTitle;
+$('#rngDebugRemove').onclick = debugRemoveSelectedRngTitle;
+$('#rngDebugClearAll').onclick = debugClearRngCollection;
+$('#rngDebugTierSelect').onchange = () => { $('#rngDebugStatus').textContent = ''; updateRngDebugControls(); };
+$('#rngDebugGrantTier').onclick = () => debugRngAction('tier');
+$('#rngDebugTotalMilestone').onchange = () => { $('#rngDebugStatus').textContent = ''; updateRngDebugControls(); };
+$('#rngDebugGrantTotalTitles').onclick = () => debugRngAction('total');
+$('#rngDebugBonus').onclick = () => debugRngAction('bonus');
+initializeRngDebug();
+$('#rngTierFilters').addEventListener('click', event => { const tab = event.target.closest('[data-rng-tier]'); if (!tab) return; rngSelectedTier = tab.dataset.rngTier; if (rngState) renderRngState(rngState); });
+window.addEventListener('focus', () => { if ($('#rngView').classList.contains('active')) loadRngState(); });
+loadRngState(); rngTimer = setInterval(updateRngTimers, 1000);
 $('#chooseRecorderFolder').onclick = async () => { const chosen = await window.ntc.chooseDownloadFolder(); if (!chosen) return; localStorage.setItem('ntc-recorder-folder', chosen); syncSettings(); showToast('Pasta de gravações atualizada.'); };
+$('#chooseScreenshotFolder').onclick = async () => { const chosen = await window.ntc.chooseDownloadFolder(); if (!chosen) return; localStorage.setItem('ntc-screenshot-folder', chosen); const shortcut = localStorage.getItem('ntc-quick-screenshot-shortcut'); if (shortcut) await configureQuickScreenshotShortcut(shortcut); syncSettings(); showToast('Pasta de capturas atualizada.'); };
 $('#chooseCompression').onclick = async () => addCompressionFiles(await window.ntc.chooseCompressorFiles()); $('#compressionDropzone').onclick = async () => addCompressionFiles(await window.ntc.chooseCompressorFiles()); bindDropzone('compressionDropzone', () => window.ntc.chooseCompressorFiles(), addCompressionFiles); $('#compressionPreset').onchange = () => { applyCompressionPreset(); updateCompressionPreview(); }; ['compressionResolution', 'compressionFps', 'compressionCrf', 'compressionBitrate', 'compressionImageQuality', 'compressionImageScale'].forEach(id => $(`#${id}`).addEventListener('input', updateCompressionPreview)); $('#startCompression').onclick = startCompressionQueue; $('#chooseCompressionFolder').onclick = async () => { const chosen = await window.ntc.chooseDownloadFolder(); if (chosen) { localStorage.setItem('ntc-compression-folder', chosen); $('#compressionFolderPath').textContent = chosen; } };
 $('#recordResolution').value = localStorage.getItem('ntc-record-resolution') || 'original'; $('#recordResolution').addEventListener('change', event => localStorage.setItem('ntc-record-resolution', event.target.value)); $('#toggleRecording').onclick = startScreenRecording;
+$('#captureScreenshot').onclick = captureScreenshotNow;
 $('#recordMicrophone').addEventListener('change', event => localStorage.setItem('ntc-record-microphone', event.target.value));
 const legacyRecordShortcut = localStorage.getItem('ntc-record-shortcut'); if (legacyRecordShortcut === 'Ctrl+Shift+R') localStorage.removeItem('ntc-record-shortcut'); $('#recordShortcut').value = localStorage.getItem('ntc-record-shortcut') || ''; $('#recordShortcut').addEventListener('keydown', async event => { event.preventDefault(); const input = event.currentTarget; if (event.key === 'Backspace' || event.key === 'Delete') { input.value = ''; await configureRecordingShortcut(''); return; } const shortcut = shortcutFromEvent(event); if (!shortcut) return; input.value = shortcut.replace('CommandOrControl', 'Ctrl').replaceAll('+', ' + '); const saved = await configureRecordingShortcut(shortcut); if (!saved) input.value = localStorage.getItem('ntc-record-shortcut') || ''; });
+$('#screenshotShortcut').value = localStorage.getItem('ntc-screenshot-shortcut') || ''; $('#screenshotShortcut').addEventListener('keydown', async event => { event.preventDefault(); const input = event.currentTarget; if (event.key === 'Backspace' || event.key === 'Delete') { input.value = ''; await configureScreenshotShortcut(''); return; } const shortcut = shortcutFromEvent(event); if (!shortcut) return; input.value = shortcut.replace('CommandOrControl', 'Ctrl').replaceAll('+', ' + '); const saved = await configureScreenshotShortcut(shortcut); if (!saved) input.value = localStorage.getItem('ntc-screenshot-shortcut') || ''; });
+$('#quickScreenshotShortcut').value = localStorage.getItem('ntc-quick-screenshot-shortcut') || ''; $('#quickScreenshotShortcut').addEventListener('keydown', async event => { event.preventDefault(); const input = event.currentTarget; if (event.key === 'Backspace' || event.key === 'Delete') { input.value = ''; await configureQuickScreenshotShortcut(''); return; } const shortcut = shortcutFromEvent(event); if (!shortcut) return; input.value = shortcut.replace('CommandOrControl', 'Ctrl').replaceAll('+', ' + '); const saved = await configureQuickScreenshotShortcut(shortcut); if (!saved) input.value = localStorage.getItem('ntc-quick-screenshot-shortcut') || ''; });
+if (localStorage.getItem('ntc-record-shortcut')) void configureRecordingShortcut(localStorage.getItem('ntc-record-shortcut'));
+if (localStorage.getItem('ntc-screenshot-shortcut')) void configureScreenshotShortcut(localStorage.getItem('ntc-screenshot-shortcut'));
+if (localStorage.getItem('ntc-quick-screenshot-shortcut')) void configureQuickScreenshotShortcut(localStorage.getItem('ntc-quick-screenshot-shortcut'));
 window.ntc.onScreenHotkey(() => startScreenRecording());
+window.ntc.onScreenshotHotkeyCapture(captureAndEditScreenshot);
+window.ntc.onScreenshotHotkeyError(async message => { await window.ntc.showWindowFromScreenshot(); showToast(`Falha ao capturar a tela: ${cleanError(message)}`); });
+window.ntc.onQuickScreenshotSaved(result => { addHistory({ title: result.filename, type: 'image', format: 'PNG', quality: 'captura rápida', size: formatBytes(result.size), file: result.file, time: 'Agora', operation: 'quick-screenshot' }); showToast(`Captura rápida salva: ${result.filename}`); });
+window.ntc.onQuickScreenshotError(message => showToast(`Falha na captura rápida: ${cleanError(message)}`));
+window.ntc.getLaunchAtLogin().then(setting => { $('#launchAtLogin').checked = Boolean(setting.enabled); $('#launchAtLogin').disabled = !setting.supported; }).catch(() => { $('#launchAtLogin').disabled = true; });
+$('#launchAtLogin').addEventListener('change', async event => { const input = event.currentTarget; input.disabled = true; try { const result = await window.ntc.setLaunchAtLogin(input.checked); if (!result.ok) { input.checked = !input.checked; showToast(result.message || 'Não foi possível alterar a inicialização automática.'); } else showToast(result.enabled ? 'O NTC abrirá ao entrar no Windows.' : 'A inicialização automática foi desativada.'); } catch (error) { input.checked = !input.checked; showToast(cleanError(error)); } finally { input.disabled = false; } });
 window.ntc.onScreenCloseRequest(async () => { if (!screenRecorder.recorder) { window.ntc.forceCloseWindow(); return; } const close = await confirmAction('Gravação em andamento', 'Deseja finalizar e salvar a gravação antes de fechar o aplicativo?', 'Salvar e fechar'); if (close) { await stopScreenRecording(); window.ntc.forceCloseWindow(); } });
 $('#openChangelog').onclick = openChangelog;
 $('#closeChangelog').onclick = () => $('#changelogDialog').classList.add('hidden');
@@ -349,7 +778,9 @@ $('#historyFilter').onchange = renderHistory;
 $('#confirmCancel').onclick = () => closeConfirm(false); $('#confirmAccept').onclick = () => closeConfirm(true);
 $$('.nav-item[data-view]').forEach(button => button.onclick = () => { $$('.nav-item').forEach(item => item.classList.remove('active')); button.classList.add('active'); $$('.view').forEach(view => view.classList.remove('active')); $(`#${button.dataset.view}View`).classList.add('active'); });
 $$('[data-open-tool]').forEach(button => button.onclick = () => { const target = button.dataset.openTool; $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === target)); $$('.view').forEach(view => view.classList.toggle('active', view.id === `${target}View`)); });
-$('#minimizeWindow').onclick = () => window.ntc.minimizeWindow(); $('#maximizeWindow').onclick = async () => { const maximized = await window.ntc.toggleMaximize(); $('#maximizeWindow').textContent = maximized ? '❐' : '□'; $('#maximizeWindow').setAttribute('aria-label', maximized ? 'Restaurar' : 'Maximizar'); }; $('#closeWindow').onclick = () => window.ntc.closeWindow();
+function updateMaximizedLayout(maximized) { document.body.classList.toggle('window-maximized', Boolean(maximized)); $('#maximizeWindow').textContent = maximized ? '❐' : '□'; $('#maximizeWindow').setAttribute('aria-label', maximized ? 'Restaurar' : 'Maximizar'); }
+$('#minimizeWindow').onclick = () => window.ntc.minimizeWindow(); $('#maximizeWindow').onclick = async () => updateMaximizedLayout(await window.ntc.toggleMaximize()); $('#closeWindow').onclick = () => window.ntc.closeWindow();
+window.ntc.isMaximized().then(updateMaximizedLayout); window.ntc.onWindowMaximized(updateMaximizedLayout);
 $('#chooseMedia').onclick = async () => addMediaFiles(await window.ntc.chooseMediaFiles());
 $('#mediaDropzone').onclick = async () => addMediaFiles(await window.ntc.chooseMediaFiles());
 $('#mediaDropzone').onkeydown = async event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); addMediaFiles(await window.ntc.chooseMediaFiles()); } };
@@ -391,5 +822,5 @@ document.addEventListener('keydown', async event => {
   if (event.key === 'Escape' && current) { event.preventDefault(); window.ntc.cancelDownload(current.downloadId); }
   if (event.key === 'Escape' && currentConversion) { event.preventDefault(); window.ntc.cancelConversion(currentConversion.conversionId); }
 });
-document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('#confirmDialog').classList.contains('hidden')) closeConfirm(false); if (event.key === 'Escape' && !$('#changelogDialog').classList.contains('hidden')) $('#changelogDialog').classList.add('hidden'); });
-syncSettings(); loadMicrophones(); $('#compressionFolderPath').textContent = localStorage.getItem('ntc-compression-folder') || folder || 'Downloads'; setFormatOptions(); conversionQualityOptions('mp3'); updateConverterExtension('mp3'); renderHistory(); renderQueue(); renderConversionQueue(); renderCompressionQueue(); window.ntc.appVersion().then(version => { $('#appVersion').textContent = `v${version}`; }).catch(() => { $('#appVersion').textContent = 'Indisponível'; }); window.ntc.defaultDownloadFolder().then(value => { if (!folder) { folder = value; localStorage.setItem('ntc-folder', folder); syncSettings(); } refreshSpaceHint(); });
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('#confirmDialog').classList.contains('hidden')) { closeConfirm(false); return; } if (event.key === 'Escape' && !$('#changelogDialog').classList.contains('hidden')) $('#changelogDialog').classList.add('hidden'); if (event.key === 'Escape' && !$('#rngDebugDialog').classList.contains('hidden')) closeRngDebug(); });
+initializeQrSettings(); syncSettings(); loadMicrophones(); $('#compressionFolderPath').textContent = localStorage.getItem('ntc-compression-folder') || folder || 'Downloads'; setFormatOptions(); conversionQualityOptions('mp3'); updateConverterExtension('mp3'); renderHistory(); renderQrQueue(); renderQueue(); renderConversionQueue(); renderCompressionQueue(); window.ntc.appVersion().then(version => { $('#appVersion').textContent = `v${version}`; showChangelogAfterUpgrade(version); }).catch(() => { $('#appVersion').textContent = 'Indisponível'; }); window.ntc.defaultDownloadFolder().then(value => { if (!folder) { folder = value; localStorage.setItem('ntc-folder', folder); syncSettings(); } refreshSpaceHint(); });

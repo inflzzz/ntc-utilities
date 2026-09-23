@@ -1,5 +1,30 @@
 window.NTC_CHANGELOG = [
   {
+    version: '0.6.0',
+    date: '23 set. 2026',
+    changes: [
+      'Novo NTC RNG com 200 títulos em português, chances explícitas, histórico de descobertas e coleção com backup. Lucky Lad é Lendário (1 em 278.000.000) e Luckiest Lad é Lendário (exatamente 1 em 777.777.777).',
+      'Bônus de sorte e ciclos extras de rolagem evoluem automaticamente com a coleção. O Auto-roll começa ao abrir o app, continua na bandeja e pode iniciar junto com o Windows.',
+      'Minimizar ou fechar pelo X mantém o NTC Utilities na bandeja; use o menu do ícone para reabrir o app ou sair de verdade.',
+      'Coleção, preferências e arquivos pessoais ficam fora da pasta de instalação e são preservados nas atualizações. Usuários existentes veem este changelog uma vez após atualizar.',
+      'Nova aba Captura de tela, com atalhos configuráveis para abrir o editor ou salvar capturas rápidas diretamente na pasta escolhida.',
+      'Editor de capturas em tela cheia: caneta, formas, setas retas e curvas editáveis, texto, destaque, desfoque, pixelização, recorte, números e imagens movíveis/redimensionáveis.',
+      'Branco como cor inicial das anotações; Ctrl+C copia a imagem e fecha o editor, enquanto Esc descarta. Limite da captura, setas e controles do editor foram refinados.',
+      'Gravador inicia com áudio do computador e microfone selecionado; se o microfone falhar, avisa e mantém o áudio do PC.',
+      'Novo Gerador de QR Code com prévia, cor e tamanho personalizáveis, exportação PNG/SVG e histórico separado.',
+      'Ajustes de layout nas ferramentas maximizadas para reduzir bordas e espaços vazios.'
+    ]
+  },
+  {
+    version: '0.5.0',
+    date: '23 set. 2026',
+    changes: [
+      'Novo Gerador de QR Code para links, com prévia ao vivo, personalização de cor e tamanho e exportação PNG/SVG.',
+      'Geração em lote com validação por link, estados claros e nova tentativa após falha.',
+      'Aba de QR Codes no Histórico, separada dos registros de arquivos, com ações para abrir, localizar e copiar links.'
+    ]
+  },
+  {
     version: '0.4.0',
     date: '23 set. 2026',
     changes: [

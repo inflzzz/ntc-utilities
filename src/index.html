@@ -34,7 +34,10 @@
           <button class="nav-item" data-view="videoEditor"><span class="nav-icon">✂</span> Editor de vídeo</button>
           <button class="nav-item" data-view="image"><span class="nav-icon">▧</span> Conversor de imagens</button>
           <button class="nav-item" data-view="recorder"><span class="nav-icon">●</span> Gravador de tela</button>
+          <button class="nav-item" data-view="screenshot"><span class="nav-icon">▣</span> Captura de tela</button>
           <button class="nav-item" data-view="compressor"><span class="nav-icon">⇣</span> Compressor</button>
+          <button class="nav-item" data-view="qrGenerator"><span class="nav-icon">▦</span> Gerador de QR Code</button>
+          <button class="nav-item" data-view="rng"><span class="nav-icon">✧</span> NTC RNG</button>
           <button class="nav-item" data-view="history">
             <span class="nav-icon">◷</span> Histórico
           </button>
@@ -64,8 +67,44 @@
             <button class="tool-card available" data-open-tool="videoEditor"><span class="tool-icon">✂</span><span><strong>Editor de vídeo</strong></span></button>
             <button class="tool-card available" data-open-tool="image"><span class="tool-icon">▧</span><span><strong>Conversor de imagens</strong></span></button>
             <button class="tool-card available" data-open-tool="recorder"><span class="tool-icon record-tool-icon">●</span><span><strong>Gravador de tela</strong></span></button>
+            <button class="tool-card available" data-open-tool="screenshot"><span class="tool-icon">▣</span><span><strong>Captura de tela</strong></span></button>
             <button class="tool-card available" data-open-tool="compressor"><span class="tool-icon">⇣</span><span><strong>Compressor</strong></span></button>
+            <button class="tool-card available" data-open-tool="qrGenerator"><span class="tool-icon">▦</span><span><strong>Gerador de QR Code</strong></span></button>
+            <button class="tool-card available" data-open-tool="rng"><span class="tool-icon rng-tool-icon">✧</span><span><strong>NTC RNG</strong></span></button>
           </div>
+        </section>
+
+        <section class="view rng-view" id="rngView">
+          <div class="rng-heading-row"><div class="hero compact"><div class="eyebrow">NTC RNG</div><h1>Testador de sorte</h1></div><div class="rng-heading-actions"><button class="outline-button rng-debug-trigger hidden" id="rngDebugTrigger" type="button">Debug</button></div></div>
+          <div class="rng-overview">
+            <section class="rng-roll-panel">
+              <div class="rng-roll-heading"><div><span class="eyebrow">TÍTULOS ENCONTRADOS</span><strong id="rngCollectionCount">0 / 200</strong></div><div class="rng-rolls-total"><span>Rolagens</span><strong id="rngRollCount">0</strong></div></div>
+              <div class="rng-progress-track" role="progressbar" aria-label="Progresso da coleção" aria-valuemin="0" aria-valuemax="200" aria-valuenow="0"><span id="rngProgressBar"></span></div>
+              <div class="rng-luck-line"><span>Sorte total</span><strong id="rngLuckValue">+0%</strong><span class="rng-luck-breakdown"><span id="rngCollectionLuck">+0% coleção</span></span></div>
+              <div class="rng-roll-actions"><button class="primary-button rng-roll-button" id="rngRollButton" type="button">Rolar</button><button class="outline-button rng-auto-button" id="rngAutoButton" type="button">Iniciar Auto-roll</button></div>
+              <div class="rng-roll-info"><span id="rngRollBatchInfo">1 rolagem por ciclo</span><span id="rngBonusRollInfo">Bonus Roll ×2 em 10 rolagens</span></div>
+              <article class="rng-last-result" id="rngLastResult" aria-live="polite"><span class="rng-result-icon">✧</span><div><small id="rngResultCaption">ÚLTIMO RESULTADO</small><strong id="rngResultTitle">Ainda sem rolagens</strong><span id="rngResultOdds">O título e a chance aparecem aqui.</span></div></article>
+              <div class="rng-batch-results hidden" id="rngBatchResults" aria-live="polite"></div>
+            </section>
+            <section class="rng-profile-panel">
+              <div class="section-heading"><h2>Perfil</h2><span id="rngProfileStatus">Salvo neste computador</span></div>
+              <div class="rng-profile-grid">
+                <div><span>Nesta sessão do app</span><strong id="rngAppSessionTime">00:00:00</strong></div>
+                <div><span>Tempo total no app</span><strong id="rngAppTotalTime">00:00:00</strong></div>
+                <div><span>Auto-roll nesta sessão</span><strong id="rngAutoSessionTime">00:00:00</strong></div>
+                <div><span>Auto-roll total</span><strong id="rngAutoTotalTime">00:00:00</strong></div>
+              </div>
+            </section>
+          </div>
+          <section class="rng-discoveries-section">
+            <div class="section-heading"><h2>Descobertas recentes</h2><span id="rngDiscoveryCount">0 títulos novos</span></div>
+            <div class="rng-discovery-track" id="rngDiscoveryLog" aria-live="polite"><div class="rng-discovery-empty">Os títulos inéditos e a rolagem em que apareceram vão ficar registrados aqui.</div></div>
+          </section>
+          <section class="rng-collection-section">
+            <div class="section-heading"><h2>Coleção</h2><span id="rngTierCount">20 títulos</span></div>
+            <div class="rng-tier-filters" id="rngTierFilters" role="tablist" aria-label="Raridades"></div>
+            <div class="rng-catalog" id="rngCatalog"></div>
+          </section>
         </section>
 
         <section class="view media-tool-view" id="compressorView">
@@ -77,14 +116,53 @@
           <section class="queue-section"><div class="section-heading"><h2>Arquivos</h2><span id="compressionCount">0 itens</span></div><div class="queue-list" id="compressionList"><div class="empty-state"><p>Adicione arquivos para comprimir.</p></div></div><button class="primary-button" id="startCompression" type="button">Comprimir arquivos</button></section>
         </section>
 
+        <section class="view qr-tool-view" id="qrGeneratorView">
+          <div class="hero compact"><div class="eyebrow">LINKS</div><h1>Gerador de QR Code</h1></div>
+          <section class="download-card qr-input-card">
+            <label class="field-label" for="qrLinks">Links</label>
+            <textarea class="text-input qr-links-input" id="qrLinks" rows="4" placeholder="Cole um link por linha" spellcheck="false"></textarea>
+            <div class="qr-input-footer"><span class="muted-copy">Um QR Code será criado para cada linha válida.</span><button class="outline-button" type="button" id="addQrLinks">Adicionar links</button></div>
+          </section>
+          <section class="tool-options qr-options">
+            <label><span class="field-label">Cor do QR</span><div class="qr-color-control"><input id="qrForeground" type="color" value="#111111" aria-label="Cor do QR Code" /><span id="qrForegroundValue">#111111</span></div></label>
+            <label><span class="field-label">Cor do fundo</span><div class="qr-color-control"><input id="qrBackground" type="color" value="#ffffff" aria-label="Cor do fundo" /><span id="qrBackgroundValue">#FFFFFF</span></div></label>
+            <label><span class="field-label">Tamanho</span><div class="qr-size-control"><input class="text-input" id="qrSize" type="number" min="128" max="4096" step="1" value="512" /><span>px</span></div></label>
+            <label><span class="field-label">Formato</span><select id="qrFormat"><option value="png">PNG</option><option value="svg">SVG</option></select></label>
+          </section>
+          <p class="qr-contrast-warning hidden" id="qrContrastWarning" role="status">Contraste baixo pode dificultar a leitura do QR Code.</p>
+          <section class="qr-preview-layout">
+            <div class="qr-preview-panel">
+              <div class="section-heading"><h2>Prévia</h2><span id="qrPreviewStatus" aria-live="polite">Adicione um link à fila</span></div>
+              <div class="qr-preview-canvas"><img id="qrPreviewImage" class="hidden" alt="Prévia do QR Code" /><span id="qrPreviewEmpty">O QR Code aparece aqui</span></div>
+              <p class="qr-preview-link" id="qrPreviewLink">Selecione um link válido da fila para ver a prévia.</p>
+            </div>
+            <div class="qr-preview-side">
+              <label class="tool-destination"><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="qrFolderPath">Downloads</span><button type="button" id="chooseQrFolder">Alterar</button></div></label>
+              <section class="queue-section qr-queue-section"><div class="section-heading"><h2>Fila de QR Codes</h2><span id="qrQueueCount">0 itens</span></div><div class="queue-list" id="qrQueueList"><div class="empty-state"><p>Adicione links para começar.</p></div></div><div class="qr-queue-actions"><button class="primary-button" id="generateQrCodes" type="button">Gerar QR Codes</button><button class="outline-button hidden" id="cancelQrQueue" type="button">Cancelar fila</button></div></section>
+            </div>
+          </section>
+        </section>
+
         <section class="view recorder-view" id="recorderView">
           <div class="hero compact"><div class="eyebrow">CAPTURA</div><h1>Gravador de tela</h1></div>
           <section class="recorder-card">
             <div class="recorder-status" id="recorderStatus" aria-live="polite"><span class="record-dot" id="recordDot"></span><div><strong id="recorderState">Pronto para gravar</strong><small id="recorderTimer">00:00:00</small></div></div>
             <button class="primary-button recorder-button" id="toggleRecording" type="button">Iniciar gravação</button>
-            <label><span class="field-label">Microfone</span><select id="recordMicrophone"><option value="">Microfone padrão</option></select></label>
-            <label><span class="field-label">Resolução</span><select id="recordResolution"><option value="original" selected>Original</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option></select></label>
+            <div class="recorder-fields">
+              <label class="recorder-mic-field"><span class="field-label">Microfone</span><select id="recordMicrophone"><option value="">Microfone padrão</option></select></label>
+              <label class="recorder-resolution-field"><span class="field-label">Resolução</span><select id="recordResolution"><option value="original" selected>Original</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option></select></label>
+            </div>
             <label class="tool-destination"><span class="field-label">Salvar gravações em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="recorderFolderPath">Downloads</span><button type="button" id="chooseRecorderFolder">Alterar</button></div></label>
+          </section>
+        </section>
+
+        <section class="view screenshot-view" id="screenshotView">
+          <div class="hero compact"><div class="eyebrow">CAPTURA</div><h1>Captura de tela</h1></div>
+          <section class="recorder-card screenshot-capture-card">
+            <button class="primary-button recorder-button" id="captureScreenshot" type="button">Capturar tela</button>
+            <label class="screenshot-shortcut-row"><span class="field-label">Atalho para captura e edição</span><input class="text-input shortcut-input" id="screenshotShortcut" value="" placeholder="Nenhum atalho" autocomplete="off" aria-label="Atalho para captura e edição" /></label>
+            <label class="screenshot-quick-shortcut-row"><span class="field-label">Atalho para captura rápida</span><input class="text-input shortcut-input" id="quickScreenshotShortcut" value="" placeholder="Nenhum atalho" autocomplete="off" aria-label="Atalho para captura rápida" /><small>Salva direto na pasta, sem abrir o editor.</small></label>
+            <label class="tool-destination"><span class="field-label">Salvar capturas em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="screenshotFolderPath">Downloads</span><button type="button" id="chooseScreenshotFolder">Alterar</button></div></label>
           </section>
         </section>
 
@@ -264,20 +342,24 @@
             <div class="setting-row"><div><strong>Modelo de nome</strong><p>Define o nome inicial dos novos downloads.</p></div><select id="filenameTemplate"><option value="title">Título</option><option value="channel-title">Canal - Título</option><option value="date-title">Data - Título</option></select></div>
             <div class="setting-row"><div><strong>Tema</strong><p>Escolha entre o visual escuro ou claro.</p></div><select id="themePreference"><option value="dark">Escuro</option><option value="light">Claro</option></select></div>
             <div class="setting-row"><div><strong>Atalho do gravador</strong><p>Clique no campo e pressione a tecla ou combinação desejada.</p></div><input class="text-input shortcut-input" id="recordShortcut" value="" placeholder="Nenhum atalho" autocomplete="off" aria-label="Atalho do gravador" /></div>
+            <div class="setting-row"><div><strong>Ao minimizar</strong><p>O NTC fica na bandeja do Windows. O NTC RNG continua rolando enquanto o app estiver aberto.</p></div><span class="tray-setting-state">Ativado</span></div>
+            <div class="setting-row"><div><strong>Iniciar com o Windows</strong><p>Abre o app ao entrar no Windows. O Auto-roll começa automaticamente quando o app abre.</p></div><label class="switch"><input id="launchAtLogin" type="checkbox" /><span></span></label></div>
             <div class="setting-row"><div><strong>Ferramentas instaladas</strong><p id="toolVersions">Ainda não verificado.</p></div><button class="outline-button" type="button" id="checkTools">Verificar</button></div>
           </div>
           <div class="settings-card settings-card-secondary">
             <div class="settings-group-label">Aplicativo</div>
             <div class="setting-row"><div><strong>Versão instalada</strong><p id="appVersion">Consultando…</p></div><button class="outline-button" type="button" id="openChangelog">Ver changelog</button></div>
             <div class="setting-row"><div><strong>Atualizações</strong><p id="updateStatus">Verifique se existe uma nova versão disponível.</p></div><button class="outline-button" type="button" id="checkUpdates">Verificar agora</button></div>
-            <div class="setting-row"><div><strong>Histórico local</strong><p>Remove somente os registros salvos pelo NTC Utilities.</p></div><button class="outline-button" type="button" id="clearHistorySettings">Limpar histórico</button></div>
+            <div class="setting-row"><div><strong>Histórico de arquivos</strong><p>Downloads, gravações e conversões. O histórico de QR Codes é separado.</p></div><button class="outline-button" type="button" id="clearHistorySettings">Limpar histórico</button></div>
             <div class="setting-row"><div><strong>Preferências</strong><p>Volta pasta, duplicatas e abertura automática ao padrão.</p></div><button class="outline-button" type="button" id="resetPreferences">Restaurar</button></div>
           </div>
         </section>
 
         <section class="view history-view" id="historyView">
-          <div class="hero compact history-hero"><div><div class="eyebrow">ARQUIVOS</div><h1>Histórico</h1><p>Downloads, gravações e conversões feitos nesta sessão.</p></div><div class="history-actions"><select id="historyFilter" aria-label="Filtrar histórico"><option value="all">Tudo</option><option value="download">Downloads</option><option value="conversion">Conversões</option><option value="recording">Gravações</option><option value="failed">Falhas</option></select><button class="outline-button" id="clearHistoryPage" type="button">Limpar histórico</button></div></div>
-          <div class="all-history" id="allHistory"><div class="empty-state"><div class="empty-icon">◷</div><p>Nenhum arquivo concluído ainda.</p></div></div>
+          <div class="hero compact history-hero"><div><div class="eyebrow">ARQUIVOS</div><h1>Histórico</h1><p>Downloads, gravações, capturas e conversões feitos nesta sessão.</p></div><div class="history-actions" id="filesHistoryActions"><select id="historyFilter" aria-label="Filtrar histórico"><option value="all">Tudo</option><option value="download">Downloads</option><option value="conversion">Conversões</option><option value="recording">Gravações</option><option value="screenshot">Capturas</option><option value="failed">Falhas</option></select><button class="outline-button" id="clearHistoryPage" type="button">Limpar histórico</button></div><div class="history-actions hidden" id="qrHistoryActions"><button class="outline-button" id="clearQrHistory" type="button">Limpar QR Codes</button></div></div>
+          <div class="history-tabs" role="tablist" aria-label="Tipo de histórico"><button class="history-tab active" id="filesHistoryTab" type="button" role="tab" aria-selected="true" aria-controls="filesHistoryPanel">Arquivos</button><button class="history-tab" id="qrHistoryTab" type="button" role="tab" aria-selected="false" aria-controls="qrHistoryPanel">QR Codes</button></div>
+          <div id="filesHistoryPanel" role="tabpanel" aria-labelledby="filesHistoryTab"><div class="all-history" id="allHistory"><div class="empty-state"><div class="empty-icon">◷</div><p>Nenhum arquivo concluído ainda.</p></div></div></div>
+          <div id="qrHistoryPanel" class="hidden" role="tabpanel" aria-labelledby="qrHistoryTab"><div class="all-history" id="qrHistoryList"><div class="empty-state"><div class="empty-icon">▦</div><p>Nenhum QR Code gerado ainda.</p></div></div></div>
         </section>
         </div>
       </section>
@@ -288,11 +370,63 @@
       <button class="ghost-button" id="openDownloadedInEditor" type="button">Editar no editor</button>
       <button class="suggestion-close" id="dismissEditAfterDownload" type="button" aria-label="Fechar aviso">×</button>
     </div>
+    <input class="hidden" id="screenshotOverlayImageInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" />
+    <div class="screenshot-editor-backdrop hidden" id="screenshotEditorDialog" role="dialog" aria-modal="true" aria-labelledby="screenshotEditorTitle">
+      <section class="screenshot-editor-card">
+        <header class="screenshot-editor-heading"><div><span class="eyebrow">CAPTURA DE TELA</span><h2 id="screenshotEditorTitle">Anotar imagem</h2></div><button class="suggestion-close" id="closeScreenshotEditor" type="button" aria-label="Fechar editor">×</button></header>
+        <div class="screenshot-toolbar" role="toolbar" aria-label="Ferramentas de anotação">
+          <div class="screenshot-tool-group">
+            <button class="shot-tool active" data-shot-tool="pen" type="button" title="Caneta livre" aria-label="Caneta livre">✎</button>
+            <button class="shot-tool" data-shot-tool="line" type="button" title="Linha" aria-label="Linha">／</button>
+            <button class="shot-tool" data-shot-tool="arrow" type="button" title="Seta" aria-label="Seta">➜</button>
+            <button class="shot-tool" data-shot-tool="curve-arrow" type="button" title="Seta curva — arraste os pontos para ajustar" aria-label="Seta curva">⤴</button>
+            <button class="shot-tool" data-shot-tool="rect" type="button" title="Retângulo" aria-label="Retângulo">▱</button>
+            <button class="shot-tool" data-shot-tool="rect-fill" type="button" title="Retângulo preenchido" aria-label="Retângulo preenchido">▰</button>
+            <button class="shot-tool" data-shot-tool="ellipse" type="button" title="Elipse" aria-label="Elipse">◯</button>
+            <button class="shot-tool" data-shot-tool="highlight" type="button" title="Marca-texto" aria-label="Marca-texto">▰</button>
+            <button class="shot-tool" data-shot-tool="blur" type="button" title="Desfoque" aria-label="Desfoque">▧</button>
+            <button class="shot-tool" data-shot-tool="pixelate" type="button" title="Pixelizar" aria-label="Pixelizar">▦</button>
+            <button class="shot-tool" data-shot-tool="crop" type="button" title="Cortar" aria-label="Cortar">⌗</button>
+            <button class="shot-tool" data-shot-tool="text" type="button" title="Texto" aria-label="Texto">T</button>
+            <button class="shot-tool" data-shot-tool="number" type="button" title="Número de etapa" aria-label="Número de etapa">①</button>
+            <button class="shot-tool" data-shot-tool="image" type="button" title="Inserir imagem" aria-label="Inserir imagem">▧</button>
+            <button class="shot-tool" data-shot-tool="cursor" type="button" title="Inserir ponteiro" aria-label="Inserir ponteiro"><svg class="screenshot-pointer-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 2.8v17.1l4.2-4.2 3.2 6.1 2.2-1.1-3.1-6.1H18z" /></svg></button>
+            <button class="shot-tool" data-shot-tool="eraser" type="button" title="Remover elemento" aria-label="Remover elemento">⌫</button>
+          </div>
+          <div class="screenshot-tool-options"><label title="Cor da anotação"><span>Cor</span><input id="screenshotColor" type="color" value="#ffffff" /></label><label title="Espessura"><span>Espessura</span><select id="screenshotStroke"><option value="3">Fina</option><option value="6" selected>Média</option><option value="12">Grossa</option></select></label><label class="screenshot-arrow-option" title="Tamanho da ponta da seta"><span>Ponta da seta</span><select id="screenshotArrowSize"><option value="16">Pequena</option><option value="24" selected>Média</option><option value="36">Grande</option><option value="52">Extra grande</option></select></label><label class="screenshot-text-option" title="Texto"><span>Texto</span><input class="text-input" id="screenshotText" type="text" placeholder="Digite para inserir" /></label></div>
+          <div class="screenshot-history-actions"><button class="outline-button" id="screenshotUndo" type="button" title="Desfazer" disabled>↶</button><button class="outline-button" id="screenshotRedo" type="button" title="Refazer" disabled>↷</button></div>
+        </div>
+        <div class="screenshot-canvas-viewport" id="screenshotCanvasViewport"><canvas id="screenshotCanvas" aria-label="Prévia da captura anotável"></canvas></div>
+        <div class="screenshot-editor-footer"><span id="screenshotEditorStatus" role="status" aria-live="polite">Selecione uma ferramenta e faça suas marcações.</span><div><button class="ghost-button" id="copyScreenshot" type="button">Copiar imagem</button><button class="outline-button" id="discardScreenshotEdits" type="button">Fechar</button><button class="primary-button" id="saveScreenshotEdits" type="button">Salvar imagem</button></div></div>
+      </section>
+    </div>
     <section class="update-notice hidden" id="updateNotice" role="dialog" aria-live="polite" aria-labelledby="updateTitle">
       <div class="update-notice-copy"><span class="eyebrow">ATUALIZAÇÃO DISPONÍVEL</span><h2 id="updateTitle">Uma nova versão está pronta</h2><p id="updateSummary">Veja as novidades antes de atualizar.</p><ul id="updateNotes" class="update-notes hidden"></ul></div>
       <div class="update-notice-actions"><button class="ghost-button" id="dismissUpdate" type="button">Agora não</button><button class="primary-button" id="updateAction" type="button">Baixar atualização</button></div>
     </section>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="rng-unlock-notice" id="rngUnlockNotice" aria-hidden="true" role="status" aria-live="polite">
+      <span class="rng-unlock-icon">✦</span>
+      <div><small>TÍTULO DESBLOQUEADO</small><strong id="rngUnlockTitle"></strong><span id="rngUnlockDetails"></span></div>
+    </div>
+    <div class="rng-debug-backdrop hidden" id="rngDebugDialog" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="rngDebugTitle">
+      <section class="rng-debug-card">
+        <header class="rng-debug-heading"><div><span class="eyebrow">SOMENTE DESENVOLVIMENTO</span><h2 id="rngDebugTitle">Debug de títulos</h2></div><button class="suggestion-close" id="closeRngDebug" type="button" aria-label="Fechar debug">×</button></header>
+        <p class="rng-debug-note">Adicionar ou remover títulos altera apenas o perfil local de desenvolvimento; não consome rolagens.</p>
+        <label class="rng-debug-field"><span>Título</span><select id="rngDebugTitleSelect" aria-label="Título para testar"></select></label>
+        <div class="rng-debug-selection" id="rngDebugSelectionState"></div>
+        <div class="rng-debug-actions"><button class="outline-button" id="rngDebugSimulate" type="button">Simular animação</button><button class="primary-button" id="rngDebugAdd" type="button">Adicionar título</button><button class="outline-button" id="rngDebugRemove" type="button">Remover título</button></div>
+        <section class="rng-debug-progression" aria-label="Testar progressão">
+          <h3>Testar progressão</h3>
+          <div class="rng-debug-tier-row"><label class="rng-debug-field"><span>Raridade</span><select id="rngDebugTierSelect" aria-label="Raridade para completar"></select></label><label class="rng-debug-field"><span>Marco</span><select id="rngDebugMilestone" aria-label="Quantidade para marco"><option value="5">5 títulos</option><option value="10">10 títulos</option><option value="20">20 títulos</option></select></label></div>
+          <button class="outline-button" id="rngDebugGrantTier" type="button">Conceder títulos até o marco</button>
+          <div class="rng-debug-total-row"><label class="rng-debug-field"><span>Marco de coleção</span><select id="rngDebugTotalMilestone" aria-label="Quantidade total de títulos"></select></label><button class="outline-button" id="rngDebugGrantTotalTitles" type="button">Completar marco</button></div>
+          <div class="rng-debug-actions rng-debug-progression-actions"><button class="outline-button" id="rngDebugBonus" type="button">Preparar rolagem bônus</button></div>
+        </section>
+        <div class="rng-debug-danger-zone"><span>Limpar a coleção de desenvolvimento</span><button class="outline-button rng-debug-danger" id="rngDebugClearAll" type="button">Remover todos</button></div>
+        <div class="rng-debug-status" id="rngDebugStatus" role="status" aria-live="polite"></div>
+      </section>
+    </div>
     <div class="confirm-backdrop hidden" id="confirmDialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
       <div class="confirm-card"><h2 id="confirmTitle">Confirmar ação</h2><p id="confirmMessage"></p><div class="confirm-actions"><button class="ghost-button" id="confirmCancel" type="button">Cancelar</button><button class="primary-button" id="confirmAccept" type="button">Confirmar</button></div></div>
     </div>
@@ -300,6 +434,7 @@
       <section class="changelog-card"><div class="changelog-heading"><div><span class="eyebrow">NTC UTILITIES</span><h2 id="changelogTitle">O que mudou</h2></div><button class="suggestion-close" id="closeChangelog" type="button" aria-label="Fechar changelog">×</button></div><div class="changelog-list" id="changelogList"></div></section>
     </div>
     <script src="./changelog.js"></script>
+    <script src="./screenshot-editor.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

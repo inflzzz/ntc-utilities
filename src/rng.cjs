@@ -1,0 +1,422 @@
+const crypto = require('node:crypto');
+
+const TIERS = [
+  { id: 'basic', label: 'Básico' },
+  { id: 'epic', label: 'Épico' },
+  { id: 'unique', label: 'Singular' },
+  { id: 'legendary', label: 'Lendário' },
+  { id: 'mythic', label: 'Mítico' },
+  { id: 'exalted', label: 'Exaltado' },
+  { id: 'glorious', label: 'Glorioso' },
+  { id: 'transcendent', label: 'Transcendente' },
+  { id: 'dimensional', label: 'Dimensional' },
+  { id: 'ntc', label: 'Além do NTC' }
+];
+
+const TITLE_NAMES = {
+  basic: [
+    'Primeira Faísca', 'Passos Suaves', 'Pequeno Encanto', 'Pedra Serena', 'Fio da Manhã', 'Coração de Brasa', 'Amanhecer de Bolso', 'Corrente Serena', 'Sino Distante', 'Garoa Âmbar',
+    'Cometa de Papel', 'Gota de Veludo', 'Pequena Órbita', 'Hora Azul', 'Luz de Amora-do-Céu', 'Estática Suave', 'Pó de Devaneio', 'Canção Acobreada', 'Luz da Maré Baixa', 'Quase uma Estrela'
+  ],
+  epic: [
+    'Lanterna do Crepúsculo', 'Cometa de Cobre', 'Deriva de Safira', 'Circuito Lunar', 'Nova de Veludo', 'Halo Vazio', 'Sinal de Geada', 'Asa de Cinzas', 'Temporal de Opala', 'Aurora Errante',
+    'Resplendor de Prata', 'Flor de Vidro Noturno', 'Salmo Incandescente', 'Marés Índigo', 'Motor Estelar', 'Miragem Lúcida', 'Eclipse de Ouro Rosado', 'Pétala Trovejante', 'Guardião Astral', 'Coroa da Aurora'
+  ],
+  unique: [
+    'Estática Lunar', 'Cometa de Cristal', 'Réquiem Solar', 'Paralaxe Violeta', 'A Nona Brasa', 'Luz Estelar Partida', 'Espectro Prismático', 'Lucky Lad', 'Peregrino de Néon', 'Amanhecer Congelado',
+    'Devaneio de Cobalto', 'A Supernova Silenciosa', 'Porto-Fantasma', 'Órbita de Cinzas', 'Coroa de Fogo Azul', 'Singularidade de Veludo', 'O Meridiano Oculto', 'Aurora sem Fim', 'Canção de Ninar Obsidiana', 'Luckiest Lad'
+  ],
+  legendary: [
+    'Ruína Celeste', 'Coroa do Ocaso', 'Monarca sem Estrelas', 'Tempestade de Éter', 'Meridiano em Chamas', 'Motor da Queda Celeste', 'Soberano do Eclipse', 'Trono de Cometas', 'Ermos Infinitos', 'Domínio Solar',
+    'A Última Constelação', 'Fenda Empírea', 'Fonte da Noite', 'Coroa Além do Tempo', 'Veredito Astral', 'Luz que Parte Mundos', 'Rainha da Longa Aurora', 'Céu por Escrever', 'Titã da Quietude', 'Arquiteto da Noite Eterna'
+  ],
+  mythic: [
+    'Florescer da Singularidade', 'Andarilho da Fenda Empírea', 'O Primeiro Firmamento', 'Êxtase das Estrelas', 'Astro do Abismo', 'Jardim Cósmico', 'Sonho do Vazio', 'Estrutura Eterna', 'Zênite Estilhaçado', 'Santo da Gravidade',
+    'Aurora Milenar', 'Cometa Indomável', 'Colosso Noturno', 'Soberano do Além', 'Coração Forjado em Estrelas', 'Universo de Vidro Negro', 'Correnteza Celeste', 'Miríade de Fogo Solar', 'Juramento do Infinito', 'Herdeiro do Cosmos'
+  ],
+  exalted: [
+    'Coroa do Desfazer', 'Modelo do Silêncio', 'O Grande Celéstio', 'Rompedor de Axiomas', 'Majestade do Céu Profundo', 'Trono Imarcescível', 'Monarca Tecelão do Destino', 'Fogo Estelar Absoluto', 'Horizonte Sagrado', 'Além da Primeira Luz',
+    'Paralaxe Perene', 'Império Astral', 'Colapso Magnífico', 'Vontade do Firmamento', 'Regente Infinito', 'Catedral da Centelha Divina', 'A Última Grande Órbita', 'Equação Soberana', 'Céu Inumerável', 'O Desconhecido Exaltado'
+  ],
+  glorious: [
+    'Glória no Vazio', 'O Desfazer Radiante', 'Grão-Rei do Silêncio', 'Mil Sóis sem Fim', 'Majestade no Limite', 'O Além Brilhante', 'Pós-Mundo Glorioso', 'Luz sem Origem', 'Juramento do Devorador de Estrelas', 'Primeiro entre Eternidades',
+    'Infinito Áureo', 'Zênite Imortal', 'Colosso da Criação', 'Coroa de Todos os Amanhãs', 'Singularidade Dourada', 'Resplendor Livre', 'Imperador da Costa Distante', 'Firmamento sem Rival', 'Glória Incomensurável', 'Absoluto Sempre Radiante'
+  ],
+  transcendent: [
+    'Além do Véu', 'Maré Transcendente', 'Eternidade em Flor', 'Aurora Inalcançável', 'Ascensão sem Nome', 'Origem da Última Luz', 'Criador Invisível', 'Devaneio sem Limites', 'Nenhum Céu Acima', 'Paradoxo Sublime',
+    'O Ascendente Final', 'Para Sempre por Escrever', 'Um Universo à Parte', 'Chama Incognoscível', 'Silêncio Infinito', 'O Grande Além', 'Depois de Todo Horizonte', 'Ascensão sem Fim', 'O Primeiro Depois de Tudo', 'Ápice do Invisível'
+  ],
+  dimensional: [
+    'Coroa Dimensional', 'Aquele sem Lugar', 'Além de Todos os Eixos', 'Fenda Chamada Eternidade', 'A Nona Realidade', 'Arquiteto do Além', 'Infinito Dobrado', 'Mundo Incontável', 'Monarca do Multiverso', 'Coordenada Final',
+    'Em Todo Lugar ao Mesmo Tempo', 'Contínuo Impossível', 'Mundos entre Mundos', 'Dobra sem Limites', 'Guardião de Todos os Reinos', 'Axioma de Tudo', 'O Lado de Fora Infinito', 'Trono entre Dimensões', 'Além sem Fim', 'Realidade sem Bordas'
+  ],
+  ntc: [
+    'NTC: Princípio Primeiro', 'NTC: Nada Absoluto', 'NTC: Fim da Probabilidade', 'NTC: Último Impossível', 'NTC: O Nunca Criado', 'NTC: Além da Última Rolagem', 'NTC: Silêncio Infinito', 'NTC: Ponto Zero Eterno', 'NTC: Fim dos Mundos', 'NTC: O Inalcançável',
+    'NTC: Tudo que Nunca Existiu', 'NTC: Para Sempre Inencontrável', 'NTC: Luz sem Origem', 'NTC: Última Exceção', 'NTC: Nada Além Disto', 'NTC: Absoluto por Escrever', 'NTC: Um em Toda a Eternidade', 'NTC: Fora da Existência', 'NTC: Constante Final', 'NTC: Além de Tudo'
+  ]
+};
+
+const POOL = 10n ** 80n;
+const RARITY_STARTS = [250n, 100_000n, 40_000_000n, 15_000_000_000n, 10_000_000_000_000n, 1_000_000_000_000_000_000n, 10n ** 21n, 10n ** 24n, 10n ** 27n];
+const RARITY_RATIOS = [[132n, 100n], [130n, 100n], [130n, 100n], [134n, 100n], [130n, 100n], [130n, 100n], [130n, 100n], [130n, 100n], [150n, 100n]];
+const CATEGORY_MILESTONES = [
+  { count: 5, bonusBps: 250 },
+  { count: 10, bonusBps: 500 },
+  { count: 20, bonusBps: 1_000 }
+];
+const ROLL_MILESTONES = [
+  { count: 50, rollsPerCycle: 2 },
+  { count: 100, rollsPerCycle: 3 }
+];
+const BONUS_MILESTONES = [
+  { count: 0, multiplier: 2 },
+  { count: 50, multiplier: 3 },
+  { count: 100, multiplier: 5 },
+  { count: 175, multiplier: 10 }
+];
+const CATEGORY_TIER_IDS = new Set(TIERS.map(tier => tier.id));
+const BASIC_ODDS_SHAPES = [35n, 32n, 30n, 28n, 26n, 24n, 22n, 20n, 19n, 18n, 17n, 16n, 15n, 14n, 13n, 12n, 11n, 10n, 8n];
+const BASIC_ODDS_SHAPE_TOTAL = BASIC_ODDS_SHAPES.reduce((sum, weight) => sum + weight, 0n);
+const wholeOddsFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+
+function geometricOdds(start, numerator, denominator, index) {
+  let value = start;
+  for (let step = 0; step < index; step++) value = (value * numerator + denominator / 2n) / denominator;
+  return value;
+}
+
+const titles = [];
+for (let tierIndex = 0; tierIndex < TIERS.length; tierIndex++) {
+  const tier = TIERS[tierIndex];
+  for (let index = 0; index < 20; index++) {
+    const denominator = tierIndex === 0 ? null : geometricOdds(RARITY_STARTS[tierIndex - 1], ...RARITY_RATIOS[tierIndex - 1], index);
+    titles.push({
+      id: `${tier.id}-${String(index + 1).padStart(2, '0')}`,
+      name: TITLE_NAMES[tier.id][index],
+      tier: tier.id,
+      tierLabel: tier.label,
+      index,
+      denominator
+    });
+  }
+}
+
+const titleById = new Map(titles.map(title => [title.id, title]));
+function moveTitleToTier(id, tierId) {
+  const title = titleById.get(id);
+  const tierIndex = TIERS.findIndex(tier => tier.id === tierId);
+  title.tier = tierId;
+  title.tierLabel = TIERS[tierIndex].label;
+  title.denominator = geometricOdds(RARITY_STARTS[tierIndex - 1], ...RARITY_RATIOS[tierIndex - 1], title.index);
+}
+
+// These two outcomes sit in the legendary odds range; exchange their slots with
+// two existing titles so every rarity continues to contain exactly 20 titles.
+moveTitleToTier('unique-08', 'legendary');
+moveTitleToTier('unique-20', 'legendary');
+moveTitleToTier('legendary-08', 'unique');
+moveTitleToTier('legendary-20', 'unique');
+
+// This named result anchors the example shown in the design: at +100% passive luck,
+// a 1-in-750-million outcome becomes exactly twice as likely.
+titleById.get('legendary-12').denominator = 750_000_000n;
+titleById.get('unique-08').denominator = 278_000_000n;
+titleById.get('unique-20').denominator = 777_777_777n;
+
+const basicTitles = titles.filter(title => title.tier === 'basic');
+const rareTitles = titles.filter(title => title.tier !== 'basic');
+for (const title of rareTitles) title.baseWeight = POOL / title.denominator;
+const rarePoolWeight = rareTitles.reduce((sum, title) => sum + title.baseWeight, 0n);
+const basicRemainder = POOL - rarePoolWeight - POOL / 2n;
+basicTitles[0].baseWeight = POOL / 2n;
+let assignedBasicRemainder = 0n;
+for (let index = 1; index < basicTitles.length; index++) {
+  const weight = index === basicTitles.length - 1
+    ? basicRemainder - assignedBasicRemainder
+    : basicRemainder * BASIC_ODDS_SHAPES[index - 1] / BASIC_ODDS_SHAPE_TOTAL;
+  basicTitles[index].baseWeight = weight;
+  assignedBasicRemainder += weight;
+}
+
+const basePoolWeight = titles.reduce((sum, title) => sum + title.baseWeight, 0n);
+
+function nonNegativeInteger(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? Math.floor(number) : fallback;
+}
+
+function normalizeState(value = {}) {
+  const collectedIds = [...new Set((Array.isArray(value.collectedIds) ? value.collectedIds : []).filter(id => titleById.has(id)))];
+  const totalRolls = nonNegativeInteger(value.totalRolls);
+  const seenDiscoveries = new Set();
+  const recentDiscoveries = (Array.isArray(value.recentDiscoveries) ? value.recentDiscoveries : [])
+    .filter(discovery => {
+      if (!discovery || !titleById.has(discovery.titleId) || !collectedIds.includes(discovery.titleId)) return false;
+      const roll = nonNegativeInteger(discovery.roll);
+      if (roll < 1 || roll > totalRolls || seenDiscoveries.has(discovery.titleId)) return false;
+      seenDiscoveries.add(discovery.titleId);
+      return true;
+    })
+    .slice(0, 8)
+    .map(discovery => ({
+      titleId: discovery.titleId,
+      roll: nonNegativeInteger(discovery.roll),
+      currentOdds: String(discovery.currentOdds || '').slice(0, 80),
+      isBonusRoll: Boolean(discovery.isBonusRoll),
+      rollBonusMultiplier: Math.max(1, Math.min(10, nonNegativeInteger(discovery.rollBonusMultiplier, 1)))
+    }));
+  return {
+    collectedIds,
+    bonusRollCounter: nonNegativeInteger(value.bonusRollCounter) % 10,
+    totalRolls,
+    totalAppSeconds: nonNegativeInteger(value.totalAppSeconds),
+    totalAutoRollSeconds: nonNegativeInteger(value.totalAutoRollSeconds),
+    lastAutoRollSessionSeconds: nonNegativeInteger(value.lastAutoRollSessionSeconds),
+    lastTitleId: titleById.has(value.lastTitleId) ? value.lastTitleId : null,
+    recentDiscoveries
+  };
+}
+
+function categoryBonusBps(value = {}, tierId) {
+  const state = normalizeState(value);
+  const collected = titles.reduce((count, title) => count + (title.tier === tierId && state.collectedIds.includes(title.id) ? 1 : 0), 0);
+  return CATEGORY_MILESTONES.reduce((bonus, milestone) => collected >= milestone.count ? milestone.bonusBps : bonus, 0);
+}
+
+function luckForState(value = {}) {
+  const state = normalizeState(value);
+  const passiveBps = Math.min(10_000, Math.floor(state.collectedIds.length / 2) * 100 + categoryBonusBps(state, 'basic'));
+  const collected = state.collectedIds.length;
+  const rollMilestone = ROLL_MILESTONES.filter(item => collected >= item.count).at(-1);
+  const bonusMilestone = BONUS_MILESTONES.filter(item => collected >= item.count).at(-1);
+  return {
+    passiveBps,
+    totalBps: 10_000 + passiveBps,
+    rollsPerCycle: rollMilestone?.rollsPerCycle || 1,
+    bonusMultiplier: bonusMilestone?.multiplier || 2,
+    bonusRollEvery: 10,
+    nextRollMilestone: ROLL_MILESTONES.find(item => collected < item.count) || null,
+    nextBonusMilestone: BONUS_MILESTONES.find(item => collected < item.count) || null
+  };
+}
+
+function currentWeights(value = {}, { bonusRoll = false } = {}) {
+  const state = normalizeState(value);
+  const { totalBps, bonusMultiplier } = luckForState(state);
+  const activeLuckBps = totalBps * (bonusRoll ? bonusMultiplier : 1);
+  const tierBonuses = new Map(TIERS.map(tier => [tier.id, categoryBonusBps(state, tier.id)]));
+  const weights = new Map();
+  let boostedRareTotal = 0n;
+  for (const title of rareTitles) {
+    const categoryBonus = tierBonuses.get(title.tier) || 0;
+    const categoryMultiplierBps = 10_000 + categoryBonus;
+    const weight = title.baseWeight * BigInt(activeLuckBps) * BigInt(categoryMultiplierBps) / 100_000_000n;
+    weights.set(title.id, weight);
+    boostedRareTotal += weight;
+  }
+  if (boostedRareTotal > POOL) {
+    for (const title of rareTitles) {
+      const scaled = weights.get(title.id) * POOL / boostedRareTotal;
+      weights.set(title.id, scaled);
+    }
+    boostedRareTotal = rareTitles.reduce((sum, title) => sum + weights.get(title.id), 0n);
+  }
+  const remainingBasicWeight = POOL - boostedRareTotal;
+  const baseBasicTotal = basicTitles.reduce((sum, title) => sum + title.baseWeight, 0n);
+  let assignedBasic = 0n;
+  for (let index = 0; index < basicTitles.length; index++) {
+    const title = basicTitles[index];
+    const weight = index === basicTitles.length - 1
+      ? remainingBasicWeight - assignedBasic
+      : remainingBasicWeight * title.baseWeight / baseBasicTotal;
+    weights.set(title.id, weight);
+    assignedBasic += weight;
+  }
+  return weights;
+}
+
+function secureRandomBelow(maximum) {
+  if (maximum <= 0n) throw new RangeError('O intervalo de sorteio precisa ser positivo.');
+  const bits = maximum.toString(2).length;
+  const byteLength = Math.ceil(bits / 8);
+  const mask = (1n << BigInt(bits)) - 1n;
+  while (true) {
+    const candidate = BigInt(`0x${crypto.randomBytes(byteLength).toString('hex')}`) & mask;
+    if (candidate < maximum) return candidate;
+  }
+}
+
+function rollTitle(value = {}, randomValue = secureRandomBelow(POOL)) {
+  const state = normalizeState(value);
+  const nextRoll = state.bonusRollCounter + 1;
+  const bonusRoll = nextRoll >= 10;
+  const rollBonusMultiplier = bonusRoll ? luckForState(state).bonusMultiplier : 1;
+  const weights = currentWeights(state, { bonusRoll });
+  const roll = BigInt(randomValue);
+  if (roll < 0n || roll >= POOL) throw new RangeError('O valor de sorteio está fora da distribuição.');
+  let cumulative = 0n;
+  let selected = titles[titles.length - 1];
+  for (const title of titles) {
+    cumulative += weights.get(title.id);
+    if (roll < cumulative) { selected = title; break; }
+  }
+  const isNew = !state.collectedIds.includes(selected.id);
+  if (isNew) state.collectedIds.push(selected.id);
+  state.totalRolls += 1;
+  state.lastTitleId = selected.id;
+  state.bonusRollCounter = bonusRoll ? 0 : nextRoll;
+  if (isNew) {
+    state.recentDiscoveries = [
+      { titleId: selected.id, roll: state.totalRolls, currentOdds: oddsLabel(weights.get(selected.id)), isBonusRoll: bonusRoll, rollBonusMultiplier },
+      ...state.recentDiscoveries.filter(discovery => discovery.titleId !== selected.id)
+    ].slice(0, 8);
+  }
+  return { state, title: selected, isNew, weight: weights.get(selected.id), currentOdds: oddsLabel(weights.get(selected.id)), isBonusRoll: bonusRoll, rollBonusMultiplier };
+}
+
+function rollBatch(value = {}, randomValues) {
+  const startingState = normalizeState(value);
+  const rollsPerCycle = luckForState(startingState).rollsPerCycle;
+  let state = startingState;
+  const results = [];
+  for (let index = 0; index < rollsPerCycle; index++) {
+    const outcome = rollTitle(state, Array.isArray(randomValues) ? randomValues[index] : undefined);
+    state = outcome.state;
+    results.push({
+      title: outcome.title,
+      isNew: outcome.isNew,
+      currentOdds: outcome.currentOdds,
+      roll: state.totalRolls,
+      isBonusRoll: outcome.isBonusRoll,
+      rollBonusMultiplier: outcome.rollBonusMultiplier
+    });
+  }
+  return { state, results };
+}
+
+function oddsLabel(weight) {
+  const roundedOdds = (POOL * 2n + weight) / (weight * 2n);
+  if (roundedOdds < 1_000_000_000_000_000n) return `1 em ${wholeOddsFormatter.format(roundedOdds)}`;
+  let exponent = roundedOdds.toString().length - 3;
+  const unit = 10n ** BigInt(exponent);
+  let coefficient = (roundedOdds + unit / 2n) / unit;
+  if (coefficient >= 1000n) { coefficient /= 10n; exponent++; }
+  const superscript = String(exponent).replace(/[0-9-]/g, digit => ({ '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '-': '⁻' })[digit]);
+  return `1 em ${wholeOddsFormatter.format(coefficient)} × 10${superscript}`;
+}
+
+function publicCatalog(value = {}) {
+  const state = normalizeState(value);
+  const odds = currentWeights(state);
+  const collected = new Set(state.collectedIds);
+  return titles.map(title => ({
+    id: title.id,
+    name: title.name,
+    tier: title.tier,
+    tierLabel: title.tierLabel,
+    baseOdds: oddsLabel(title.baseWeight),
+    currentOdds: oddsLabel(odds.get(title.id)),
+    collected: collected.has(title.id),
+    categoryBonusBps: categoryBonusBps(state, title.tier)
+  }));
+}
+
+function publicProgress(value = {}) {
+  const state = normalizeState(value);
+  const collected = new Set(state.collectedIds);
+  const tierProgress = TIERS.map(tier => {
+    const count = titles.reduce((total, title) => total + (title.tier === tier.id && collected.has(title.id) ? 1 : 0), 0);
+    const achieved = CATEGORY_MILESTONES.filter(milestone => count >= milestone.count).map(milestone => milestone.count);
+    const next = CATEGORY_MILESTONES.find(milestone => count < milestone.count) || null;
+    return { id: tier.id, label: tier.label, count, total: 20, bonusBps: categoryBonusBps(state, tier.id), achieved, nextCount: next?.count || null, nextBonusBps: next?.bonusBps || null };
+  });
+  const luck = luckForState(state);
+  return {
+    categoryMilestones: CATEGORY_MILESTONES.map(item => ({ ...item })),
+    bonusRollCounter: state.bonusRollCounter,
+    rollMilestones: ROLL_MILESTONES.map(item => ({ ...item })),
+    bonusMilestones: BONUS_MILESTONES.map(item => ({ ...item })),
+    rollsPerCycle: luck.rollsPerCycle,
+    bonusMultiplier: luck.bonusMultiplier,
+    nextRollMilestone: luck.nextRollMilestone,
+    nextBonusMilestone: luck.nextBonusMilestone,
+    tierProgress,
+  };
+}
+
+function debugGrantTierTitles(value = {}, tierId, count = 5) {
+  if (!CATEGORY_TIER_IDS.has(tierId)) throw new RangeError('A raridade escolhida não existe.');
+  const state = normalizeState(value);
+  const target = Math.max(0, Math.min(20, nonNegativeInteger(count)));
+  const currentCount = state.collectedIds.reduce((total, id) => total + (titleById.get(id)?.tier === tierId ? 1 : 0), 0);
+  const needed = Math.max(0, target - currentCount);
+  const newTitles = titles.filter(title => title.tier === tierId && !state.collectedIds.includes(title.id)).slice(0, needed);
+  state.collectedIds.push(...newTitles.map(title => title.id));
+  return { state: normalizeState(state), granted: newTitles.length, tierId, target };
+}
+
+function debugGrantTotalTitles(value = {}, count = 25) {
+  const state = normalizeState(value);
+  const target = Math.max(0, Math.min(titles.length, nonNegativeInteger(count)));
+  const needed = Math.max(0, target - state.collectedIds.length);
+  const newTitles = titles.filter(title => !state.collectedIds.includes(title.id)).slice(0, needed);
+  state.collectedIds.push(...newTitles.map(title => title.id));
+  return { state: normalizeState(state), granted: newTitles.length, target };
+}
+
+function debugReadyBonusRoll(value = {}) {
+  const state = normalizeState(value);
+  state.bonusRollCounter = 9;
+  return normalizeState(state);
+}
+
+function debugGrantTitle(value = {}, titleId) {
+  const title = titleById.get(titleId);
+  if (!title) throw new RangeError('O título escolhido não existe.');
+  const state = normalizeState(value);
+  const added = !state.collectedIds.includes(titleId);
+  if (added) state.collectedIds.push(titleId);
+  return { state: normalizeState(state), title, added };
+}
+
+function debugRemoveTitle(value = {}, titleId) {
+  const title = titleById.get(titleId);
+  if (!title) throw new RangeError('O título escolhido não existe.');
+  const state = normalizeState(value);
+  const removed = state.collectedIds.includes(titleId);
+  state.collectedIds = state.collectedIds.filter(id => id !== titleId);
+  state.recentDiscoveries = state.recentDiscoveries.filter(discovery => discovery.titleId !== titleId);
+  return { state: normalizeState(state), title, removed };
+}
+
+function debugClearTitles(value = {}) {
+  const state = normalizeState(value);
+  const removedCount = state.collectedIds.length;
+  state.collectedIds = [];
+  state.recentDiscoveries = [];
+  return { state: normalizeState(state), removedCount };
+}
+
+module.exports = {
+  POOL,
+  TIERS,
+  CATEGORY_MILESTONES,
+  ROLL_MILESTONES,
+  BONUS_MILESTONES,
+  TITLES: titles,
+  basePoolWeight,
+  normalizeState,
+  luckForState,
+  currentWeights,
+  rollTitle,
+  rollBatch,
+  publicCatalog,
+  publicProgress,
+  oddsLabel,
+  debugGrantTitle,
+  debugRemoveTitle,
+  debugClearTitles,
+  debugGrantTierTitles,
+  debugGrantTotalTitles,
+  debugReadyBonusRoll
+};

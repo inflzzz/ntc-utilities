@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.0 — 2026-09-23
+
+- Novo **NTC RNG** com coleção de 200 títulos em português, chances explícitas, histórico de descobertas e salvamento com backup. Lucky Lad agora é Lendário (1 em 278.000.000) e Luckiest Lad é Lendário (exatamente 1 em 777.777.777).
+- A coleção aplica automaticamente bônus de sorte e ciclos extras de rolagem; o Auto-roll começa ao abrir o app, continua na bandeja e pode iniciar junto com o Windows.
+- Minimizar ou fechar pelo X mantém o NTC Utilities na bandeja; o menu do ícone permite reabrir o app ou sair de verdade.
+- Os dados pessoais e a coleção são mantidos fora da pasta de instalação e preservados ao atualizar. Usuários existentes veem este changelog uma vez após atualizar.
+- Nova aba **Captura de tela**, com atalhos configuráveis para captura com editor e captura rápida direto para a pasta escolhida.
+- Editor de capturas em tela cheia com caneta, formas, setas retas e curvas editáveis, texto, destaque, desfoque, pixelização, recorte, numeração e imagens que podem ser movidas/redimensionadas. Ctrl+C copia e fecha; Esc descarta.
+- As ferramentas de anotação usam branco como cor inicial; controles, setas e janela do editor foram refinados para deixar claro o limite da captura.
+- Gravador de tela inicia com áudio do computador e o microfone selecionado; se o microfone falhar, avisa e mantém o áudio do PC.
+- Novo **Gerador de QR Code** com prévia, opções de cor/tamanho, exportação PNG/SVG e histórico separado.
+- Ajustes de layout nas ferramentas para aproveitar a janela maximizada sem bordas e espaços vazios desnecessários.
+
 ## 0.2.5 — 2026-09-22
 
 - Adicionado sistema de atualização pelo próprio aplicativo: ao abrir uma versão desatualizada, o NTC Utilities mostra a nova versão, as novidades e permite baixar a atualização com um clique.
