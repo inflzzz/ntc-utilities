@@ -184,6 +184,7 @@ select:focus { border-color: #939393; }
 .recorder-help { max-width: 620px; }
 .record-tool-icon { font-size: 12px; }
 .shortcut-input { width: 180px; }
+.tool-options label:has(#compressionPreset) { display: none; }
 @keyframes recorder-pulse { 50% { opacity: .45; } }
 .progress-topline { display: flex; justify-content: space-between; margin-bottom: 13px; color: #d8d8d8; font-family: "Cascadia Mono", Consolas, monospace; font-size: 11px; }
 .status-pill { color: #cfcfcf; font-size: 10px; font-weight: 700; letter-spacing: .1em; }
