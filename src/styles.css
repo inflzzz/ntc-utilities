@@ -311,9 +311,11 @@ select:focus { border-color: #939393; }
 .timeline-editor { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
 .timeline-ruler, .audio-timeline-track { position: relative; min-height: 54px; overflow: hidden; border: 1px solid #393939; border-radius: 8px; background: repeating-linear-gradient(90deg, #151515 0, #151515 calc(10% - 1px), #303030 calc(10% - 1px), #303030 10%); cursor: crosshair; }
 .timeline-ruler:focus-visible { outline: 2px solid #ddd; outline-offset: 2px; }
-.timeline-selection { position: absolute; top: 4px; bottom: 4px; border: 1px solid #e1e1e1; border-radius: 5px; background: rgba(230,230,230,.16); pointer-events: none; }
+.timeline-ruler canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .86; pointer-events: none; }
+.timeline-cuts { position: absolute; inset: 0; pointer-events: none; }
+.timeline-selection { position: absolute; top: 4px; bottom: 4px; border: 1px solid #f0f0f0; border-radius: 5px; background: rgba(230,230,230,.16); pointer-events: none; }
 .timeline-playhead { position: absolute; z-index: 3; top: -2px; bottom: -2px; width: 2px; background: #fff; pointer-events: none; }
-.timeline-cut { position: absolute; top: 5px; bottom: 5px; border: 1px solid #a7a7a7; border-radius: 5px; background: rgba(140,140,140,.44); pointer-events: none; }
+.timeline-cut { position: absolute; top: 5px; bottom: 5px; border: 1px solid #a7a7a7; border-radius: 5px; background: repeating-linear-gradient(135deg, rgba(115,115,115,.75) 0 5px, rgba(55,55,55,.8) 5px 10px); pointer-events: none; }
 .timeline-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .audio-timeline-heading { margin-top: 4px; font-size: 12px; }
 .audio-timeline-heading > div { display: flex; align-items: center; gap: 12px; }
