@@ -1,5 +1,13 @@
 window.NTC_CHANGELOG = [
   {
+    version: '0.6.1',
+    date: '23 set. 2026',
+    changes: [
+      'O Auto-roll agora espera o fim da tela de carregamento e começa somente quando a interface principal aparece; a primeira rolagem acontece um segundo depois.',
+      'Os botões Agora não e Baixar atualização agora ficam alinhados e centralizados na mesma altura.'
+    ]
+  },
+  {
     version: '0.6.0',
     date: '23 set. 2026',
     changes: [

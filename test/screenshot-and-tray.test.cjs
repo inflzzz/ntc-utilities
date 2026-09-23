@@ -92,6 +92,8 @@ test('existing users see the full release changelog once after upgrading', () =>
   assert.match(app, /ntc-last-seen-changelog-version/);
   assert.match(app, /window\.setTimeout\(\(\) => \{ localStorage\.setItem\(key, version\); openChangelog\(\); \}, 2500\)/);
   assert.match(app, /showChangelogAfterUpgrade\(version\)/);
+  assert.match(changelog, /version: '0\.6\.1'/);
+  assert.match(changelog, /espera o fim da tela de carregamento/);
   assert.match(changelog, /version: '0\.6\.0'/);
 });
 

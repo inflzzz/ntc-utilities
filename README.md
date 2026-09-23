@@ -81,7 +81,7 @@ pnpm start
 pnpm package:win
 ```
 
-O instalador da versão atual será criado em `dist/NTC.Utilities.Setup.0.6.0.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git. O setup usa páginas brancas limpas, permite escolher a pasta e oferece a opção de remover outras cópias registradas do NTC Utilities. Atualizações silenciosas fazem essa limpeza automaticamente e preservam histórico, preferências e arquivos pessoais.
+O instalador da versão atual será criado em `dist/NTC.Utilities.Setup.0.6.1.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git. O setup usa páginas brancas limpas, permite escolher a pasta e oferece a opção de remover outras cópias registradas do NTC Utilities. Atualizações silenciosas fazem essa limpeza automaticamente e preservam histórico, preferências e arquivos pessoais.
 
 Para uma publicação oficial que suporte atualização dentro do app, use `pnpm release:win` com `GH_TOKEN` configurado. Esse comando envia o instalador e os arquivos de atualização necessários para a Release do GitHub.
 

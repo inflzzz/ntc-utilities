@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1 — 2026-09-23
+
+- O Auto-roll agora aguarda o fim da tela de carregamento e só começa quando a interface principal aparece; a primeira rolagem ocorre um segundo depois.
+- Alinhados verticalmente os botões **Agora não** e **Baixar atualização**, removendo a margem herdada que deslocava o texto.
+
 ## 0.6.0 — 2026-09-23
 
 - Novo **NTC RNG** com coleção de 200 títulos em português, chances explícitas, histórico de descobertas e salvamento com backup. Lucky Lad agora é Lendário (1 em 278.000.000) e Luckiest Lad é Lendário (exatamente 1 em 777.777.777).

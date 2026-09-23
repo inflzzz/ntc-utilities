@@ -1,6 +1,6 @@
 {
   "name": "ntc-utilities",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Utilitários desktop minimalistas, locais e privados.",
   "author": "NTC Corporation",
   "main": "main.cjs",
