@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld('ntc', {
   getRngState: () => ipcRenderer.invoke('get-rng-state'),
   rollRng: () => ipcRenderer.invoke('roll-rng'),
   setRngAutoRoll: (active) => ipcRenderer.invoke('set-rng-auto-roll', active),
+  appEntered: () => ipcRenderer.invoke('app-entered'),
   isDevelopmentBuild: () => ipcRenderer.invoke('is-development-build'),
   debugAddRngTitle: titleId => ipcRenderer.invoke('debug-rng-add-title', titleId),
   debugRemoveRngTitle: titleId => ipcRenderer.invoke('debug-rng-remove-title', titleId),

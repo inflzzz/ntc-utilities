@@ -51,6 +51,18 @@ test('minimizing hides the window in the tray while the main-process roll clock 
   assert.match(main, /Auto-roll \$\{active \? 'ativo em segundo plano' : 'pausado'\}/);
 });
 
+test('auto-roll starts only after the loading splash reveals the app', () => {
+  const main = read('main.cjs');
+  const preload = read('preload.cjs');
+  const app = read('src/app.js');
+  const clockBody = main.match(/function startRngClock\(\)\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+  assert.doesNotMatch(clockBody, /rngAutoRollStartedAt\s*=\s*now/);
+  assert.match(main, /function startRngAutoRoll\(\)[\s\S]*rngNextAutoRollAt = now \+ 1000/);
+  assert.match(main, /ipcMain\.handle\('app-entered',[\s\S]*event\.sender !== mainWindow\.webContents[\s\S]*startRngAutoRoll\(\)/);
+  assert.match(preload, /appEntered:.*app-entered/);
+  assert.match(app, /appShell\.setAttribute\('aria-hidden', 'false'\); void window\.ntc\.appEntered\(\)/);
+});
+
 test('screen recording starts with computer audio and the selected microphone without asking first', () => {
   const html = read('src/index.html');
   const app = read('src/app.js');
@@ -81,6 +93,12 @@ test('existing users see the full release changelog once after upgrading', () =>
   assert.match(app, /window\.setTimeout\(\(\) => \{ localStorage\.setItem\(key, version\); openChangelog\(\); \}, 2500\)/);
   assert.match(app, /showChangelogAfterUpgrade\(version\)/);
   assert.match(changelog, /version: '0\.6\.0'/);
+});
+
+test('update notice actions are centered on the same baseline', () => {
+  const css = read('src/styles.css');
+  assert.match(css, /\.update-notice-actions\s*\{[^}]*align-items:\s*center/);
+  assert.match(css, /\.update-notice-actions \.ghost-button, \.update-notice-actions \.primary-button\s*\{[^}]*height:\s*36px[^}]*margin:\s*0/);
 });
 
 test('RNG progress is saved outside the installation with a recoverable local backup', () => {

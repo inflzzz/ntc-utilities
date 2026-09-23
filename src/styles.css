@@ -291,8 +291,8 @@ body.window-maximized .screenshot-editor-card { width: calc(100vw - 56px); heigh
 .update-notice { position: fixed; z-index: 29; right: 24px; bottom: 22px; width: min(408px, calc(100vw - 48px)); padding: 18px; border: 1px solid #4a4a4a; border-radius: 12px; background: #171717; box-shadow: 0 18px 60px rgba(0,0,0,.5); }
 .update-notice h2 { margin: 7px 0 6px; color: #efefef; font-size: 16px; }
 .update-notice p { margin: 0; color: #a5a5a5; font-size: 12px; line-height: 1.5; }
-.update-notice-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-.update-notice .primary-button { min-height: 36px; }
+.update-notice-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.update-notice-actions .ghost-button, .update-notice-actions .primary-button { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; height: 36px; min-height: 36px; margin: 0; line-height: 1; }
 .update-notes { max-height: 112px; margin: 12px 0 0; padding-left: 17px; overflow-y: auto; color: #bdbdbd; font-size: 11px; line-height: 1.55; }
 .update-notes li + li { margin-top: 4px; }
 .confirm-backdrop { position: fixed; z-index: 40; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(0,0,0,.62); }

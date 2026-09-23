@@ -132,13 +132,20 @@ function performRngRoll() {
 }
 function startRngClock() {
   const now = Date.now(); rngAppSessionStartedAt = now; rngAppAccountedAt = now; rngLastPersistAt = now;
-  rngAutoRollStartedAt = now; rngAutoAccountedAt = now; rngNextAutoRollAt = now + 1000; rngGame.lastAutoRollSessionSeconds = 0;
+  rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0;
   if (rngClock) clearInterval(rngClock);
   rngClock = setInterval(() => {
     const tick = Date.now();
     if (rngAutoRollStartedAt && tick >= rngNextAutoRollAt) { rngNextAutoRollAt = tick + 1000; performRngRoll(); }
     if (tick - rngLastPersistAt >= 5000) { accountRngTime(tick); persistRngGame(); }
   }, 200);
+}
+function startRngAutoRoll() {
+  if (rngAutoRollStartedAt) return false;
+  const now = Date.now();
+  rngAutoRollStartedAt = now; rngAutoAccountedAt = now; rngNextAutoRollAt = now + 1000; rngGame.lastAutoRollSessionSeconds = 0;
+  updateTrayStatus(); sendRngState();
+  return true;
 }
 function loginAtStartupPath() { return path.join(app.getPath('userData'), 'ntc-launch-at-login.json'); }
 function loginAtStartupOptions(enabled) { return app.isPackaged ? { openAtLogin: Boolean(enabled) } : { openAtLogin: Boolean(enabled), path: process.execPath, args: [app.getAppPath()] }; }
@@ -440,6 +447,10 @@ app.whenReady().then(() => {
   ipcMain.handle('set-launch-at-login', (_event, enabled) => setLoginAtStartup(enabled));
   ipcMain.handle('is-development-build', () => !app.isPackaged);
   ipcMain.handle('get-rng-state', () => rngSnapshot());
+  ipcMain.handle('app-entered', event => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return false;
+    return startRngAutoRoll();
+  });
   ipcMain.handle('roll-rng', () => {
     if (rngAutoRollStartedAt) throw new Error('Pause o Auto-roll para fazer uma rolagem manual.');
     return performRngRoll();
