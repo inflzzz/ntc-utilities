@@ -167,7 +167,7 @@ function startFfmpegJob(event, map, id, args, output, duration, channel) {
 function recordingOutputName(folder) { const stamp = new Date().toISOString().replace(/[T:]/g, '-').replace(/\..+/, ''); return availableFilename(folder, `Gravação ${stamp}.mp4`, 'rename'); }
 async function finalizeScreenRecording(session) {
   await new Promise((resolve, reject) => { session.stream.end(error => error ? reject(error) : resolve()); });
-  const args = ['-hide_banner', '-y', '-i', session.temp, '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p'];
+  const crf = { alta: '18', equilibrada: '23', economica: '30' }[session.quality] || '23'; const args = ['-hide_banner', '-y', '-i', session.temp, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', crf, '-pix_fmt', 'yuv420p'];
   if (session.withAudio) args.push('-c:a', 'aac', '-b:a', '128k'); else args.push('-an');
   args.push('-movflags', '+faststart', session.output);
   try { await run('ffmpeg', args); } finally { if (fs.existsSync(session.temp)) fs.unlinkSync(session.temp); }
@@ -286,7 +286,7 @@ app.whenReady().then(() => {
   ipcMain.handle('screen-recording-start', async (_event, options) => {
     if (!options?.folder) throw new Error('Escolha uma pasta para salvar a gravação.');
     const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`; const temp = path.join(app.getPath('temp'), `ntc-recording-${id}.webm`); const output = path.join(options.folder, recordingOutputName(options.folder));
-    const stream = fs.createWriteStream(temp); recordingSessions.set(id, { id, temp, output, folder: options.folder, withAudio: Boolean(options.withAudio), stream }); return { id };
+    const stream = fs.createWriteStream(temp); recordingSessions.set(id, { id, temp, output, folder: options.folder, withAudio: Boolean(options.withAudio), quality: options.quality || 'equilibrada', stream }); return { id };
   });
   ipcMain.handle('screen-recording-chunk', (_event, id, chunk) => { const session = recordingSessions.get(id); if (!session || !chunk) throw new Error('Gravação não encontrada.'); return session.stream.write(Buffer.from(chunk)); });
   ipcMain.handle('screen-recording-stop', async (_event, id) => { const session = recordingSessions.get(id); if (!session) throw new Error('Gravação não encontrada.'); recordingSessions.delete(id); try { return await finalizeScreenRecording(session); } catch (error) { if (fs.existsSync(session.temp)) fs.unlinkSync(session.temp); throw new Error(`Não foi possível finalizar a gravação: ${error.message}`); } });
