@@ -8,6 +8,7 @@ window.NTC_CHANGELOG = [
       'Novo Gravador de tela com qualidade, escolha de microfone, áudio do computador e salvamento em MP4.',
       'Novo Compressor para vídeos e áudios, com controles adequados para cada tipo de mídia.',
       'Downloads MP4 agora priorizam H.264 e AAC para abrir no Windows Media Player.',
+      'Instalador oferece remover outras cópias registradas e preserva dados pessoais durante a limpeza.',
       'Ajustes visuais, correções de renderização e atalho do gravador opcional.'
     ]
   },
