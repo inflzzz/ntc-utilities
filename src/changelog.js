@@ -1,5 +1,15 @@
 window.NTC_CHANGELOG = [
   {
+    version: '0.4.0',
+    date: 'Em desenvolvimento',
+    changes: [
+      'Novo Gravador de tela com captura simples em MP4.',
+      'Atalho global configurável para iniciar e parar a gravação.',
+      'Opção de gravar com microfone ou somente a tela.',
+      'Indicador de gravação, tempo decorrido e salvamento no histórico.'
+    ]
+  },
+  {
     version: '0.3.0',
     date: '22 set. 2026',
     changes: [

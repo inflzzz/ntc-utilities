@@ -172,6 +172,19 @@ select:focus { border-color: #939393; }
 .empty-icon { color: #b8b8b8; font-size: 20px; }
 
 .progress-card { margin-top: 17px; padding: 16px; border: 1px solid #353535; border-radius: 11px; background: #151515; }
+.recorder-card { display: grid; gap: 18px; max-width: 620px; margin-top: 24px; padding: 28px; border: 1px solid var(--line-soft); border-radius: 12px; background: #111; }
+.recorder-status { display: flex; align-items: center; gap: 13px; }
+.recorder-status strong, .recorder-status small { display: block; }
+.recorder-status strong { font-size: 15px; }
+.recorder-status small { margin-top: 4px; color: var(--muted); font-family: "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+.record-dot { display: block; width: 14px; height: 14px; border-radius: 50%; background: #555; }
+.recorder-status.is-recording .record-dot { background: #eee; box-shadow: 0 0 0 5px rgba(255,255,255,.08); animation: recorder-pulse 1.2s ease-in-out infinite; }
+.recorder-status.is-recording strong { color: #fff; }
+.recorder-button { width: fit-content; min-width: 190px; }
+.recorder-help { max-width: 620px; }
+.record-tool-icon { font-size: 12px; }
+.shortcut-input { width: 180px; }
+@keyframes recorder-pulse { 50% { opacity: .45; } }
 .progress-topline { display: flex; justify-content: space-between; margin-bottom: 13px; color: #d8d8d8; font-family: "Cascadia Mono", Consolas, monospace; font-size: 11px; }
 .status-pill { color: #cfcfcf; font-size: 10px; font-weight: 700; letter-spacing: .1em; }
 .media-info { display: flex; align-items: center; gap: 11px; }
@@ -299,6 +312,7 @@ body.theme-light .sidebar, body.theme-light .titlebar, body.theme-light .splash 
 body.theme-light .download-card, body.theme-light .settings-card, body.theme-light .converter-editor, body.theme-light .queue-item, body.theme-light .progress-card, body.theme-light .waveform-editor, body.theme-light .metadata-details { background: #fff; }
 body.theme-light input, body.theme-light select, body.theme-light .folder-picker, body.theme-light .filename-picker { color: #1b1b1a; background-color: #fafaf8; border-color: #c7c7c2; }
 body.theme-light .media-dropzone { background: #fafaf8; }
+body.theme-light .recorder-card { background: #fff; }
 body.theme-light .tool-card { background: #fff; }
 body.theme-light .wordmark { color: #101010; }
 @media (max-width: 1050px) { .effects-grid { grid-template-columns: 1fr 1fr 1fr; } }

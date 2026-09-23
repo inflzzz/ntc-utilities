@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell, clipboard } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell, clipboard, desktopCapturer, globalShortcut } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
@@ -10,7 +10,9 @@ const downloadJobs = new Map();
 const conversionJobs = new Map();
 const videoJobs = new Map();
 const imageJobs = new Map();
+const recordingSessions = new Map();
 let mainWindow = null;
+let forceClose = false;
 let updateState = { status: 'idle' };
 const hosts = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'];
 const audioExtensions = ['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.opus', '.wma'];
@@ -162,6 +164,15 @@ function startFfmpegJob(event, map, id, args, output, duration, channel) {
     child.stdout.on('data', data); child.stderr.on('data', data); child.on('error', error => { map.delete(id); reject(error); }); child.on('close', code => { map.delete(id); if (cancelled) { if (fs.existsSync(output)) fs.unlinkSync(output); return reject(new Error('Operação cancelada.')); } if (code !== 0 || !fs.existsSync(output)) return reject(new Error('A conversão falhou. Verifique o arquivo, as opções ou o espaço disponível.')); const stat = fs.statSync(output); send(event.sender, channel, { id, status: 'complete', file: output, size: stat.size, filename: path.basename(output) }); resolve({ file: output, size: stat.size, filename: path.basename(output) }); });
   });
 }
+function recordingOutputName(folder) { const stamp = new Date().toISOString().replace(/[T:]/g, '-').replace(/\..+/, ''); return availableFilename(folder, `Gravação ${stamp}.mp4`, 'rename'); }
+async function finalizeScreenRecording(session) {
+  await new Promise((resolve, reject) => { session.stream.end(error => error ? reject(error) : resolve()); });
+  const args = ['-hide_banner', '-y', '-i', session.temp, '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p'];
+  if (session.withAudio) args.push('-c:a', 'aac', '-b:a', '128k'); else args.push('-an');
+  args.push('-movflags', '+faststart', session.output);
+  try { await run('ffmpeg', args); } finally { if (fs.existsSync(session.temp)) fs.unlinkSync(session.temp); }
+  const stat = fs.statSync(session.output); return { file: session.output, size: stat.size, filename: path.basename(session.output) };
+}
 async function createWaveform(file) {
   if (!file || !fs.existsSync(file)) throw new Error('Arquivo não encontrado.');
   const pcm = await runBuffer('ffmpeg', ['-v', 'error', '-i', file, '-map', '0:a:0', '-ac', '1', '-ar', '200', '-f', 'f32le', 'pipe:1']);
@@ -172,6 +183,7 @@ async function createWaveform(file) {
 }
 function createWindow() {
   mainWindow = new BrowserWindow({ width: 1160, height: 760, minWidth: 930, minHeight: 640, icon: path.join(__dirname, 'build', 'ntc-logo.png'), backgroundColor: '#090909', frame: false, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false } });
+  mainWindow.on('close', event => { if (forceClose || !recordingSessions.size) return; event.preventDefault(); if (!mainWindow.isDestroyed()) mainWindow.webContents.send('screen-close-request'); });
   mainWindow.on('closed', () => { mainWindow = null; });
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
 }
@@ -184,6 +196,7 @@ app.whenReady().then(() => {
   ipcMain.handle('window-minimize', event => BrowserWindow.fromWebContents(event.sender)?.minimize());
   ipcMain.handle('window-toggle-maximize', event => { const window = BrowserWindow.fromWebContents(event.sender); if (!window) return false; if (window.isMaximized()) window.unmaximize(); else window.maximize(); return window.isMaximized(); });
   ipcMain.handle('window-close', event => BrowserWindow.fromWebContents(event.sender)?.close());
+  ipcMain.handle('window-force-close', event => { forceClose = true; BrowserWindow.fromWebContents(event.sender)?.close(); });
   ipcMain.handle('window-is-maximized', event => BrowserWindow.fromWebContents(event.sender)?.isMaximized() || false);
   ipcMain.handle('choose-download-folder', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha a pasta de destino', properties: ['openDirectory', 'createDirectory'] }); return result.canceled ? null : result.filePaths[0]; });
   ipcMain.handle('choose-media-files', async () => {
@@ -269,6 +282,18 @@ app.whenReady().then(() => {
     try { let pipeline = sharp(item.source).rotate(); const metadata = await sharp(item.source).metadata(); const { width, height } = imageDimensions(metadata, item); const quality = Math.max(1, Math.min(100, Number(item.quality) || 85)); if (width || height) pipeline = pipeline.resize(width, height, { fit: item.keepRatio === false ? 'fill' : 'inside', withoutEnlargement: false }); pipeline = applyLowQualityPixelation(pipeline, width, height, quality); if (format === 'jpg') pipeline = pipeline.flatten({ background: '#ffffff' }).jpeg({ quality }); if (format === 'png') pipeline = pipeline.png({ palette: true, quality, compressionLevel: 9 }); if (format === 'webp') pipeline = pipeline.webp({ quality }); await pipeline.toFile(output); imageJobs.delete(item.id); if (cancelled) { if (fs.existsSync(output)) fs.unlinkSync(output); throw new Error('Operação cancelada.'); } const stat = fs.statSync(output); send(event.sender, 'image-event', { id: item.id, status: 'complete', file: output, size: stat.size, filename }); return { file: output, size: stat.size, filename }; } catch (error) { imageJobs.delete(item.id); throw error; }
   });
   ipcMain.handle('cancel-image-conversion', (_event, id) => imageJobs.get(id)?.cancel?.());
+  ipcMain.handle('screen-sources', async () => (await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } })).map(source => ({ id: source.id, name: source.name })));
+  ipcMain.handle('screen-recording-start', async (_event, options) => {
+    if (!options?.folder) throw new Error('Escolha uma pasta para salvar a gravação.');
+    const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`; const temp = path.join(app.getPath('temp'), `ntc-recording-${id}.webm`); const output = path.join(options.folder, recordingOutputName(options.folder));
+    const stream = fs.createWriteStream(temp); recordingSessions.set(id, { id, temp, output, folder: options.folder, withAudio: Boolean(options.withAudio), stream }); return { id };
+  });
+  ipcMain.handle('screen-recording-chunk', (_event, id, chunk) => { const session = recordingSessions.get(id); if (!session || !chunk) throw new Error('Gravação não encontrada.'); return session.stream.write(Buffer.from(chunk)); });
+  ipcMain.handle('screen-recording-stop', async (_event, id) => { const session = recordingSessions.get(id); if (!session) throw new Error('Gravação não encontrada.'); recordingSessions.delete(id); try { return await finalizeScreenRecording(session); } catch (error) { if (fs.existsSync(session.temp)) fs.unlinkSync(session.temp); throw new Error(`Não foi possível finalizar a gravação: ${error.message}`); } });
+  ipcMain.handle('screen-recording-cancel', (_event, id) => { const session = recordingSessions.get(id); if (!session) return false; recordingSessions.delete(id); session.stream.destroy(); if (fs.existsSync(session.temp)) fs.unlinkSync(session.temp); return true; });
+  ipcMain.handle('register-screen-shortcut', (_event, accelerator) => { const value = String(accelerator || '').trim(); if (!value) return { ok: false, message: 'Atalho vazio.' }; globalShortcut.unregisterAll(); const ok = globalShortcut.register(value, () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('screen-hotkey'); }); return ok ? { ok: true, accelerator: value } : { ok: false, message: 'Este atalho já está sendo usado pelo sistema.' }; });
+  ipcMain.handle('unregister-screen-shortcut', () => { globalShortcut.unregisterAll(); return true; });
   configureUpdater(); createWindow(); if (app.isPackaged) setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 2500); app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
+  globalShortcut.register('CommandOrControl+Shift+R', () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('screen-hotkey'); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

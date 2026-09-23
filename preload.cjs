@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('ntc', {
   minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
   toggleMaximize: () => ipcRenderer.invoke('window-toggle-maximize'),
   closeWindow: () => ipcRenderer.invoke('window-close'),
+  forceCloseWindow: () => ipcRenderer.invoke('window-force-close'),
   isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
   chooseDownloadFolder: () => ipcRenderer.invoke('choose-download-folder'),
   chooseMediaFiles: () => ipcRenderer.invoke('choose-media-files'),
@@ -37,6 +38,13 @@ contextBridge.exposeInMainWorld('ntc', {
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
   downloadUpdate: () => ipcRenderer.invoke('download-update'),
   installUpdate: () => ipcRenderer.invoke('install-update'),
+  screenSources: () => ipcRenderer.invoke('screen-sources'),
+  startScreenRecording: (options) => ipcRenderer.invoke('screen-recording-start', options),
+  sendScreenRecordingChunk: (id, chunk) => ipcRenderer.invoke('screen-recording-chunk', id, chunk),
+  stopScreenRecording: (id) => ipcRenderer.invoke('screen-recording-stop', id),
+  cancelScreenRecording: (id) => ipcRenderer.invoke('screen-recording-cancel', id),
+  registerScreenShortcut: (accelerator) => ipcRenderer.invoke('register-screen-shortcut', accelerator),
+  unregisterScreenShortcut: () => ipcRenderer.invoke('unregister-screen-shortcut'),
   onUpdateEvent: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('update-event', listener);
@@ -54,4 +62,6 @@ contextBridge.exposeInMainWorld('ntc', {
   },
   onVideoEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('video-event', listener); return () => ipcRenderer.removeListener('video-event', listener); },
   onImageEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('image-event', listener); return () => ipcRenderer.removeListener('image-event', listener); }
+  ,onScreenHotkey: (callback) => { const listener = () => callback(); ipcRenderer.on('screen-hotkey', listener); return () => ipcRenderer.removeListener('screen-hotkey', listener); },
+  onScreenCloseRequest: (callback) => { const listener = () => callback(); ipcRenderer.on('screen-close-request', listener); return () => ipcRenderer.removeListener('screen-close-request', listener); }
 });

@@ -32,6 +32,7 @@
           </button>
           <button class="nav-item" data-view="video"><span class="nav-icon">▸</span> Conversor de vídeo</button>
           <button class="nav-item" data-view="image"><span class="nav-icon">▧</span> Conversor de imagens</button>
+          <button class="nav-item" data-view="recorder"><span class="nav-icon">●</span> Gravador de tela</button>
           <button class="nav-item" data-view="history">
             <span class="nav-icon">◷</span> Histórico
           </button>
@@ -59,9 +60,20 @@
             <button class="tool-card available" data-open-tool="converter"><span class="tool-icon">♫</span><span><strong>Editor de áudio</strong><small>Corte, converta e organize</small></span></button>
             <button class="tool-card available" data-open-tool="video"><span class="tool-icon">▸</span><span><strong>Conversor de vídeo</strong><small>MP4, MKV e WebM</small></span></button>
             <button class="tool-card available" data-open-tool="image"><span class="tool-icon">▧</span><span><strong>Conversor de imagens</strong><small>JPG, PNG e WebP</small></span></button>
-            <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
+            <button class="tool-card available" data-open-tool="recorder"><span class="tool-icon record-tool-icon">●</span><span><strong>Gravador de tela</strong><small>Captura simples em MP4</small></span></button>
             <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
           </div>
+        </section>
+
+        <section class="view recorder-view" id="recorderView">
+          <div class="hero compact"><div class="eyebrow">CAPTURA</div><h1>Gravador de tela</h1><p>Capture a tela inteira em um vídeo MP4 local.</p></div>
+          <section class="recorder-card">
+            <div class="recorder-status" id="recorderStatus" aria-live="polite"><span class="record-dot" id="recordDot"></span><div><strong id="recorderState">Pronto para gravar</strong><small id="recorderTimer">00:00:00</small></div></div>
+            <button class="primary-button recorder-button" id="toggleRecording" type="button">Iniciar gravação</button>
+            <p class="form-note">Atalho: <kbd id="recordShortcutLabel">Ctrl + Shift + R</kbd>. A gravação usa a tela inteira.</p>
+            <label class="tool-destination"><span class="field-label">Salvar gravações em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="recorderFolderPath">Downloads</span><button type="button" id="chooseRecorderFolder">Alterar</button></div></label>
+          </section>
+          <section class="recent-section"><div class="section-heading"><h2>Como funciona</h2></div><div class="empty-state recorder-help"><p>Inicie pelo botão ou atalho. Ao parar, o MP4 será salvo automaticamente na pasta escolhida.</p></div></section>
         </section>
 
         <section class="view" id="downloaderView">
@@ -221,6 +233,7 @@
             <div class="setting-row"><div><strong>Arquivos duplicados</strong><p>Como tratar um arquivo que já existe.</p></div><select id="duplicatePolicy"><option value="rename">Criar cópia numerada</option><option value="overwrite">Substituir arquivo</option><option value="ask">Perguntar sempre</option></select></div>
             <div class="setting-row"><div><strong>Modelo de nome</strong><p>Define o nome inicial dos novos downloads.</p></div><select id="filenameTemplate"><option value="title">Título</option><option value="channel-title">Canal - Título</option><option value="date-title">Data - Título</option></select></div>
             <div class="setting-row"><div><strong>Tema</strong><p>Escolha entre o visual escuro ou claro.</p></div><select id="themePreference"><option value="dark">Escuro</option><option value="light">Claro</option></select></div>
+            <div class="setting-row"><div><strong>Atalho do gravador</strong><p>Atalho global para iniciar ou parar a captura.</p></div><input class="text-input shortcut-input" id="recordShortcut" value="Ctrl+Shift+R" aria-label="Atalho do gravador" /></div>
             <div class="setting-row"><div><strong>Ferramentas instaladas</strong><p id="toolVersions">Ainda não verificado.</p></div><button class="outline-button" type="button" id="checkTools">Verificar</button></div>
           </div>
           <div class="settings-card settings-card-secondary">
@@ -233,7 +246,7 @@
         </section>
 
         <section class="view history-view" id="historyView">
-          <div class="hero compact history-hero"><div><div class="eyebrow">ARQUIVOS</div><h1>Histórico</h1><p>Downloads e conversões feitos nesta sessão.</p></div><div class="history-actions"><select id="historyFilter" aria-label="Filtrar histórico"><option value="all">Tudo</option><option value="download">Downloads</option><option value="conversion">Conversões</option><option value="failed">Falhas</option></select><button class="outline-button" id="clearHistoryPage" type="button">Limpar histórico</button></div></div>
+          <div class="hero compact history-hero"><div><div class="eyebrow">ARQUIVOS</div><h1>Histórico</h1><p>Downloads, gravações e conversões feitos nesta sessão.</p></div><div class="history-actions"><select id="historyFilter" aria-label="Filtrar histórico"><option value="all">Tudo</option><option value="download">Downloads</option><option value="conversion">Conversões</option><option value="recording">Gravações</option><option value="failed">Falhas</option></select><button class="outline-button" id="clearHistoryPage" type="button">Limpar histórico</button></div></div>
           <div class="all-history" id="allHistory"><div class="empty-state"><div class="empty-icon">◷</div><p>Nenhum arquivo concluído ainda.</p></div></div>
         </section>
         </div>
