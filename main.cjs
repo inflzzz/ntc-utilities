@@ -3,15 +3,19 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const { autoUpdater } = require('electron-updater');
+const sharp = require('sharp');
 
 if (!app.isPackaged) app.setPath('userData', path.join(__dirname, '.ntc-data'));
 const downloadJobs = new Map();
 const conversionJobs = new Map();
+const videoJobs = new Map();
+const imageJobs = new Map();
 let mainWindow = null;
 let updateState = { status: 'idle' };
 const hosts = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'];
 const audioExtensions = ['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.opus', '.wma'];
 const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.webm', '.wmv', '.m4v'];
+const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff'];
 
 function isSupportedUrl(value) { try { return hosts.includes(new URL(value).hostname); } catch { return false; } }
 function send(sender, channel, payload) { if (!sender.isDestroyed()) sender.send(channel, payload); }
@@ -58,6 +62,7 @@ function buildArgs(item) {
   if (item.duplicate === 'overwrite') args.push('--force-overwrites'); else args.push('--no-overwrites');
   if (item.speedLimit) args.push('--limit-rate', item.speedLimit);
   if (item.type === 'audio') { if (item.format === 'original') args.push('--format', 'bestaudio/best'); else args.push('--extract-audio', '--audio-format', item.format, '--audio-quality', quality === 'original' ? '0' : `${quality}K`); }
+  else if (item.type === 'thumbnail') args.push('--skip-download', '--write-thumbnail', '--convert-thumbnails', item.format === 'png' ? 'png' : 'jpg');
   else { const height = quality === 'best' ? '' : `[height<=${quality}]`; const format = item.format === 'webm' ? 'webm' : 'mp4'; args.push('--format', `bv*${height}+ba/b${height}`, '--merge-output-format', format); }
   args.push(item.url); return args;
 }
@@ -95,9 +100,14 @@ function codecArgs(format, quality) {
   const bitrate = ['128', '192', '256', '320'].includes(String(quality)) ? `${quality}k` : '192k';
   if (format === 'mp3') return ['-c:a', 'libmp3lame', '-b:a', bitrate];
   if (format === 'm4a') return ['-c:a', 'aac', '-b:a', bitrate];
+  if (format === 'aac') return ['-c:a', 'aac', '-b:a', bitrate];
+  if (format === 'ogg') return ['-c:a', 'libvorbis', '-b:a', bitrate];
   if (format === 'opus') return ['-c:a', 'libopus', '-b:a', bitrate];
   if (format === 'wav') return ['-c:a', 'pcm_s16le'];
   if (format === 'flac') return ['-c:a', 'flac'];
+  if (format === 'aiff') return ['-c:a', 'pcm_s16be'];
+  if (format === 'wma') return ['-c:a', 'wmav2', '-b:a', bitrate];
+  if (format === 'ac3') return ['-c:a', 'ac3', '-b:a', bitrate];
   throw new Error('Formato de saída inválido.');
 }
 function estimateEta(seconds, percent) {
@@ -120,6 +130,37 @@ async function inspectMedia(file) {
     coverStreamIndex: Number.isInteger(cover?.index) ? cover.index : null,
     metadata: { title: tags.title || '', artist: tags.artist || tags.album_artist || '', album: tags.album || '', year: tags.date || tags.year || '', genre: tags.genre || '' }
   };
+}
+async function inspectVideo(file) {
+  if (!file || !fs.existsSync(file)) throw new Error('Vídeo não encontrado.');
+  const data = JSON.parse(await run('ffprobe', ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', file]));
+  const video = (data.streams || []).find(stream => stream.codec_type === 'video');
+  if (!video) throw new Error('Este arquivo não possui vídeo.');
+  const duration = Number(data.format?.duration || video.duration || 0);
+  return { path: file, name: path.basename(file), baseName: path.basename(file, path.extname(file)), duration: Number.isFinite(duration) ? duration : 0, durationLabel: duration ? new Date(duration * 1000).toISOString().slice(11, 19) : '—', width: video.width || 0, height: video.height || 0, hasAudio: (data.streams || []).some(stream => stream.codec_type === 'audio'), format: path.extname(file).slice(1) };
+}
+async function inspectImage(file) {
+  if (!file || !fs.existsSync(file)) throw new Error('Imagem não encontrada.');
+  const data = await sharp(file).metadata();
+  if (!data.width || !data.height) throw new Error('Não foi possível ler esta imagem.');
+  return { path: file, name: path.basename(file), baseName: path.basename(file, path.extname(file)), width: data.width, height: data.height, format: data.format || path.extname(file).slice(1), hasAlpha: Boolean(data.hasAlpha), size: fs.statSync(file).size };
+}
+function imageDimensions(metadata, item) {
+  const scale = Math.max(1, Math.min(10000, Number(item.scale) || 100)) / 100; const sourceWidth = Number(metadata.width || 0); const sourceHeight = Number(metadata.height || 0); let width = Number(item.width) || Math.round(sourceWidth * scale) || null; let height = Number(item.height) || Math.round(sourceHeight * scale) || null;
+  if (item.keepRatio !== false && sourceWidth && sourceHeight) { if (Number(item.width) && !Number(item.height)) height = Math.round(width * sourceHeight / sourceWidth); if (Number(item.height) && !Number(item.width)) width = Math.round(height * sourceWidth / sourceHeight); }
+  return { width, height };
+}
+function applyLowQualityPixelation(pipeline, width, height, quality) {
+  if (quality > 15 || !width || !height) return pipeline; const factor = Math.max(.015, quality / 100); return pipeline.resize(Math.max(1, Math.round(width * factor)), Math.max(1, Math.round(height * factor)), { fit: 'fill', kernel: 'nearest' }).resize(width, height, { fit: 'fill', kernel: 'nearest' });
+}
+function startFfmpegJob(event, map, id, args, output, duration, channel) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(binary('ffmpeg'), args, { windowsHide: true }); let cancelled = false; let buffer = ''; const started = Date.now();
+    map.set(id, { cancel: () => { cancelled = true; child.kill(); } });
+    const line = raw => { const [key, ...rest] = raw.trim().split('='); if (key !== 'out_time_ms') return; const seconds = Number(rest.join('=')) / 1000000; const percent = duration ? Math.min(99, seconds / duration * 100) : 0; send(event.sender, channel, { id, status: 'converting', percent, eta: estimateEta((Date.now() - started) / 1000, percent) }); };
+    const data = chunk => { buffer += chunk.toString(); const lines = buffer.split(/\r?\n/); buffer = lines.pop() || ''; lines.forEach(line); };
+    child.stdout.on('data', data); child.stderr.on('data', data); child.on('error', error => { map.delete(id); reject(error); }); child.on('close', code => { map.delete(id); if (cancelled) { if (fs.existsSync(output)) fs.unlinkSync(output); return reject(new Error('Operação cancelada.')); } if (code !== 0 || !fs.existsSync(output)) return reject(new Error('A conversão falhou. Verifique o arquivo, as opções ou o espaço disponível.')); const stat = fs.statSync(output); send(event.sender, channel, { id, status: 'complete', file: output, size: stat.size, filename: path.basename(output) }); resolve({ file: output, size: stat.size, filename: path.basename(output) }); });
+  });
 }
 async function createWaveform(file) {
   if (!file || !fs.existsSync(file)) throw new Error('Arquivo não encontrado.');
@@ -149,8 +190,17 @@ app.whenReady().then(() => {
     const result = await dialog.showOpenDialog({ title: 'Escolha arquivos de áudio ou vídeo', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Mídia', extensions: [...audioExtensions, ...videoExtensions].map(extension => extension.slice(1)) }] });
     return result.canceled ? [] : result.filePaths;
   });
+  ipcMain.handle('choose-video-files', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha vídeos', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Vídeos', extensions: videoExtensions.map(extension => extension.slice(1)) }] }); return result.canceled ? [] : result.filePaths; });
+  ipcMain.handle('choose-image-files', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha imagens', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Imagens', extensions: imageExtensions.map(extension => extension.slice(1)) }] }); return result.canceled ? [] : result.filePaths; });
   ipcMain.handle('choose-cover-file', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha uma capa', properties: ['openFile'], filters: [{ name: 'Imagens', extensions: ['jpg', 'jpeg', 'png'] }] }); return result.canceled ? null : result.filePaths[0]; });
   ipcMain.handle('inspect-media', (_event, file) => inspectMedia(file));
+  ipcMain.handle('inspect-video', (_event, file) => inspectVideo(file));
+  ipcMain.handle('inspect-image', (_event, file) => inspectImage(file));
+  ipcMain.handle('preview-image', async (_event, item) => {
+    if (!item?.source || !fs.existsSync(item.source)) throw new Error('Imagem não encontrada.');
+    const metadata = await sharp(item.source).metadata(); const { width, height } = imageDimensions(metadata, item);
+    const quality = Math.max(1, Math.min(100, Number(item.quality) || 85)); const format = ['jpg', 'png', 'webp'].includes(item.format) ? item.format : 'jpg'; let pipeline = sharp(item.source).rotate().resize(width, height, { fit: item.keepRatio === false ? 'fill' : 'inside', withoutEnlargement: false }); pipeline = applyLowQualityPixelation(pipeline, width, height, quality).resize({ width: 1100, height: 700, fit: 'inside', withoutEnlargement: true }); if (format === 'jpg') pipeline = pipeline.flatten({ background: '#ffffff' }).jpeg({ quality }); if (format === 'png') pipeline = pipeline.png({ palette: true, quality, compressionLevel: 9 }); if (format === 'webp') pipeline = pipeline.webp({ quality }); const output = await pipeline.toBuffer(); const mime = format === 'jpg' ? 'image/jpeg' : `image/${format}`; return { dataUrl: `data:${mime};base64,${output.toString('base64')}`, width, height };
+  });
   ipcMain.handle('get-waveform', (_event, file) => createWaveform(file));
   ipcMain.handle('open-folder', (_event, folder) => folder ? shell.openPath(folder) : '');
   ipcMain.handle('open-file', (_event, file) => file ? shell.openPath(file) : '');
@@ -171,7 +221,7 @@ app.whenReady().then(() => {
   ipcMain.handle('preview-url', async (_event, url) => { if (!isSupportedUrl(url)) throw new Error('Cole um link válido do YouTube.'); const data = JSON.parse(await run('yt-dlp', ['--dump-single-json', '--skip-download', '--no-playlist', '--no-warnings', url])); const sizes = [data.filesize, data.filesize_approx, ...(data.formats || []).map(format => format.filesize || format.filesize_approx || 0)]; const estimatedSize = Math.max(0, ...sizes.map(value => Number(value) || 0)); return { id: data.id, title: data.title || 'Sem título', channel: data.channel || data.uploader || 'Canal desconhecido', duration: data.duration_string || '—', thumbnail: data.thumbnail || '', estimatedSize, webpageUrl: data.webpage_url || url }; });
   ipcMain.handle('playlist-preview', async (_event, url) => { if (!isSupportedUrl(url)) throw new Error('Link inválido.'); const data = JSON.parse(await run('yt-dlp', ['--flat-playlist', '--dump-single-json', '--skip-download', '--no-warnings', url])); const entries = (data.entries || []).filter(Boolean).map(entry => ({ id: entry.id, title: entry.title || 'Sem título', channel: entry.channel || entry.uploader || '', duration: entry.duration_string || '—', thumbnail: entry.thumbnail || `https://i.ytimg.com/vi/${entry.id}/mqdefault.jpg`, webpageUrl: entry.webpage_url || `https://www.youtube.com/watch?v=${entry.id}` })); return { isPlaylist: data._type === 'playlist' || entries.length > 1, title: data.title || 'Playlist', thumbnail: data.thumbnail || '', entries }; });
   ipcMain.handle('start-download', async (event, item) => {
-    if (!item?.downloadId || !isSupportedUrl(item.url)) throw new Error('Link inválido.'); if (!item.folder || !['audio', 'video'].includes(item.type)) throw new Error('Dados de download inválidos.');
+    if (!item?.downloadId || !isSupportedUrl(item.url)) throw new Error('Link inválido.'); if (!item.folder || !['audio', 'video', 'thumbnail'].includes(item.type)) throw new Error('Dados de download inválidos.');
     return new Promise((resolve, reject) => {
       item = { ...item, filename: availableFilename(item.folder, item.filename, item.duplicate) }; const child = spawn(binary('yt-dlp'), buildArgs(item), { windowsHide: true }); let title = item.title || 'Arquivo de mídia'; let file = ''; let cancelled = false; let buffer = ''; let errorLog = '';
       downloadJobs.set(item.downloadId, { cancel: () => { cancelled = true; child.kill(); } }); send(event.sender, 'download-event', { downloadId: item.downloadId, status: 'starting' });
@@ -194,7 +244,7 @@ app.whenReady().then(() => {
     args.push('-map', '0:a:0', '-map_metadata', '0');
     if (item.cover) args.push('-map', '1:v:0', '-c:v', 'mjpeg', '-disposition:v', 'attached_pic');
     else if (preservedCover) args.push('-map', `0:${item.coverStreamIndex}`, '-c:v', 'mjpeg', '-disposition:v', 'attached_pic');
-    if (item.normalize) args.push('-af', 'loudnorm=I=-16:TP=-1.5:LRA=11');
+    const finite = value => Number.isFinite(Number(value)) ? Number(value) : 0; const filters = []; if (item.normalize) filters.push('loudnorm=I=-16:TP=-1.5:LRA=11'); if (finite(item.gain)) filters.push(`volume=${finite(item.gain)}dB`); if (finite(item.eqBass)) filters.push(`equalizer=f=100:t=q:w=1:g=${finite(item.eqBass)}`); if (finite(item.eqMid)) filters.push(`equalizer=f=1000:t=q:w=1:g=${finite(item.eqMid)}`); if (finite(item.eqTreble)) filters.push(`equalizer=f=6000:t=q:w=1:g=${finite(item.eqTreble)}`); if (item.removeSilence) filters.push('silenceremove=start_periods=1:start_duration=0.25:start_threshold=-45dB:stop_periods=-1:stop_duration=0.25:stop_threshold=-45dB'); if (filters.length) args.push('-af', filters.join(','));
     ['title', 'artist', 'album', 'year', 'genre'].forEach(key => { if (item.metadata?.[key]) args.push('-metadata', `${key === 'year' ? 'date' : key}=${item.metadata[key]}`); });
     args.push(...codecArgs(item.format, item.quality), '-progress', 'pipe:1', '-nostats', output);
     return new Promise((resolve, reject) => {
@@ -206,6 +256,19 @@ app.whenReady().then(() => {
     });
   });
   ipcMain.handle('cancel-conversion', (_event, conversionId) => conversionJobs.get(conversionId)?.cancel?.());
+  ipcMain.handle('start-video-conversion', async (event, item) => {
+    if (!item?.id || !item.source || !item.folder || !fs.existsSync(item.source)) throw new Error('Dados do vídeo inválidos.');
+    const extension = ['mp4', 'mkv', 'webm'].includes(item.format) ? item.format : 'mp4'; const filename = availableFilename(item.folder, `${safeName(item.outputName || path.basename(item.source, path.extname(item.source)))}.${extension}`, item.duplicate); const output = path.join(item.folder, filename); const args = ['-hide_banner', '-y', '-i', item.source];
+    if (item.resolution && item.resolution !== 'original') args.push('-vf', `scale=-2:${Number(item.resolution)}`); if (item.audioMode === 'mute') args.push('-an'); else args.push('-map', '0:a?'); args.push('-map', '0:v:0');
+    const crf = { alta: '20', equilibrada: '25', economica: '30' }[item.quality] || '25'; if (extension === 'webm') args.push('-c:v', 'libvpx-vp9', '-crf', crf, '-b:v', '0', '-c:a', 'libopus'); else args.push('-c:v', item.codec === 'h265' ? 'libx265' : 'libx264', '-crf', crf, '-preset', 'medium', '-c:a', 'aac'); args.push('-progress', 'pipe:1', '-nostats', output);
+    return startFfmpegJob(event, videoJobs, item.id, args, output, Number(item.duration || 0), 'video-event');
+  });
+  ipcMain.handle('cancel-video-conversion', (_event, id) => videoJobs.get(id)?.cancel?.());
+  ipcMain.handle('start-image-conversion', async (event, item) => {
+    if (!item?.id || !item.source || !item.folder || !fs.existsSync(item.source)) throw new Error('Dados da imagem inválidos.'); const format = ['jpg', 'png', 'webp'].includes(item.format) ? item.format : 'jpg'; const filename = availableFilename(item.folder, `${safeName(item.outputName || path.basename(item.source, path.extname(item.source)))}.${format}`, item.duplicate); const output = path.join(item.folder, filename); let cancelled = false; imageJobs.set(item.id, { cancel: () => { cancelled = true; } }); send(event.sender, 'image-event', { id: item.id, status: 'converting', percent: 10 });
+    try { let pipeline = sharp(item.source).rotate(); const metadata = await sharp(item.source).metadata(); const { width, height } = imageDimensions(metadata, item); const quality = Math.max(1, Math.min(100, Number(item.quality) || 85)); if (width || height) pipeline = pipeline.resize(width, height, { fit: item.keepRatio === false ? 'fill' : 'inside', withoutEnlargement: false }); pipeline = applyLowQualityPixelation(pipeline, width, height, quality); if (format === 'jpg') pipeline = pipeline.flatten({ background: '#ffffff' }).jpeg({ quality }); if (format === 'png') pipeline = pipeline.png({ palette: true, quality, compressionLevel: 9 }); if (format === 'webp') pipeline = pipeline.webp({ quality }); await pipeline.toFile(output); imageJobs.delete(item.id); if (cancelled) { if (fs.existsSync(output)) fs.unlinkSync(output); throw new Error('Operação cancelada.'); } const stat = fs.statSync(output); send(event.sender, 'image-event', { id: item.id, status: 'complete', file: output, size: stat.size, filename }); return { file: output, size: stat.size, filename }; } catch (error) { imageJobs.delete(item.id); throw error; }
+  });
+  ipcMain.handle('cancel-image-conversion', (_event, id) => imageJobs.get(id)?.cancel?.());
   configureUpdater(); createWindow(); if (app.isPackaged) setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 2500); app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

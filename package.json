@@ -1,6 +1,6 @@
 {
   "name": "ntc-utilities",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "description": "Utilitários desktop minimalistas, locais e privados.",
   "author": "NTC Corporation",
   "main": "main.cjs",
@@ -53,14 +53,12 @@
       "createStartMenuShortcut": true,
       "createDesktopShortcut": false,
       "shortcutName": "NTC Utilities",
-      "runAfterFinish": false,
-      "include": "build/installer.nsh",
-      "installerHeader": "build/installer-header.bmp",
-      "installerSidebar": "build/installer-sidebar.bmp",
-      "installerHeaderIcon": null
+      "runAfterFinish": true,
+      "include": "build/installer.nsh"
     }
   },
   "dependencies": {
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.9",
+    "sharp": "^0.35.4"
   }
 }

@@ -30,6 +30,8 @@
           <button class="nav-item" data-view="converter">
             <span class="nav-icon">♫</span> Editor de áudio
           </button>
+          <button class="nav-item" data-view="video"><span class="nav-icon">▸</span> Conversor de vídeo</button>
+          <button class="nav-item" data-view="image"><span class="nav-icon">▧</span> Conversor de imagens</button>
           <button class="nav-item" data-view="history">
             <span class="nav-icon">◷</span> Histórico
           </button>
@@ -55,8 +57,8 @@
           <div class="tools-grid">
             <button class="tool-card available" data-open-tool="downloader"><span class="tool-icon">↓</span><span><strong>Downloader</strong><small>Áudio e vídeo</small></span></button>
             <button class="tool-card available" data-open-tool="converter"><span class="tool-icon">♫</span><span><strong>Editor de áudio</strong><small>Corte, converta e organize</small></span></button>
-            <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
-            <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
+            <button class="tool-card available" data-open-tool="video"><span class="tool-icon">▸</span><span><strong>Conversor de vídeo</strong><small>MP4, MKV e WebM</small></span></button>
+            <button class="tool-card available" data-open-tool="image"><span class="tool-icon">▧</span><span><strong>Conversor de imagens</strong><small>JPG, PNG e WebP</small></span></button>
             <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
             <button class="tool-card soon" disabled aria-label="Ferramenta em breve"><span>Em breve</span></button>
           </div>
@@ -83,6 +85,7 @@
                 <div class="segmented" role="radiogroup" aria-label="Tipo de download">
                   <label><input type="radio" name="downloadType" value="audio" checked /><span>Áudio</span></label>
                   <label><input type="radio" name="downloadType" value="video" /><span>Vídeo</span></label>
+                  <label><input type="radio" name="downloadType" value="thumbnail" /><span>Thumbnail</span></label>
                 </div>
               </div>
               <label>
@@ -143,7 +146,7 @@
           <section class="converter-editor hidden" id="converterEditor">
             <div class="section-heading"><h2>Editar arquivo</h2><div class="editor-heading-actions"><button class="ghost-button" id="undoEdit" type="button" aria-label="Desfazer alteração" title="Desfazer" disabled>↶</button><button class="ghost-button" id="redoEdit" type="button" aria-label="Refazer alteração" title="Refazer" disabled>↷</button><span id="editingMediaName">—</span></div></div>
             <div class="converter-grid">
-              <label><span class="field-label">Formato</span><select id="converterFormat"><option value="mp3">MP3</option><option value="m4a">M4A</option><option value="wav">WAV</option><option value="flac">FLAC</option><option value="opus">Opus</option></select></label>
+              <label><span class="field-label">Formato</span><select id="converterFormat"><option value="mp3">MP3</option><option value="m4a">M4A / AAC</option><option value="aac">AAC</option><option value="ogg">OGG Vorbis</option><option value="opus">Opus</option><option value="wav">WAV</option><option value="flac">FLAC</option><option value="aiff">AIFF</option><option value="wma">WMA</option><option value="ac3">AC-3</option></select></label>
               <label><span class="field-label">Qualidade</span><select id="converterQuality"><option value="128">128 kbps</option><option value="192" selected>192 kbps</option><option value="256">256 kbps</option><option value="320">320 kbps</option></select></label>
             </div>
             <div class="waveform-editor" id="waveformEditor">
@@ -156,6 +159,18 @@
               <label><span class="field-label">Fim do corte</span><input class="text-input" id="trimEnd" placeholder="00:00:00" /></label>
               <label class="normalize-control"><input type="checkbox" id="normalizeAudio" /><span>Normalizar volume</span></label>
             </div>
+            <details class="metadata-details audio-effects">
+              <summary><span>Áudio avançado</span><small>Opcional</small></summary>
+              <div class="effects-grid">
+                <label><span class="field-label">Volume (dB)</span><input class="text-input" id="audioGain" type="number" step="any" value="0" /></label>
+                <label><span class="field-label">Graves (dB)</span><input class="text-input" id="eqBass" type="number" step="any" value="0" /></label>
+                <label><span class="field-label">Médios (dB)</span><input class="text-input" id="eqMid" type="number" step="any" value="0" /></label>
+                <label><span class="field-label">Agudos (dB)</span><input class="text-input" id="eqTreble" type="number" step="any" value="0" /></label>
+                <label class="normalize-control"><input type="checkbox" id="removeSilence" /><span>Remover silêncio</span></label>
+              </div>
+              <div class="marker-actions"><button class="ghost-button" id="addMarker" type="button">Adicionar marcador</button><button class="ghost-button" id="exportMarkers" type="button">Exportar trechos</button><button class="ghost-button" id="applyToAudioQueue" type="button">Aplicar à fila</button><button class="ghost-button" id="toggleSpectrum" type="button">Ver espectro</button><select id="audioPreset"><option value="">Preset de áudio</option><option value="voz">Voz</option><option value="musica">Música</option><option value="podcast">Podcast</option></select><button class="ghost-button" id="saveAudioPreset" type="button">Salvar preset</button></div>
+              <div class="marker-list" id="markerList"><span>Nenhum marcador criado.</span></div>
+            </details>
             <details class="metadata-details">
               <summary><span>Metadados e capa</span><small>Opcional</small></summary>
               <div class="metadata-grid">
@@ -175,6 +190,23 @@
           <section class="progress-card hidden" id="conversionProgress" aria-live="polite"><div class="progress-topline"><span class="status-pill" id="conversionStatus">CONVERTENDO</span><span id="conversionPercent">0%</span></div><div class="media-info"><div class="media-thumbnail"><span>♫</span></div><div class="media-copy"><strong id="conversionTitle">Preparando conversão…</strong><small id="conversionMeta">FFmpeg</small></div><button class="ghost-button" id="cancelConversion" type="button">Cancelar</button></div><div class="progress-track"><span id="conversionProgressBar"></span></div><div class="download-stats"><span><b id="conversionEta">—</b> restante</span></div></section>
         </section>
 
+        <section class="view media-tool-view" id="videoView">
+          <div class="hero"><div class="eyebrow">VÍDEO</div><h1>Conversor de vídeo</h1><p>Converta arquivos locais para MP4, MKV ou WebM.</p></div>
+          <section class="converter-import"><button class="primary-button" id="chooseVideo" type="button">Selecionar vídeos</button><div class="media-dropzone" id="videoDropzone" tabindex="0"><strong>Arraste vídeos aqui</strong><span>MP4, MKV, MOV, AVI, WebM e mais</span></div></section>
+          <section class="tool-options"><label><span class="field-label">Formato</span><select id="videoFormat"><option value="mp4">MP4</option><option value="mkv">MKV</option><option value="webm">WebM</option></select></label><label><span class="field-label">Codec</span><select id="videoCodec"><option value="h264">H.264</option><option value="h265">H.265</option><option value="vp9">VP9</option></select></label><label><span class="field-label">Resolução</span><select id="videoResolution"><option value="original">Original</option><option value="2160">2160p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label><label><span class="field-label">Qualidade</span><select id="videoQuality"><option value="alta">Alta</option><option value="equilibrada" selected>Equilibrada</option><option value="economica">Econômica</option></select></label><label><span class="field-label">Áudio</span><select id="videoAudio"><option value="keep">Preservar</option><option value="mute">Remover</option></select></label></section>
+          <label class="tool-destination"><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="videoFolderPath">Downloads</span><button type="button" id="chooseVideoFolder">Alterar</button></div></label>
+          <section class="queue-section"><div class="section-heading"><h2>Fila de vídeo</h2><span id="videoQueueCount">0 itens</span></div><div class="queue-list" id="videoQueueList"><div class="empty-state"><p>Adicione vídeos para converter.</p></div></div><button class="primary-button" id="startVideos" type="button">Iniciar conversões</button></section><section class="progress-card hidden" id="videoProgress"><div class="progress-topline"><span class="status-pill" id="videoStatus">CONVERTENDO</span><span id="videoPercent">0%</span></div><div class="media-info"><div class="media-thumbnail"><span>▸</span></div><div class="media-copy"><strong id="videoTitle">Preparando vídeo…</strong><small id="videoMeta">FFmpeg</small></div><button class="ghost-button" id="cancelVideo" type="button">Cancelar</button></div><div class="progress-track"><span id="videoProgressBar"></span></div></section>
+        </section>
+
+        <section class="view media-tool-view" id="imageView">
+          <div class="hero"><div class="eyebrow">IMAGENS</div><h1>Conversor de imagens</h1><p>Converta e redimensione imagens localmente.</p></div>
+          <section class="converter-import"><button class="primary-button" id="chooseImages" type="button">Selecionar imagens</button><div class="media-dropzone" id="imageDropzone" tabindex="0"><strong>Arraste imagens aqui</strong><span>JPG, PNG, WebP, BMP e TIFF</span></div></section>
+          <section class="tool-options image-options"><label><span class="field-label">Formato</span><select id="imageFormat"><option value="jpg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option></select></label><label><span class="field-label">Qualidade (1–100%)</span><input class="text-input" id="imageQuality" type="number" min="1" max="100" value="85" /></label><label><span class="field-label">Escala (%)</span><input class="text-input" id="imageScale" type="number" min="1" value="100" placeholder="100" /></label><label><span class="field-label">Largura</span><input class="text-input" id="imageWidth" type="number" min="1" placeholder="Original" /></label><label><span class="field-label">Altura</span><input class="text-input" id="imageHeight" type="number" min="1" placeholder="Original" /></label><label class="normalize-control"><input id="imageKeepRatio" type="checkbox" checked /><span>Manter proporção</span></label></section>
+          <section class="image-preview-card hidden" id="imagePreviewCard"><div class="image-preview-comparison"><figure><img id="imagePreviewOriginal" alt="Imagem original" /><figcaption>Original</figcaption></figure><figure><img id="imagePreview" alt="Resultado com os ajustes selecionados" /><figcaption>Resultado</figcaption></figure></div><div><span class="field-label">Comparação de resultado</span><strong id="imagePreviewTitle">Imagem selecionada</strong><small id="imagePreviewMeta">Ajuste qualidade e tamanho para atualizar.</small></div></section>
+          <label class="tool-destination"><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="imageFolderPath">Downloads</span><button type="button" id="chooseImageFolder">Alterar</button></div></label>
+          <section class="queue-section"><div class="section-heading"><h2>Fila de imagens</h2><span id="imageQueueCount">0 itens</span></div><div class="queue-list" id="imageQueueList"><div class="empty-state"><p>Adicione imagens para converter.</p></div></div><button class="primary-button" id="startImages" type="button">Iniciar conversões</button></section><section class="progress-card hidden" id="imageProgress"><div class="progress-topline"><span class="status-pill" id="imageStatus">CONVERTENDO</span><span id="imagePercent">0%</span></div><div class="media-info"><div class="media-thumbnail"><span>▧</span></div><div class="media-copy"><strong id="imageTitle">Preparando imagem…</strong><small id="imageMeta">Processando localmente</small></div><button class="ghost-button" id="cancelImage" type="button">Cancelar</button></div><div class="progress-track"><span id="imageProgressBar"></span></div></section>
+        </section>
+
         <section class="view playlist-view" id="playlistView">
           <div class="hero compact"><div class="eyebrow">PLAYLIST</div><h1 id="playlistTitle">Playlist</h1><p id="playlistSummary">Selecione as músicas que deseja adicionar à fila.</p></div>
           <div class="playlist-actions"><button class="outline-button" id="selectAllPlaylist" type="button">Selecionar todas</button><button class="outline-button" id="clearPlaylistSelection" type="button">Limpar seleção</button><button class="primary-button playlist-confirm" id="addSelectedPlaylist" type="button">Adicionar selecionadas à fila</button></div>
@@ -188,6 +220,7 @@
             <div class="setting-row"><div><strong>Pasta padrão</strong><p id="settingsFolder">Downloads</p></div><button class="outline-button" type="button" id="chooseFolderSettings">Escolher pasta</button></div>
             <div class="setting-row"><div><strong>Arquivos duplicados</strong><p>Como tratar um arquivo que já existe.</p></div><select id="duplicatePolicy"><option value="rename">Criar cópia numerada</option><option value="overwrite">Substituir arquivo</option><option value="ask">Perguntar sempre</option></select></div>
             <div class="setting-row"><div><strong>Modelo de nome</strong><p>Define o nome inicial dos novos downloads.</p></div><select id="filenameTemplate"><option value="title">Título</option><option value="channel-title">Canal - Título</option><option value="date-title">Data - Título</option></select></div>
+            <div class="setting-row"><div><strong>Tema</strong><p>Escolha entre o visual escuro ou claro.</p></div><select id="themePreference"><option value="dark">Escuro</option><option value="light">Claro</option></select></div>
             <div class="setting-row"><div><strong>Ferramentas instaladas</strong><p id="toolVersions">Ainda não verificado.</p></div><button class="outline-button" type="button" id="checkTools">Verificar</button></div>
           </div>
           <div class="settings-card settings-card-secondary">

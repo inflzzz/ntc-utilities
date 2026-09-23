@@ -6,4 +6,4 @@
 !define MUI_DIRECTORYPAGE_TEXT_TOP "Escolha a pasta onde o NTC Utilities será instalado."
 !define MUI_DIRECTORYPAGE_TEXT_DESTINATION "Pasta de instalação:"
 !define MUI_FINISHPAGE_TITLE "NTC Utilities instalado"
-!define MUI_FINISHPAGE_TEXT "A instalação foi concluída. Você pode abrir o app pelo atalho criado."
+!define MUI_FINISHPAGE_TEXT "A instalação foi concluída. Você pode abrir o NTC Utilities agora ou pelo atalho criado."

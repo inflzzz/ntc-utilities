@@ -2,9 +2,9 @@
 
 Utilitários desktop livres, privados e diretos ao ponto.
 
-As ferramentas disponíveis são o **Downloader**, para mídias autorizadas do YouTube, e o **Editor de áudio**, para editar, converter arquivos locais de áudio ou extrair o som de vídeos.
+As ferramentas disponíveis são o **Downloader**, o **Editor de áudio**, o **Conversor de vídeo** e o **Conversor de imagens**. Todo processamento de arquivos locais é feito no computador.
 
-> O projeto está em desenvolvimento. A primeira versão pública para Windows será disponibilizada na aba **Releases** deste repositório.
+> O projeto está em desenvolvimento. A versão mais recente para Windows fica na aba **Releases** deste repositório.
 
 ## Instalação no Windows
 
@@ -32,10 +32,16 @@ Use o aplicativo somente para conteúdos que você possui ou tem permissão para
 ## Editor de áudio
 
 - Converte arquivos locais de áudio e extrai áudio de vídeos.
-- Saída em MP3, M4A, WAV, FLAC e Opus.
+- Saída em MP3, M4A, AAC, WAV, FLAC, OGG, Opus, AIFF, WMA e AC3.
 - Fila local, progresso, cancelamento e retry.
-- Corte de início e fim, normalização de volume, metadados e capa por arquivo.
+- Corte de início e fim, normalização, ganho, equalizador, marcadores, espectro, metadados e capa por arquivo.
 - Mantém a pasta padrão, a regra de arquivos duplicados e a preferência de abrir a pasta ao concluir.
+
+## Conversores locais
+
+- **Vídeo:** MP4, MKV e WebM, com codec, resolução, qualidade e opção de preservar ou remover áudio.
+- **Imagens:** JPG, PNG e WebP, com qualidade, escala, largura, altura, proporção e prévia comparativa.
+- Ambos aceitam múltiplos arquivos por seleção ou arrastar e soltar e nunca sobrescrevem o original sem a regra de duplicatas escolhida.
 
 ## Desenvolver localmente
 
@@ -52,7 +58,7 @@ pnpm start
 pnpm package:win
 ```
 
-O instalador será criado em `dist/NTC Utilities Setup 0.2.5.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git. O setup tem tema monocromático próprio, permite escolher a pasta e oferece atalhos no Menu Iniciar e, opcionalmente, na área de trabalho.
+O instalador será criado em `dist/NTC.Utilities.Setup.0.3.0.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git. O setup usa páginas brancas limpas, permite escolher a pasta, oferece atalhos e permite abrir o aplicativo ao concluir.
 
 Para uma publicação oficial que suporte atualização dentro do app, use `pnpm release:win` com `GH_TOKEN` configurado. Esse comando envia o instalador e os arquivos de atualização necessários para a Release do GitHub.
 

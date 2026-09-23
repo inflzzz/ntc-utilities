@@ -1,5 +1,16 @@
 window.NTC_CHANGELOG = [
   {
+    version: '0.3.0',
+    date: '22 set. 2026',
+    changes: [
+      'Conversores locais de vídeo e imagens, com filas separadas e arrastar arquivos.',
+      'Editor de áudio avançado com ganho, equalizador, marcadores, espectro e prévia em tempo real.',
+      'Tema claro, prévia comparativa de imagens e confirmação para dimensões muito grandes.',
+      'Erros de conversão mais claros, com card persistente e nova tentativa.',
+      'Instalador refinado com opção de abrir o aplicativo ao concluir.'
+    ]
+  },
+  {
     version: '0.2.5',
     date: '22 set. 2026',
     changes: [
