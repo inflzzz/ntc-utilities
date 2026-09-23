@@ -2,7 +2,7 @@
 
 Utilitários desktop livres, privados e diretos ao ponto.
 
-As ferramentas disponíveis são o **Downloader**, o **Editor de áudio**, o **Conversor de vídeo** e o **Conversor de imagens**. Todo processamento de arquivos locais é feito no computador.
+As ferramentas disponíveis são o **Downloader**, os **Editores de áudio e vídeo**, os **Conversores de vídeo e imagens**, o **Gravador de tela** e o **Compressor**. Todo processamento de arquivos locais é feito no computador.
 
 > O projeto está em desenvolvimento. A versão mais recente para Windows fica na aba **Releases** deste repositório.
 
@@ -21,7 +21,7 @@ Quando uma nova versão for publicada, o aplicativo instalado verifica a disponi
 
 - Prévia do título, canal, duração e thumbnail antes de baixar.
 - Áudio em MP3, M4A ou Opus, com qualidade Original, 128, 192, 256 ou 320 kbps.
-- Vídeo em MP4 ou WebM, da melhor qualidade disponível até 2160p.
+- Vídeo em MP4 ou WebM, da melhor qualidade disponível até 2160p; MP4 prioriza H.264 + AAC para maior compatibilidade no Windows.
 - Fila local de downloads, processada um item por vez.
 - Playlists completas ou seleção apenas das faixas desejadas.
 - Botão **Parar tudo** para cancelar a operação em andamento e limpar a fila.
@@ -43,6 +43,12 @@ Use o aplicativo somente para conteúdos que você possui ou tem permissão para
 - **Imagens:** JPG, PNG e WebP, com qualidade, escala, largura, altura, proporção e prévia comparativa.
 - Ambos aceitam múltiplos arquivos por seleção ou arrastar e soltar e nunca sobrescrevem o original sem a regra de duplicatas escolhida.
 
+## Editor de vídeo, gravador e compressor
+
+- **Editor de vídeo:** player, waveform, cortes múltiplos, áudio original, músicas externas com volume, posição, corte e loop; exporta uma cópia em MP4 H.264.
+- **Gravador de tela:** grava a tela em MP4 com áudio do computador, microfone opcional, resolução escolhida e atalho opcional.
+- **Compressor:** reduz vídeos e áudios com controles específicos de resolução, FPS, qualidade, bitrate, formato e mono.
+
 ## Desenvolver localmente
 
 Pré-requisitos: [Node.js](https://nodejs.org/) 20 ou superior e [pnpm](https://pnpm.io/).
@@ -58,7 +64,7 @@ pnpm start
 pnpm package:win
 ```
 
-O instalador será criado em `dist/NTC.Utilities.Setup.0.3.0.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git. O setup usa páginas brancas limpas, permite escolher a pasta, oferece atalhos e permite abrir o aplicativo ao concluir.
+O instalador será criado em `dist/NTC.Utilities.Setup.0.4.0.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git. O setup usa páginas brancas limpas, permite escolher a pasta, oferece atalhos e permite abrir o aplicativo ao concluir.
 
 Para uma publicação oficial que suporte atualização dentro do app, use `pnpm release:win` com `GH_TOKEN` configurado. Esse comando envia o instalador e os arquivos de atualização necessários para a Release do GitHub.
 

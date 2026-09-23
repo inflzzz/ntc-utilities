@@ -1,12 +1,14 @@
 window.NTC_CHANGELOG = [
   {
     version: '0.4.0',
-    date: 'Em desenvolvimento',
+    date: '23 set. 2026',
     changes: [
-      'Novo Gravador de tela com captura simples em MP4.',
-      'Atalho global configurável para iniciar e parar a gravação.',
-      'Opção de gravar com microfone ou somente a tela.',
-      'Indicador de gravação, tempo decorrido e salvamento no histórico.'
+      'Novo Editor de vídeo com player, timeline, cortes múltiplos e exportação em MP4 H.264.',
+      'Músicas e áudios externos em várias faixas, com waveform, posição, corte, volume e loop.',
+      'Novo Gravador de tela com qualidade, escolha de microfone, áudio do computador e salvamento em MP4.',
+      'Novo Compressor para vídeos e áudios, com controles adequados para cada tipo de mídia.',
+      'Downloads MP4 agora priorizam H.264 e AAC para abrir no Windows Media Player.',
+      'Ajustes visuais, correções de renderização e atalho do gravador opcional.'
     ]
   },
   {
