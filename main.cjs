@@ -5,6 +5,11 @@ const { spawn } = require('node:child_process');
 const { autoUpdater } = require('electron-updater');
 const sharp = require('sharp');
 
+// Evita artefatos visuais que alguns drivers de vídeo exibem apenas no monitor.
+// A captura de tela continua normal nesses casos porque ela lê o frame antes da
+// composição final da GPU.
+app.disableHardwareAcceleration();
+
 if (!app.isPackaged) app.setPath('userData', path.join(__dirname, '.ntc-data'));
 const downloadJobs = new Map();
 const conversionJobs = new Map();
