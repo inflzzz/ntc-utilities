@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('ntc', {
   appVersion: () => ipcRenderer.invoke('get-app-version'),
+  getWorldClockSettings: () => ipcRenderer.invoke('get-world-clock-settings'),
+  saveWorldClockSettings: settings => ipcRenderer.invoke('save-world-clock-settings', settings),
   getLaunchAtLogin: () => ipcRenderer.invoke('get-launch-at-login'),
   setLaunchAtLogin: enabled => ipcRenderer.invoke('set-launch-at-login', enabled),
   defaultDownloadFolder: () => ipcRenderer.invoke('get-default-download-folder'),

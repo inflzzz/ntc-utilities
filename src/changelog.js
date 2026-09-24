@@ -1,5 +1,17 @@
 window.NTC_CHANGELOG = [
   {
+    version: '0.9.0',
+    date: '24 set. 2026',
+    changes: [
+      'Nova área Relógios e tempo: relógios mundiais com clima, despertadores, temporizador e cronômetro em uma única ferramenta.',
+      'Cidades, ordem dos cartões, alarmes e estado do temporizador e do cronômetro ficam salvos entre sessões e atualizações.',
+      'Auto-clicker: envio de cliques em alta velocidade otimizado e contador de sessão atualizado com mais clareza.',
+      'Player de música: a saída de áudio é reativada ao retomar a faixa restaurada depois de reabrir o aplicativo.',
+      'O tema claro foi removido; o aplicativo mantém somente a aparência escura. A janela de novidades recebeu ajustes de espaçamento e alinhamento para facilitar a leitura.',
+      'Os controles internos de desenvolvimento continuam disponíveis apenas na versão de desenvolvimento e não aparecem no instalador de produção.'
+    ]
+  },
+  {
     version: '0.8.0',
     date: '24 set. 2026',
     changes: [

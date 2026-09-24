@@ -80,6 +80,45 @@ function rngBackupPath() { return path.join(app.getPath('userData'), 'ntc-rng-st
 function musicFoldersPath() { return path.join(app.getPath('userData'), 'ntc-music-folders.json'); }
 function musicFilesPath() { return path.join(app.getPath('userData'), 'ntc-music-files.json'); }
 function removedMusicFilesPath() { return path.join(app.getPath('userData'), 'ntc-music-removed-files.json'); }
+function worldClockSettingsPath() { return path.join(app.getPath('userData'), 'ntc-world-clock-settings.json'); }
+function normalizeWorldClockSettings(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const cities = (Array.isArray(value.cities) ? value.cities : []).slice(0, 12).flatMap(city => {
+    if (!city || typeof city !== 'object') return [];
+    const latitude = Number(city.latitude); const longitude = Number(city.longitude);
+    if (typeof city.name !== 'string' || !city.name.trim() || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) return [];
+    return [{ id: String(city.id || `${latitude},${longitude}`).slice(0, 100), name: city.name.trim().slice(0, 100), country: String(city.country || '').slice(0, 100), latitude, longitude, timezone: String(city.timezone || 'UTC').slice(0, 100) }];
+  });
+  const alarms = (Array.isArray(value.alarms) ? value.alarms : []).slice(0, 100).flatMap(alarm => {
+    if (!alarm || typeof alarm !== 'object' || typeof alarm.time !== 'string' || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(alarm.time)) return [];
+    const weekdays = [...new Set((Array.isArray(alarm.weekdays) ? alarm.weekdays : []).map(Number).filter(day => Number.isInteger(day) && day >= 0 && day <= 6))];
+    return [{ id: String(alarm.id || `${Date.now()}-${Math.random()}`).slice(0, 100), time: alarm.time, label: String(alarm.label || 'Alarme').slice(0, 48), weekdays, enabled: Boolean(alarm.enabled), lastTriggered: String(alarm.lastTriggered || '').slice(0, 10) }];
+  });
+  const timer = value.timer && typeof value.timer === 'object' ? value.timer : {};
+  const stopwatch = value.stopwatch && typeof value.stopwatch === 'object' ? value.stopwatch : {};
+  const numberInRange = (candidate, max) => Number.isFinite(Number(candidate)) ? Math.max(0, Math.min(max, Number(candidate))) : 0;
+  return {
+    version: 1,
+    cities,
+    alarms,
+    timer: { remainingMs: numberInRange(timer.remainingMs, 3_600_000_000), endAt: numberInRange(timer.endAt, 9_999_999_999_999), running: Boolean(timer.running), paused: Boolean(timer.paused) },
+    stopwatch: { elapsed: numberInRange(stopwatch.elapsed, Number.MAX_SAFE_INTEGER), startedAt: numberInRange(stopwatch.startedAt, 9_999_999_999_999), running: Boolean(stopwatch.running), laps: (Array.isArray(stopwatch.laps) ? stopwatch.laps : []).slice(0, 100).map(lap => numberInRange(lap, Number.MAX_SAFE_INTEGER)) },
+    activeTab: ['world', 'alarms', 'timer', 'stopwatch'].includes(value.activeTab) ? value.activeTab : 'world'
+  };
+}
+function readWorldClockSettings() {
+  try { return normalizeWorldClockSettings(JSON.parse(fs.readFileSync(worldClockSettingsPath(), 'utf8'))); }
+  catch { return null; }
+}
+function saveWorldClockSettings(value) {
+  const normalized = normalizeWorldClockSettings(value);
+  if (!normalized) throw new Error('Preferências de relógios inválidas.');
+  const file = worldClockSettingsPath(); const temporary = `${file}.tmp`;
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(temporary, JSON.stringify(normalized));
+  fs.renameSync(temporary, file);
+  return true;
+}
 function musicPathKey(file) { const resolved = path.resolve(file); return process.platform === 'win32' ? resolved.toLocaleLowerCase('en-US') : resolved; }
 function readRemovedMusicFiles() {
   try { return normalizeMusicFiles(JSON.parse(fs.readFileSync(removedMusicFilesPath(), 'utf8'))); }
@@ -829,6 +868,14 @@ app.whenReady().then(() => {
   ipcMain.handle('get-launch-at-login', () => ({ enabled: launchAtLoginEnabled, supported: process.platform === 'win32' }));
   ipcMain.handle('set-launch-at-login', (_event, enabled) => setLoginAtStartup(enabled));
   ipcMain.handle('is-development-build', () => !app.isPackaged);
+  ipcMain.handle('get-world-clock-settings', event => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return null;
+    return readWorldClockSettings();
+  });
+  ipcMain.handle('save-world-clock-settings', (event, settings) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return false;
+    try { return saveWorldClockSettings(settings); } catch { return false; }
+  });
   ipcMain.handle('get-rng-state', () => rngSnapshot());
   ipcMain.handle('purchase-rng-upgrade', event => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: false, reason: 'invalid-sender' };

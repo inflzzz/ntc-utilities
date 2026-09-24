@@ -406,12 +406,19 @@
       });
       applyEqualizerSettings();
       $('#musicEqualizerHint').classList.add('hidden');
-      if (equalizerContext.state === 'suspended') void equalizerContext.resume().catch(() => {});
       return true;
     } catch {
       $('#musicEqualizerHint').textContent = 'Não foi possível ativar o equalizador neste dispositivo.';
       $('#musicEqualizerHint').classList.remove('hidden');
       return false;
+    }
+  }
+
+  async function prepareAudioOutput() {
+    ensureEqualizer();
+    if (equalizerContext?.state === 'suspended') {
+      try { await equalizerContext.resume(); }
+      catch { $('#musicEqualizerHint').textContent = 'O equalizador não pôde ser reativado; tente reproduzir novamente.'; $('#musicEqualizerHint').classList.remove('hidden'); }
     }
   }
 
@@ -990,7 +997,7 @@
     pendingResumeSeek = null;
     audio.src = tracks[index].src;
     audio.load();
-    ensureEqualizer();
+    await prepareAudioOutput();
     applyVolumes();
     try {
       await audio.play();
@@ -1015,7 +1022,7 @@
     const audio = decks[currentDeck];
     if (playing) { settleFadeForPause(); decks[currentDeck].pause(); playing = false; savePlaybackState(true); }
     else {
-      try { ensureEqualizer(); await audio.play(); playing = true; setPlaybackMessage(`${tracks[currentIndex].folder} · ${tracks[currentIndex].extension}`); savePlaybackState(true); }
+      try { await prepareAudioOutput(); applyVolumes(); await audio.play(); playing = true; setPlaybackMessage(`${tracks[currentIndex].folder} · ${tracks[currentIndex].extension}`); savePlaybackState(true); }
       catch { setPlaybackMessage('Não foi possível continuar a reprodução.'); }
     }
     updatePlayer();
@@ -1120,6 +1127,7 @@
     pendingResumeSeek = { trackId: currentTrackId, time: Number.isFinite(Number(saved.time)) ? Math.max(0, Number(saved.time)) : 0 };
     const audio = decks[currentDeck];
     audio.pause(); audio.src = tracks[index].src; audio.load();
+    applyVolumes();
     void loadTrackMetadata(tracks[index]);
     setPlaybackMessage('Última faixa e posição restauradas. Pressione reproduzir para continuar.');
   }

@@ -1,6 +1,15 @@
 window.NTC_RNG_CHANGELOG = [
   {
     date: '24 set. 2026',
+    title: 'Uma área própria para o NTC RNG',
+    changes: [
+      'O NTC RNG ganhou um espaço destacado na navegação e um acesso próprio na página inicial, separado das ferramentas do Utilities.',
+      'Na primeira vez que o jogo é aberto após uma atualização com novidades, as notas aparecem em uma janela própria, como o changelog do aplicativo.',
+      'O popup de atualizações ficou mais amplo e legível, com mais espaço entre os tópicos, datas afastadas da barra de rolagem e o botão de fechar alinhado ao topo.'
+    ]
+  },
+  {
+    date: '24 set. 2026',
     title: 'Fragmentos, relíquias e bônus combináveis',
     changes: [
       'Fragmentos passam a ser concedidos por rolagens, títulos inéditos, duplicatas e recompensas limitadas. A Loja oferece melhorias permanentes e consumíveis Fortuna ×2 por rolagens ou por tempo.',

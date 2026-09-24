@@ -1,6 +1,7 @@
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const splash = $('#splash'); const appShell = $('#appShell'); const loadingProgress = $('#loadingProgress'); const loadingTrack = $('.loading-line');
+const previouslySeenAppVersion = localStorage.getItem('ntc-last-seen-changelog-version');
 const hadExistingAppData = ['ntc-folder', 'ntc-history', 'ntc-download-queue', 'ntc-theme', 'ntc-screenshot-folder', 'ntc-qr-history'].some(key => localStorage.getItem(key) !== null);
 const history = JSON.parse(localStorage.getItem('ntc-history') || '[]');
 const qrHistory = (() => { try { return JSON.parse(localStorage.getItem('ntc-qr-history') || '[]').slice(0, 50); } catch { return []; } })();
@@ -18,7 +19,7 @@ let compressionQueue = []; let compressionRunning = false;
 let qrQueue = []; let qrRunning = false; let qrPreparing = false; let qrCancelRequested = false; let qrSelectedId = null; let qrPreviewTimer = null; let qrPreviewRequestId = 0;
 let videoEdit = { source: null, meta: null, cuts: [], audioTracks: [], selectionStart: 0, selectionEnd: 0, outputName: '', exporting: false }; let videoEditDrag = null; let videoEditWaveform = [];
 let rngState = null; let rngSelectedTier = 'basic'; let rngHistoryQuery = ''; let rngHistoryTier = 'recent'; let rngRequestRunning = false; let rngTimer = null; let rngUnlockTimer = null; let rngAchievementTimer = null; let rngAchievementNextTimer = null; let rngAchievementUnlocks = null; let rngAchievementNoticeQueue = []; let rngAchievementNoticeActive = false; let rngAchievementNoticeCurrentId = null; let rngDebugEnabled = false; let rngDebugPopulated = false;
-let rngStateReceivedAt = 0; let rngActiveSection = 'history';
+let rngStateReceivedAt = 0; let rngActiveSection = 'history'; let activeAppVersion = null; let rngPatchNotesOpenPending = false;
 
 let splashValue = 0;
 const advanceSplash = () => { splashValue = Math.min(92, splashValue + (splashValue < 70 ? 4 : 1.5)); loadingProgress.style.width = `${splashValue}%`; loadingTrack.setAttribute('aria-valuenow', String(Math.round(splashValue))); };
@@ -301,7 +302,7 @@ function renderRngTitleHistory(state) {
 function rngBigOdds(value) { try { return BigInt(value || 0) > 0n ? `1 em ${new Intl.NumberFormat('pt-BR').format(BigInt(value))}` : '—'; } catch { return '—'; } }
 function renderRngExpansion(state) {
   const patchNotes = window.NTC_RNG_CHANGELOG || [];
-  $('#rngPatchNotes').innerHTML = patchNotes.map(note => `<article class="rng-patch-note"><header><div><span class="rng-shop-kicker">ATUALIZAÇÃO DO NTC RNG</span><h3>${safeText(note.title)}</h3></div><time>${safeText(note.date)}</time></header><ul>${(note.changes || []).map(change => `<li>${safeText(change)}</li>`).join('')}</ul></article>`).join('');
+  $('#rngPatchNotes').innerHTML = patchNotes.map(note => `<article class="rng-patch-note"><header><h3>${safeText(note.title)}</h3><time>${safeText(note.date)}</time></header><ul>${(note.changes || []).map(change => `<li>${safeText(change)}</li>`).join('')}</ul></article>`).join('');
   const number = value => new Intl.NumberFormat('pt-BR').format(value || 0);
   const achievementGroups = new Map();
   for (const item of state.achievements || []) achievementGroups.set(item.category, [...(achievementGroups.get(item.category) || []), item]);
@@ -600,6 +601,16 @@ function openChangelog() {
   }));
   $('#changelogDialog').classList.remove('hidden'); $('#closeChangelog').focus();
 }
+function openRngPatchNotesDialog() {
+  const list = $('#rngPatchNotesDialogList');
+  list.replaceChildren(...(window.NTC_RNG_CHANGELOG || []).map(entry => {
+    const article = document.createElement('article'); article.className = 'changelog-entry';
+    const heading = document.createElement('div'); heading.className = 'changelog-entry-heading'; const title = document.createElement('h3'); title.textContent = entry.title || 'Atualização'; const date = document.createElement('time'); date.textContent = entry.date || ''; heading.append(title, date);
+    const changes = document.createElement('ul'); (entry.changes || []).forEach(change => { const line = document.createElement('li'); line.textContent = change; changes.append(line); }); article.append(heading, changes); return article;
+  }));
+  $('#rngPatchNotesDialog').classList.remove('hidden'); $('#closeRngPatchNotesDialog').focus();
+}
+function closeRngPatchNotesDialog() { $('#rngPatchNotesDialog').classList.add('hidden'); $('.rng-nav-item.active')?.focus(); }
 function showChangelogAfterUpgrade(version) {
   const key = 'ntc-last-seen-changelog-version'; const previousVersion = localStorage.getItem(key);
   const shouldShow = previousVersion ? previousVersion !== version : hadExistingAppData;
@@ -625,7 +636,7 @@ function showUpdateNotice(update) {
 }
 function closeConfirm(result) { $('#confirmDialog').classList.add('hidden'); const resolver = confirmResolver; confirmResolver = null; resolver?.(result); }
 function confirmAction(title, message, acceptLabel = 'Confirmar') { $('#confirmTitle').textContent = title; $('#confirmMessage').textContent = message; $('#confirmAccept').textContent = acceptLabel; $('#confirmDialog').classList.remove('hidden'); $('#confirmCancel').focus(); return new Promise(resolve => { confirmResolver = resolve; }); }
-function syncSettings() { $('#folderPath').textContent = folder || 'Downloads'; $('#settingsFolder').textContent = folder || 'Downloads'; if (!editingConversionId) $('#converterFolderPath').textContent = folder || 'Downloads'; $('#videoFolderPath').textContent = folder || 'Downloads'; $('#videoEditorFolderPath').textContent = folder || 'Downloads'; $('#imageFolderPath').textContent = folder || 'Downloads'; $('#recorderFolderPath').textContent = localStorage.getItem('ntc-recorder-folder') || folder || 'Downloads'; $('#screenshotFolderPath').textContent = localStorage.getItem('ntc-screenshot-folder') || folder || 'Downloads'; $('#qrFolderPath').textContent = folder || 'Downloads'; $('#openFolderAfter').checked = localStorage.getItem('ntc-open-folder') === 'true'; $('#duplicatePolicy').value = localStorage.getItem('ntc-duplicate') || 'rename'; $('#filenameTemplate').value = localStorage.getItem('ntc-filename-template') || 'title'; $('#themePreference').value = localStorage.getItem('ntc-theme') || 'dark'; document.body.classList.toggle('theme-light', $('#themePreference').value === 'light'); document.documentElement.style.colorScheme = $('#themePreference').value; }
+function syncSettings() { $('#folderPath').textContent = folder || 'Downloads'; $('#settingsFolder').textContent = folder || 'Downloads'; if (!editingConversionId) $('#converterFolderPath').textContent = folder || 'Downloads'; $('#videoFolderPath').textContent = folder || 'Downloads'; $('#videoEditorFolderPath').textContent = folder || 'Downloads'; $('#imageFolderPath').textContent = folder || 'Downloads'; $('#recorderFolderPath').textContent = localStorage.getItem('ntc-recorder-folder') || folder || 'Downloads'; $('#screenshotFolderPath').textContent = localStorage.getItem('ntc-screenshot-folder') || folder || 'Downloads'; $('#qrFolderPath').textContent = folder || 'Downloads'; $('#openFolderAfter').checked = localStorage.getItem('ntc-open-folder') === 'true'; $('#duplicatePolicy').value = localStorage.getItem('ntc-duplicate') || 'rename'; $('#filenameTemplate').value = localStorage.getItem('ntc-filename-template') || 'title'; document.documentElement.style.colorScheme = 'dark'; }
 async function refreshSpaceHint(estimatedSize = 0) { if (!folder) return; try { const free = await window.ntc.freeSpace(folder); if (!Number.isFinite(free)) { $('#spaceHint').textContent = 'Espaço disponível não informado.'; return; } $('#spaceHint').textContent = estimatedSize ? `Espaço livre: ${formatBytes(free)} · estimativa: ~${formatBytes(estimatedSize)}` : `Espaço livre: ${formatBytes(free)}`; } catch { $('#spaceHint').textContent = 'Espaço disponível não informado.'; } }
 function addHistory(item) { history.unshift(item); history.splice(50); localStorage.setItem('ntc-history', JSON.stringify(history)); renderHistory(); }
 function compressionIsImage(file) { return /\.(jpe?g|png|webp|bmp|tiff?)$/i.test(file || ''); }
@@ -1015,7 +1026,6 @@ async function checkUpdates() { const button = $('#checkUpdates'); button.disabl
 let imagePreviewTimer = null;
 async function updateImagePreview() { const item = imageQueue[0]; if (!item) { $('#imagePreviewCard').classList.add('hidden'); return; } $('#imagePreviewCard').classList.remove('hidden'); $('#imagePreviewTitle').textContent = item.name; $('#imagePreviewOriginal').src = sourceUrl(item.source); $('#imagePreviewMeta').textContent = 'Gerando o resultado com estes ajustes…'; try { const preview = await window.ntc.previewImage({ source: item.source, format: $('#imageFormat').value, quality: $('#imageQuality').value, scale: $('#imageScale').value, width: $('#imageWidth').value, height: $('#imageHeight').value, keepRatio: $('#imageKeepRatio').checked }); $('#imagePreview').src = preview.dataUrl; $('#imagePreviewMeta').textContent = `Resultado: ${preview.width || 'original'} × ${preview.height || 'original'} · qualidade ${Math.max(1, Math.min(100, Number($('#imageQuality').value) || 85))}%`; } catch (error) { $('#imagePreviewMeta').textContent = cleanError(error); } }
 function scheduleImagePreview() { clearTimeout(imagePreviewTimer); imagePreviewTimer = setTimeout(updateImagePreview, 260); }
-$('#themePreference').onchange = event => { localStorage.setItem('ntc-theme', event.target.value); syncSettings(); showToast(`Tema ${event.target.value === 'light' ? 'claro' : 'escuro'} aplicado.`); };
 $('#addMarker').onclick = () => { const [start, end] = waveformBounds(); if (end <= start) return; audioMarkers.push({ id: toolId(), name: `Trecho ${audioMarkers.length + 1}`, start, end }); renderMarkers(); showToast('Marcador criado para a seleção atual.'); };
 $('#exportMarkers').onclick = () => { const item = currentEditingConversion(); if (!item || !audioMarkers.length) { showToast('Crie ao menos um marcador primeiro.'); return; } saveConversionEdits(); audioMarkers.forEach(marker => { const outputName = safeBase(`${item.outputName} - ${marker.name}`); conversionQueue.push({ ...structuredClone(item), conversionId: toolId(), outputName, trimStart: formatEditorTime(marker.start), trimEnd: formatEditorTime(marker.end), markers: [], status: 'pronto' }); }); renderConversionQueue(); startNextConversion(); showToast(`${audioMarkers.length} trechos adicionados à fila.`); };
 $('#applyToAudioQueue').onclick = () => { const item = currentEditingConversion(); if (!item) return; saveConversionEdits(); const settings = currentAudioSettings(); conversionQueue.filter(entry => entry.conversionId !== item.conversionId && entry.status === 'pronto').forEach(entry => Object.assign(entry, settings)); renderConversionQueue(); showToast('Ajustes aplicados aos itens prontos da fila.'); };
@@ -1047,7 +1057,22 @@ window.ntc.onQrEvent(update => { const item = qrQueue.find(entry => entry.id ===
 window.ntc.onRngState(renderRngState);
 $('#rngRollButton').onclick = performManualRngRoll;
 $('#rngAutoButton').onclick = toggleRngAutoRoll;
-$('.rng-section-tabs').addEventListener('click', event => { const button = event.target.closest('[data-rng-section]'); if (!button) return; rngActiveSection = button.dataset.rngSection; $$('[data-rng-section]').forEach(tab => tab.classList.toggle('active', tab.dataset.rngSection === rngActiveSection)); $$('[data-rng-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.rngPanel !== rngActiveSection)); });
+function setRngSection(section) {
+  rngActiveSection = section;
+  $$('[data-rng-section]').forEach(tab => tab.classList.toggle('active', tab.dataset.rngSection === section));
+  $$('[data-rng-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.rngPanel !== section));
+}
+function showNewRngPatchNotes() {
+  if (!activeAppVersion) { rngPatchNotesOpenPending = true; return; }
+  const seenVersionKey = 'ntc-rng-patch-notes-app-version';
+  const pendingVersionKey = 'ntc-rng-patch-notes-pending-version';
+  if (localStorage.getItem(pendingVersionKey) !== activeAppVersion) return;
+  if (localStorage.getItem(seenVersionKey) === activeAppVersion) { localStorage.removeItem(pendingVersionKey); return; }
+  openRngPatchNotesDialog();
+  localStorage.setItem(seenVersionKey, activeAppVersion);
+  localStorage.removeItem(pendingVersionKey);
+}
+$('.rng-section-tabs').addEventListener('click', event => { const button = event.target.closest('[data-rng-section]'); if (button) setRngSection(button.dataset.rngSection); });
 $('#rngBuyUpgrade').onclick = () => performRngShopAction('purchaseRngUpgrade', undefined, result => `Sorte permanente aumentada para o nível ${new Intl.NumberFormat('pt-BR').format(result.levels)}.`);
 $('#rngBuyRollBoost').onclick = () => performRngShopAction('purchaseRngConsumable', 'rolls', () => 'Consumível de 600 rolagens adicionado ao inventário.');
 $('#rngBuyTimeBoost').onclick = () => performRngShopAction('purchaseRngConsumable', 'time', () => 'Consumível de 10 minutos adicionado ao inventário.');
@@ -1111,13 +1136,20 @@ $('#launchAtLogin').addEventListener('change', async event => { const input = ev
 window.ntc.onScreenCloseRequest(async () => { if (!screenRecorder.recorder) { window.ntc.forceCloseWindow(); return; } const close = await confirmAction('Gravação em andamento', 'Deseja finalizar e salvar a gravação antes de fechar o aplicativo?', 'Salvar e fechar'); if (close) { await stopScreenRecording(); window.ntc.forceCloseWindow(); } });
 $('#openChangelog').onclick = openChangelog;
 $('#closeChangelog').onclick = () => $('#changelogDialog').classList.add('hidden');
+$('#closeRngPatchNotesDialog').onclick = closeRngPatchNotesDialog;
+$('#rngPatchNotesDialog').addEventListener('click', event => { if (event.target === $('#rngPatchNotesDialog')) closeRngPatchNotesDialog(); });
 $('#dismissUpdate').onclick = () => $('#updateNotice').classList.add('hidden');
 $('#updateAction').onclick = async () => { const status = $('#updateAction').dataset.updateStatus; if (status === 'downloaded') { window.ntc.installUpdate(); return; } if (status === 'available') showUpdateNotice(await window.ntc.downloadUpdate()); };
 window.ntc.onUpdateEvent(showUpdateNotice);
 $('#historyFilter').onchange = renderHistory;
 $('#confirmCancel').onclick = () => closeConfirm(false); $('#confirmAccept').onclick = () => closeConfirm(true);
-$$('.nav-item[data-view]').forEach(button => button.onclick = () => { $$('.nav-item').forEach(item => item.classList.remove('active')); button.classList.add('active'); $$('.view').forEach(view => view.classList.remove('active')); $(`#${button.dataset.view}View`).classList.add('active'); });
-$$('[data-open-tool]').forEach(button => button.onclick = () => { const target = button.dataset.openTool; $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === target)); $$('.view').forEach(view => view.classList.toggle('active', view.id === `${target}View`)); });
+function navigateToView(target) {
+  $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === target));
+  $$('.view').forEach(view => view.classList.toggle('active', view.id === `${target}View`));
+  if (target === 'rng') showNewRngPatchNotes();
+}
+$$('.nav-item[data-view]').forEach(button => button.onclick = () => navigateToView(button.dataset.view));
+$$('[data-open-tool]').forEach(button => button.onclick = () => navigateToView(button.dataset.openTool));
 function updateMaximizedLayout(maximized) { document.body.classList.toggle('window-maximized', Boolean(maximized)); $('#maximizeWindow').textContent = maximized ? '❐' : '□'; $('#maximizeWindow').setAttribute('aria-label', maximized ? 'Restaurar' : 'Maximizar'); }
 $('#minimizeWindow').onclick = () => window.ntc.minimizeWindow(); $('#maximizeWindow').onclick = async () => updateMaximizedLayout(await window.ntc.toggleMaximize()); $('#closeWindow').onclick = () => window.ntc.closeWindow();
 window.ntc.isMaximized().then(updateMaximizedLayout); window.ntc.onWindowMaximized(updateMaximizedLayout);
@@ -1162,5 +1194,20 @@ document.addEventListener('keydown', async event => {
   if (event.key === 'Escape' && current) { event.preventDefault(); window.ntc.cancelDownload(current.downloadId); }
   if (event.key === 'Escape' && currentConversion) { event.preventDefault(); window.ntc.cancelConversion(currentConversion.conversionId); }
 });
-document.addEventListener('keydown', event => { if (event.key === 'Escape' && !$('#confirmDialog').classList.contains('hidden')) { closeConfirm(false); return; } if (event.key === 'Escape' && !$('#changelogDialog').classList.contains('hidden')) $('#changelogDialog').classList.add('hidden'); if (event.key === 'Escape' && !$('#rngDebugDialog').classList.contains('hidden')) closeRngDebug(); });
-initializeQrSettings(); syncSettings(); loadMicrophones(); $('#compressionFolderPath').textContent = localStorage.getItem('ntc-compression-folder') || folder || 'Downloads'; setFormatOptions(); conversionQualityOptions('mp3'); updateConverterExtension('mp3'); renderHistory(); renderQrQueue(); renderQueue(); renderConversionQueue(); renderCompressionQueue(); window.ntc.appVersion().then(version => { $('#appVersion').textContent = `v${version}`; showChangelogAfterUpgrade(version); }).catch(() => { $('#appVersion').textContent = 'Indisponível'; }); window.ntc.defaultDownloadFolder().then(value => { if (!folder) { folder = value; localStorage.setItem('ntc-folder', folder); syncSettings(); } refreshSpaceHint(); });
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  if (!$('#confirmDialog').classList.contains('hidden')) { closeConfirm(false); return; }
+  if (!$('#rngPatchNotesDialog').classList.contains('hidden')) { closeRngPatchNotesDialog(); return; }
+  if (!$('#changelogDialog').classList.contains('hidden')) { $('#changelogDialog').classList.add('hidden'); return; }
+  if (!$('#rngDebugDialog').classList.contains('hidden')) closeRngDebug();
+});
+initializeQrSettings(); syncSettings(); loadMicrophones(); $('#compressionFolderPath').textContent = localStorage.getItem('ntc-compression-folder') || folder || 'Downloads'; setFormatOptions(); conversionQualityOptions('mp3'); updateConverterExtension('mp3'); renderHistory(); renderQrQueue(); renderQueue(); renderConversionQueue(); renderCompressionQueue();
+window.ntc.appVersion().then(version => {
+  activeAppVersion = String(version);
+  $('#appVersion').textContent = `v${activeAppVersion}`;
+  showChangelogAfterUpgrade(activeAppVersion);
+  const rngSeenVersion = localStorage.getItem('ntc-rng-patch-notes-app-version');
+  if (previouslySeenAppVersion !== activeAppVersion && rngSeenVersion !== activeAppVersion) localStorage.setItem('ntc-rng-patch-notes-pending-version', activeAppVersion);
+  if (rngPatchNotesOpenPending) { rngPatchNotesOpenPending = false; showNewRngPatchNotes(); }
+}).catch(() => { $('#appVersion').textContent = 'Indisponível'; });
+window.ntc.defaultDownloadFolder().then(value => { if (!folder) { folder = value; localStorage.setItem('ntc-folder', folder); syncSettings(); } refreshSpaceHint(); });

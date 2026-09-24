@@ -31,6 +31,7 @@
             <span class="nav-icon">♫</span> Editor de áudio
           </button>
           <button class="nav-item" data-view="musicPlayer"><span class="nav-icon">♪</span> Player de música</button>
+          <button class="nav-item" data-view="timeTools"><span class="nav-icon">◷</span> Relógios e tempo</button>
           <button class="nav-item" data-view="video"><span class="nav-icon">▸</span> Conversor de vídeo</button>
           <button class="nav-item" data-view="videoEditor"><span class="nav-icon">✂</span> Editor de vídeo</button>
           <button class="nav-item" data-view="image"><span class="nav-icon">▧</span> Conversor de imagens</button>
@@ -41,16 +42,19 @@
           <button class="nav-item" data-view="compressor"><span class="nav-icon">⇣</span> Compressor</button>
           <button class="nav-item" data-view="renamer"><span class="nav-icon">↔</span> Renomear arquivos</button>
           <button class="nav-item" data-view="qrGenerator"><span class="nav-icon">▦</span> Gerador de QR Code</button>
-          <button class="nav-item" data-view="rng"><span class="nav-icon">✧</span> NTC RNG</button>
           <button class="nav-item" data-view="history">
             <span class="nav-icon">◷</span> Histórico
           </button>
-        </nav>
-
-        <div class="sidebar-bottom">
           <button class="nav-item" data-view="settings">
             <span class="nav-icon">⚙</span> Configurações
           </button>
+          <div class="navigation-game-group">
+            <span class="navigation-group-label">JOGO</span>
+            <button class="nav-item rng-nav-item" data-view="rng"><span class="nav-icon">✧</span> NTC RNG</button>
+          </div>
+        </nav>
+
+        <div class="sidebar-bottom">
           <div class="by-edu">By NTC Corporation</div>
         </div>
       </aside>
@@ -64,10 +68,16 @@
 
         <section class="view home-view active" id="homeView">
           <div class="hero compact"><div class="eyebrow">CENTRAL</div><h1>Utilidades</h1><p>Encontre ferramentas para seus arquivos, mídia e tarefas do dia a dia.</p></div>
+          <section class="home-game-area" aria-label="Jogo">
+            <span class="home-game-label">JOGO</span>
+            <button class="home-game-card" type="button" data-open-tool="rng"><span class="home-game-icon">✧</span><span class="home-game-copy"><strong>NTC RNG</strong><small>Um espaço de rolagens, títulos, conquistas e relíquias.</small></span><span class="home-game-action">Abrir jogo <span aria-hidden="true">→</span></span></button>
+          </section>
+          <div class="section-heading home-tools-heading"><h2>Ferramentas</h2></div>
           <div class="tools-grid">
             <button class="tool-card available" data-open-tool="downloader"><span class="tool-icon">↓</span><span><strong>Downloader</strong><small>Baixe vídeos, áudios e capas por link.</small></span></button>
             <button class="tool-card available" data-open-tool="converter"><span class="tool-icon">♫</span><span><strong>Editor de áudio</strong><small>Corte, edite informações e converta áudios.</small></span></button>
             <button class="tool-card available" data-open-tool="musicPlayer"><span class="tool-icon">♪</span><span><strong>Player de música</strong><small>Sua biblioteca, offline</small></span></button>
+            <button class="tool-card available" data-open-tool="timeTools"><span class="tool-icon">◷</span><span><strong>Relógios e tempo</strong><small>Horários do mundo, clima, alarmes e contagem de tempo.</small></span></button>
             <button class="tool-card available" data-open-tool="video"><span class="tool-icon">▸</span><span><strong>Conversor de vídeo</strong><small>Converta formatos, codecs e resoluções.</small></span></button>
             <button class="tool-card available" data-open-tool="videoEditor"><span class="tool-icon">✂</span><span><strong>Editor de vídeo</strong><small>Corte trechos e combine áudio e vídeo.</small></span></button>
             <button class="tool-card available" data-open-tool="image"><span class="tool-icon">▧</span><span><strong>Conversor de imagens</strong><small>Altere formato, qualidade e dimensões.</small></span></button>
@@ -78,7 +88,6 @@
             <button class="tool-card available" data-open-tool="compressor"><span class="tool-icon">⇣</span><span><strong>Compressor</strong><small>Reduza o tamanho de vídeos e áudios.</small></span></button>
             <button class="tool-card available" data-open-tool="renamer"><span class="tool-icon">↔</span><span><strong>Renomear arquivos</strong><small>Renomeie vários arquivos com uma prévia.</small></span></button>
             <button class="tool-card available" data-open-tool="qrGenerator"><span class="tool-icon">▦</span><span><strong>Gerador de QR Code</strong><small>Crie QR Codes de links em PNG ou SVG.</small></span></button>
-            <button class="tool-card available" data-open-tool="rng"><span class="tool-icon rng-tool-icon">✧</span><span><strong>NTC RNG</strong></span></button>
           </div>
         </section>
 
@@ -146,8 +155,42 @@
           <audio id="musicDeckA" preload="auto" aria-hidden="true"></audio><audio id="musicDeckB" preload="auto" aria-hidden="true"></audio>
         </section>
 
+        <section class="view world-time-view" id="timeToolsView">
+          <div class="hero compact"><div class="eyebrow">FERRAMENTAS DO DIA A DIA</div><h1>Relógios e tempo</h1><p>Horários do mundo, clima, alarmes, temporizador e cronômetro em um só lugar.</p></div>
+          <nav class="time-tools-tabs" role="tablist" aria-label="Ferramentas de relógio e tempo">
+            <button class="time-tools-tab active" type="button" role="tab" aria-selected="true" aria-controls="worldClockPanel" data-time-tab="world">Mundo e clima</button>
+            <button class="time-tools-tab" type="button" role="tab" aria-selected="false" aria-controls="alarmsPanel" data-time-tab="alarms">Despertador</button>
+            <button class="time-tools-tab" type="button" role="tab" aria-selected="false" aria-controls="timerPanel" data-time-tab="timer">Temporizador</button>
+            <button class="time-tools-tab" type="button" role="tab" aria-selected="false" aria-controls="stopwatchPanel" data-time-tab="stopwatch">Cronômetro</button>
+          </nav>
+
+          <section class="time-tools-panel" id="worldClockPanel" role="tabpanel" data-time-panel="world">
+            <div class="time-panel-heading"><div><span class="eyebrow">RELÓGIO MUNDIAL</span><h2>Acompanhe outras cidades</h2></div></div>
+            <form class="world-city-search" id="worldCitySearchForm"><label class="world-city-search-field"><span aria-hidden="true">⌕</span><input class="text-input" id="worldCitySearch" type="search" placeholder="Buscar cidade ou país" autocomplete="off" aria-label="Buscar cidade ou país"></label><button class="outline-button" type="submit">Buscar cidade</button><span class="time-status" id="worldCitySearchStatus" role="status"></span></form>
+            <div class="world-city-results hidden" id="worldCityResults" aria-label="Resultados da busca"></div>
+            <div class="world-city-grid" id="worldCityGrid"></div>
+          </section>
+
+          <section class="time-tools-panel hidden" id="alarmsPanel" role="tabpanel" data-time-panel="alarms">
+            <div class="time-panel-heading"><div><span class="eyebrow">DESPERTADOR</span><h2>Seus alarmes</h2><p>Os alarmes tocam enquanto o NTC Utilities estiver aberto.</p></div></div>
+            <form class="time-form-card alarm-form" id="alarmForm"><label class="time-input-field"><span>Horário</span><input id="alarmTime" type="time" required></label><label class="time-input-field alarm-label-field"><span>Nome</span><input class="text-input" id="alarmLabel" type="text" maxlength="48" placeholder="Ex.: Acordar"></label><fieldset class="alarm-weekdays"><legend>Repetir</legend><div class="weekday-options"><label><input type="checkbox" value="1"><span>Seg</span></label><label><input type="checkbox" value="2"><span>Ter</span></label><label><input type="checkbox" value="3"><span>Qua</span></label><label><input type="checkbox" value="4"><span>Qui</span></label><label><input type="checkbox" value="5"><span>Sex</span></label><label><input type="checkbox" value="6"><span>Sáb</span></label><label><input type="checkbox" value="0"><span>Dom</span></label></div></fieldset><button class="primary-button" type="submit">＋ Criar alarme</button></form>
+            <div class="alarm-list" id="alarmList" aria-live="polite"></div>
+          </section>
+
+          <section class="time-tools-panel hidden" id="timerPanel" role="tabpanel" data-time-panel="timer">
+            <div class="time-panel-heading"><div><span class="eyebrow">TEMPORIZADOR</span><h2>Faça uma contagem regressiva</h2></div></div>
+            <div class="time-form-card timer-card"><div class="timer-inputs"><label class="time-input-field"><span>Horas</span><input class="text-input" id="timerHours" type="number" min="0" max="999" value="0"></label><label class="time-input-field"><span>Minutos</span><input class="text-input" id="timerMinutes" type="number" min="0" max="59" value="5"></label><label class="time-input-field"><span>Segundos</span><input class="text-input" id="timerSeconds" type="number" min="0" max="59" value="0"></label></div><div class="timer-display" id="timerDisplay" aria-live="off">00:05:00</div><div class="time-actions"><button class="primary-button" id="timerStart" type="button">Iniciar</button><button class="outline-button hidden" id="timerPause" type="button">Pausar</button><button class="ghost-button" id="timerReset" type="button">Zerar</button></div></div>
+          </section>
+
+          <section class="time-tools-panel hidden" id="stopwatchPanel" role="tabpanel" data-time-panel="stopwatch">
+            <div class="time-panel-heading"><div><span class="eyebrow">CRONÔMETRO</span><h2>Meça o tempo decorrido</h2></div></div>
+            <div class="time-form-card stopwatch-card"><div class="stopwatch-display" id="stopwatchDisplay" aria-live="off">00:00:00.00</div><div class="time-actions"><button class="primary-button" id="stopwatchStart" type="button">Iniciar</button><button class="outline-button hidden" id="stopwatchLap" type="button">Volta</button><button class="ghost-button" id="stopwatchReset" type="button">Zerar</button></div><ol class="stopwatch-laps" id="stopwatchLaps" aria-label="Voltas registradas"></ol></div>
+          </section>
+          <div class="time-alert hidden" id="timeAlert" role="alertdialog" aria-modal="true" aria-labelledby="timeAlertTitle"><div class="time-alert-card"><span class="eyebrow">LEMBRETE</span><h2 id="timeAlertTitle">Alarme</h2><p id="timeAlertMessage"></p><button class="primary-button" id="timeAlertDismiss" type="button">Parar</button></div></div>
+        </section>
+
         <section class="view rng-view" id="rngView">
-          <div class="rng-heading-row"><div class="hero compact"><div class="eyebrow">NTC RNG</div><h1>Testador de sorte</h1></div><div class="rng-heading-actions"><button class="outline-button rng-debug-trigger hidden" id="rngDebugTrigger" type="button">Debug</button></div></div>
+          <div class="rng-heading-row"><div class="hero compact"><div class="eyebrow">NTC RNG</div><h1>Além do Acaso</h1><p>Rode, descubra títulos raros e monte sua coleção de relíquias.</p></div><div class="rng-heading-actions"><button class="outline-button rng-debug-trigger hidden" id="rngDebugTrigger" type="button">Debug</button></div></div>
           <div class="rng-overview">
             <section class="rng-roll-panel">
               <div class="rng-roll-heading"><div><span class="eyebrow">TÍTULOS ENCONTRADOS</span><strong id="rngCollectionCount">0 / 200</strong></div><div class="rng-rolls-total"><span>Rolagens</span><strong id="rngRollCount">0</strong></div></div>
@@ -210,7 +253,7 @@
             <div class="rng-relic-grid" id="rngRelicInventory"></div>
           </section>
           <section class="rng-extra-section hidden" data-rng-panel="patch-notes">
-            <div class="section-heading"><div><h2>Notas de atualização do NTC RNG</h2><span>Histórico do jogo, separado das novidades do NTC Utilities.</span></div></div>
+            <div class="section-heading"><h2>Notas de atualização do NTC RNG</h2></div>
             <div class="rng-patch-note-list" id="rngPatchNotes"></div>
           </section>
         </section>
@@ -592,7 +635,6 @@
             <div class="setting-row"><div><strong>Pasta padrão</strong><p id="settingsFolder">Downloads</p></div><button class="outline-button" type="button" id="chooseFolderSettings">Escolher pasta</button></div>
             <div class="setting-row"><div><strong>Arquivos duplicados</strong><p>Como tratar um arquivo que já existe.</p></div><select id="duplicatePolicy"><option value="rename">Criar cópia numerada</option><option value="overwrite">Substituir arquivo</option><option value="ask">Perguntar sempre</option></select></div>
             <div class="setting-row"><div><strong>Modelo de nome</strong><p>Define o nome inicial dos novos downloads.</p></div><select id="filenameTemplate"><option value="title">Título</option><option value="channel-title">Canal - Título</option><option value="date-title">Data - Título</option></select></div>
-            <div class="setting-row"><div><strong>Tema</strong><p>Escolha entre o visual escuro ou claro.</p></div><select id="themePreference"><option value="dark">Escuro</option><option value="light">Claro</option></select></div>
             <div class="setting-row"><div><strong>Atalho do gravador</strong><p>Clique no campo e pressione a tecla ou combinação desejada.</p></div><input class="text-input shortcut-input" id="recordShortcut" value="" placeholder="Nenhum atalho" autocomplete="off" aria-label="Atalho do gravador" /></div>
             <div class="setting-row"><div><strong>Ao minimizar</strong><p>O NTC fica na bandeja do Windows. O NTC RNG continua rolando enquanto o app estiver aberto.</p></div><span class="tray-setting-state">Ativado</span></div>
             <div class="setting-row"><div><strong>Iniciar com o Windows</strong><p>Abre o app ao entrar no Windows. O Auto-roll começa automaticamente quando o app abre.</p></div><label class="switch"><input id="launchAtLogin" type="checkbox" /><span></span></label></div>
@@ -690,6 +732,9 @@
     <div class="changelog-backdrop hidden" id="changelogDialog" role="dialog" aria-modal="true" aria-labelledby="changelogTitle">
       <section class="changelog-card"><div class="changelog-heading"><div><span class="eyebrow">NTC UTILITIES</span><h2 id="changelogTitle">O que mudou</h2></div><button class="suggestion-close" id="closeChangelog" type="button" aria-label="Fechar changelog">×</button></div><div class="changelog-list" id="changelogList"></div></section>
     </div>
+    <div class="changelog-backdrop rng-patch-changelog-backdrop hidden" id="rngPatchNotesDialog" role="dialog" aria-modal="true" aria-labelledby="rngPatchNotesDialogTitle">
+      <section class="changelog-card rng-patch-changelog-card"><div class="changelog-heading"><div><span class="eyebrow">NTC RNG</span><h2 id="rngPatchNotesDialogTitle">Novidades do jogo</h2></div><button class="suggestion-close" id="closeRngPatchNotesDialog" type="button" aria-label="Fechar notas do NTC RNG">×</button></div><div class="changelog-list" id="rngPatchNotesDialogList"></div></section>
+    </div>
     <script src="./changelog.js"></script>
     <script src="./rng-changelog.js"></script>
     <script src="./screenshot-editor.js"></script>
@@ -700,6 +745,7 @@
     <script src="./music-queue.js"></script>
     <script src="./music-playlists.js"></script>
     <script src="./music-player.js"></script>
+    <script src="./world-clock.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

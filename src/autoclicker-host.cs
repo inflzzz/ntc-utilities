@@ -13,6 +13,15 @@ public static class NtcAutoClickHost
     private struct Point { public int X; public int Y; }
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct MouseInputData { public int X; public int Y; public uint Data; public uint Flags; public uint Time; public UIntPtr ExtraInfo; }
+
+    [StructLayout(LayoutKind.Explicit)]
+    private struct InputUnion { [FieldOffset(0)] public MouseInputData Mouse; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct InputRecord { public uint Type; public InputUnion Union; }
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct MouseHookInfo { public Point Point; public uint MouseData; public uint Flags; public uint Time; public UIntPtr ExtraInfo; }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -26,7 +35,7 @@ public static class NtcAutoClickHost
 
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
     [DllImport("user32.dll")] private static extern short GetKeyState(int key);
-    [DllImport("user32.dll")] private static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extra);
+    [DllImport("user32.dll", SetLastError = true)] private static extern uint SendInput(uint inputCount, [In] InputRecord[] inputs, int inputSize);
     [DllImport("user32.dll")] private static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
     [DllImport("user32.dll")] private static extern bool GetCursorPos(out Point point);
     [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
@@ -42,9 +51,12 @@ public static class NtcAutoClickHost
     [DllImport("user32.dll")] private static extern bool PostThreadMessage(uint threadId, uint message, UIntPtr wParam, IntPtr lParam);
     [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
 
+    private const uint InputMouse = 0;
     private const uint LeftDown = 0x0002, LeftUp = 0x0004, RightDown = 0x0008, RightUp = 0x0010, MiddleDown = 0x0020, MiddleUp = 0x0040;
     private const uint KeyUp = 0x0002;
     private const double MinimumClickIntervalMs = 2.0;
+    // The session counter is cumulative; refresh once per second so it isn't mistaken for half the configured CPS.
+    private const double StateReportIntervalMs = 1000.0;
     private static readonly ConcurrentQueue<string> Input = new ConcurrentQueue<string>();
     private static readonly JavaScriptSerializer Json = new JavaScriptSerializer();
     private static readonly Stopwatch Clock = Stopwatch.StartNew();
@@ -108,7 +120,8 @@ public static class NtcAutoClickHost
                     nextClickAt += batchInterval;
                     try
                     {
-                        for (int i = 0; i < cycles && running; i++) RunCycle();
+                        if (CanBatchMouseInputs(interval)) RunFastMouseBatch(cycles);
+                        else for (int i = 0; i < cycles && running; i++) RunCycle();
                     }
                     catch (Exception error) { Stop("Falha ao enviar entrada: " + error.Message); }
                     now = Clock.Elapsed.TotalMilliseconds;
@@ -116,7 +129,7 @@ public static class NtcAutoClickHost
                 }
             }
             if (picker.Length > 0) UpdatePicker();
-            if (now >= nextReportAt) { EmitState(); nextReportAt = now + 500; }
+            if (now >= nextReportAt) { EmitState(); nextReportAt = now + StateReportIntervalMs; }
             if (!running) Thread.Sleep(8);
             else WaitForNextCycle();
         }
@@ -547,8 +560,9 @@ public static class NtcAutoClickHost
         else if (cps >= 50) duty = Math.Min(duty, 0.98);
         int clickCount = Boolean(settings, "doubleClickEnabled", false) && cps < 11 ? 2 : 1;
         double gap = clickCount > 1 ? Math.Min(Number(settings, "doubleClickGapMs", 45), Math.Max(0, interval / 3)) : 0;
-        double hold = Math.Max(1, Math.Min(1000, interval * duty));
-        if (clickCount > 1) hold = Math.Max(1, Math.Min(hold, (interval - gap) / 2));
+        // Match Blur's millisecond hold timing: sub-millisecond holds become an immediate down/up pair.
+        double hold = Math.Max(0, Math.Min(1000, Math.Floor(interval * duty)));
+        if (clickCount > 1) hold = Math.Max(0, Math.Min(hold, Math.Floor((interval - gap) / 2)));
         for (int index = 0; index < clickCount && running; index++)
         {
             if (Text(settings, "inputType", "mouse") == "keyboard") PressKey(Text(settings, "keyboardKey", "A"), Text(settings, "keyboardKeyCase", "lower"));
@@ -560,11 +574,58 @@ public static class NtcAutoClickHost
             if (Boolean(settings, "doubleClickEnabled", false) && index == 0 && clickCount > 1) WaitMilliseconds(gap);
         }
         AdvancePointIfNeeded();
-        if (Boolean(settings, "timeLimitEnabled", false))
+        CheckTimeLimit();
+    }
+
+    private static bool CanBatchMouseInputs(double interval)
+    {
+        if (Text(settings, "inputType", "mouse") != "mouse" ||
+            Boolean(settings, "doubleClickEnabled", false) ||
+            Boolean(settings, "speedRandomizationEnabled", false) ||
+            Boolean(settings, "clickPointsEnabled", false) ||
+            Number(settings, "offset", 0) > 0 || Number(settings, "smoothing", 0) > 0) return false;
+
+        double cps = 1000.0 / Math.Max(1, interval);
+        double duty = Number(settings, "dutyCycle", 45) / 100.0;
+        if (!Boolean(settings, "dutyCycleEnabled", true)) duty = 0.01;
+        if (cps > 500) duty = Math.Min(duty, 0.01);
+        else if (cps >= 200) duty = Math.Min(duty, 0.30);
+        else if (cps >= 100) duty = Math.Min(duty, 0.70);
+        else if (cps >= 50) duty = Math.Min(duty, 0.98);
+        return Math.Floor(Math.Max(0, Math.Min(1000, interval * duty))) < 1;
+    }
+
+    private static void RunFastMouseBatch(int requestedClicks)
+    {
+        Point cursor;
+        if (!GetCursorPos(out cursor) || IsUnsafeTarget(cursor)) return;
+
+        int clicks = requestedClicks;
+        if (Boolean(settings, "clickLimitEnabled", false))
         {
-            double limit = Number(settings, "timeLimit", 60) * (Text(settings, "timeLimitUnit", "s") == "h" ? 3600000 : Text(settings, "timeLimitUnit", "s") == "m" ? 60000 : 1000);
-            if (Clock.Elapsed.TotalMilliseconds - startedAt >= limit) Stop("Limite de tempo atingido.");
+            int remaining = Math.Max(0, (int)Number(settings, "clickLimit", 1000) - (int)runClicks);
+            clicks = Math.Min(clicks, remaining);
+            if (clicks == 0) { Stop("Limite de cliques atingido."); return; }
         }
+
+        string button = Text(settings, "mouseButton", "Left");
+        uint down = button == "Right" ? RightDown : button == "Middle" ? MiddleDown : LeftDown;
+        uint up = button == "Right" ? RightUp : button == "Middle" ? MiddleUp : LeftUp;
+        SendMouseClickBatch(down, up, clicks);
+        runClicks += clicks;
+        totalClicks += clicks;
+        settings["totalClicks"] = totalClicks;
+
+        if (Boolean(settings, "clickLimitEnabled", false) && runClicks >= Number(settings, "clickLimit", 1000))
+            Stop("Limite de cliques atingido.");
+        CheckTimeLimit();
+    }
+
+    private static void CheckTimeLimit()
+    {
+        if (!Boolean(settings, "timeLimitEnabled", false)) return;
+        double limit = Number(settings, "timeLimit", 60) * (Text(settings, "timeLimitUnit", "s") == "h" ? 3600000 : Text(settings, "timeLimitUnit", "s") == "m" ? 60000 : 1000);
+        if (Clock.Elapsed.TotalMilliseconds - startedAt >= limit) Stop("Limite de tempo atingido.");
     }
 
     private static bool IsUnsafeTarget(Point target)
@@ -642,9 +703,46 @@ public static class NtcAutoClickHost
     {
         uint down = button == "Right" ? RightDown : button == "Middle" ? MiddleDown : LeftDown;
         uint up = button == "Right" ? RightUp : button == "Middle" ? MiddleUp : LeftUp;
-        mouse_event(down, 0, 0, 0, UIntPtr.Zero);
+        if (hold <= 0)
+        {
+            SendMouseClick(down, up);
+            return;
+        }
+        SendMouseInput(down);
         try { WaitMilliseconds(hold); }
-        finally { mouse_event(up, 0, 0, 0, UIntPtr.Zero); }
+        finally { SendMouseInput(up); }
+    }
+
+    private static InputRecord CreateMouseInput(uint flags)
+    {
+        return new InputRecord {
+            Type = InputMouse,
+            Union = new InputUnion { Mouse = new MouseInputData { Flags = flags, ExtraInfo = UIntPtr.Zero } }
+        };
+    }
+
+    private static void SendMouseInput(uint flags)
+    {
+        InputRecord[] input = new InputRecord[] { CreateMouseInput(flags) };
+        if (SendInput(1, input, Marshal.SizeOf(typeof(InputRecord))) != 1)
+            throw new InvalidOperationException("O Windows não aceitou a entrada do mouse (erro " + Marshal.GetLastWin32Error() + ").");
+    }
+
+    private static void SendMouseClick(uint down, uint up)
+    {
+        SendMouseClickBatch(down, up, 1);
+    }
+
+    private static void SendMouseClickBatch(uint down, uint up, int count)
+    {
+        InputRecord[] inputs = new InputRecord[count * 2];
+        for (int i = 0; i < count; i++)
+        {
+            inputs[i * 2] = CreateMouseInput(down);
+            inputs[i * 2 + 1] = CreateMouseInput(up);
+        }
+        if (SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(InputRecord))) != inputs.Length)
+            throw new InvalidOperationException("O Windows não aceitou o clique do mouse (erro " + Marshal.GetLastWin32Error() + ").");
     }
 
     private static void PressKey(string keyName, string casing)
@@ -666,7 +764,9 @@ public static class NtcAutoClickHost
 
     private static void ReleaseInputs()
     {
-        mouse_event(LeftUp, 0, 0, 0, UIntPtr.Zero); mouse_event(RightUp, 0, 0, 0, UIntPtr.Zero); mouse_event(MiddleUp, 0, 0, 0, UIntPtr.Zero);
+        try { SendMouseInput(LeftUp); } catch { }
+        try { SendMouseInput(RightUp); } catch { }
+        try { SendMouseInput(MiddleUp); } catch { }
         keybd_event(0x10, 0, KeyUp, UIntPtr.Zero);
     }
 
