@@ -36,6 +36,7 @@
           <button class="nav-item" data-view="recorder"><span class="nav-icon">●</span> Gravador de tela</button>
           <button class="nav-item" data-view="screenshot"><span class="nav-icon">▣</span> Captura de tela</button>
           <button class="nav-item" data-view="compressor"><span class="nav-icon">⇣</span> Compressor</button>
+          <button class="nav-item" data-view="renamer"><span class="nav-icon">↔</span> Renomear arquivos</button>
           <button class="nav-item" data-view="qrGenerator"><span class="nav-icon">▦</span> Gerador de QR Code</button>
           <button class="nav-item" data-view="rng"><span class="nav-icon">✧</span> NTC RNG</button>
           <button class="nav-item" data-view="history">
@@ -69,6 +70,7 @@
             <button class="tool-card available" data-open-tool="recorder"><span class="tool-icon record-tool-icon">●</span><span><strong>Gravador de tela</strong></span></button>
             <button class="tool-card available" data-open-tool="screenshot"><span class="tool-icon">▣</span><span><strong>Captura de tela</strong></span></button>
             <button class="tool-card available" data-open-tool="compressor"><span class="tool-icon">⇣</span><span><strong>Compressor</strong></span></button>
+            <button class="tool-card available" data-open-tool="renamer"><span class="tool-icon">↔</span><span><strong>Renomear arquivos</strong></span></button>
             <button class="tool-card available" data-open-tool="qrGenerator"><span class="tool-icon">▦</span><span><strong>Gerador de QR Code</strong></span></button>
             <button class="tool-card available" data-open-tool="rng"><span class="tool-icon rng-tool-icon">✧</span><span><strong>NTC RNG</strong></span></button>
           </div>
@@ -82,29 +84,37 @@
               <div class="rng-progress-track" role="progressbar" aria-label="Progresso da coleção" aria-valuemin="0" aria-valuemax="200" aria-valuenow="0"><span id="rngProgressBar"></span></div>
               <div class="rng-luck-line"><span>Sorte total</span><strong id="rngLuckValue">+0%</strong><span class="rng-luck-breakdown"><span id="rngCollectionLuck">+0% coleção</span></span></div>
               <div class="rng-roll-actions"><button class="primary-button rng-roll-button" id="rngRollButton" type="button">Rolar</button><button class="outline-button rng-auto-button" id="rngAutoButton" type="button">Iniciar Auto-roll</button></div>
-              <div class="rng-roll-info"><span id="rngRollBatchInfo">1 rolagem por ciclo</span><span id="rngBonusRollInfo">Bonus Roll ×2 em 10 rolagens</span></div>
+              <div class="rng-roll-info"><span id="rngRollBatchInfo">1 rolagem por ciclo</span><span id="rngBonusRollInfo">Rolagem bônus ×2 em 10 rolagens</span><span id="rngThousandBonusInfo">Mega bônus ×4 a cada 1.000 rolagens</span><span id="rngTenThousandBonusInfo">Bônus supremo ×10 a cada 10.000 rolagens</span></div>
+              <div class="rng-clock-status" id="rngClockStatus" data-active="false" aria-live="off"><span class="rng-clock-indicator" aria-hidden="true"></span><span class="rng-clock-copy"><strong id="rngClockTitle">Bônus de horas iguais</strong><small id="rngClockDetail">Chance de títulos raros ×2 em horas e minutos iguais.</small></span><b>×2</b></div>
               <article class="rng-last-result" id="rngLastResult" aria-live="polite"><span class="rng-result-icon">✧</span><div><small id="rngResultCaption">ÚLTIMO RESULTADO</small><strong id="rngResultTitle">Ainda sem rolagens</strong><span id="rngResultOdds">O título e a chance aparecem aqui.</span></div></article>
               <div class="rng-batch-results hidden" id="rngBatchResults" aria-live="polite"></div>
             </section>
             <section class="rng-profile-panel">
-              <div class="section-heading"><h2>Perfil</h2><span id="rngProfileStatus">Salvo neste computador</span></div>
+              <div class="section-heading"><h2>Esta sessão</h2><span>Seu progresso agora</span></div>
               <div class="rng-profile-grid">
-                <div><span>Nesta sessão do app</span><strong id="rngAppSessionTime">00:00:00</strong></div>
-                <div><span>Tempo total no app</span><strong id="rngAppTotalTime">00:00:00</strong></div>
-                <div><span>Auto-roll nesta sessão</span><strong id="rngAutoSessionTime">00:00:00</strong></div>
-                <div><span>Auto-roll total</span><strong id="rngAutoTotalTime">00:00:00</strong></div>
+                <div class="rng-session-rolls"><span>Rolagens na sessão</span><strong id="rngSessionRolls">0</strong></div>
+                <div><span>Melhor resultado</span><strong id="rngSessionBest">—</strong></div>
+                <div><span>Desde o último Singular+</span><strong id="rngSessionDrought">—</strong></div>
               </div>
             </section>
           </div>
-          <section class="rng-discoveries-section">
-            <div class="section-heading"><h2>Descobertas recentes</h2><span id="rngDiscoveryCount">0 títulos novos</span></div>
-            <div class="rng-discovery-track" id="rngDiscoveryLog" aria-live="polite"><div class="rng-discovery-empty">Os títulos inéditos e a rolagem em que apareceram vão ficar registrados aqui.</div></div>
+          <nav class="rng-section-tabs" aria-label="Áreas do NTC RNG"><button type="button" class="active" data-rng-section="history">Histórico</button><button type="button" data-rng-section="collection">Coleção</button><button type="button" data-rng-section="achievements">Conquistas</button><button type="button" data-rng-section="statistics">Estatísticas</button><button type="button" data-rng-section="events">Eventos</button></nav>
+          <section class="rng-title-history-section" data-rng-panel="history">
+            <div class="section-heading"><h2>Histórico de títulos</h2><span id="rngTitleHistoryCount">0 títulos obtidos</span></div>
+            <div class="rng-title-history-tools">
+              <input class="text-input rng-title-history-search" id="rngTitleHistorySearch" type="search" placeholder="Buscar título, raridade ou bônus" aria-label="Buscar no histórico de títulos">
+              <select class="text-input rng-title-history-filter" id="rngTitleHistoryTier" aria-label="Filtrar histórico por raridade"><option value="recent">Recentes</option><option value="all">Todas as raridades</option></select>
+            </div>
+            <div class="rng-title-history-list" id="rngTitleHistoryList" aria-live="polite"><div class="rng-discovery-empty">Os títulos obtidos e os detalhes de cada rolagem aparecerão aqui.</div></div>
           </section>
-          <section class="rng-collection-section">
+          <section class="rng-collection-section hidden" data-rng-panel="collection">
             <div class="section-heading"><h2>Coleção</h2><span id="rngTierCount">20 títulos</span></div>
             <div class="rng-tier-filters" id="rngTierFilters" role="tablist" aria-label="Raridades"></div>
             <div class="rng-catalog" id="rngCatalog"></div>
           </section>
+          <section class="rng-extra-section hidden" data-rng-panel="achievements"><div class="section-heading"><h2>Conquistas</h2></div><div class="rng-achievement-groups" id="rngAchievements"></div><div class="section-heading rng-subheading"><h2>Segredos descobertos</h2></div><div class="rng-extra-grid" id="rngSecrets"></div></section>
+          <section class="rng-extra-section hidden" data-rng-panel="statistics"><div class="section-heading"><h2>Estatísticas e recordes</h2></div><div class="rng-extra-grid" id="rngStatistics"></div><div class="section-heading rng-subheading"><h2>Tempo de uso</h2></div><div class="rng-profile-grid rng-time-grid"><div><span>Nesta sessão do app</span><strong id="rngAppSessionTime">00:00:00</strong></div><div><span>Tempo total no app</span><strong id="rngAppTotalTime">00:00:00</strong></div><div><span>Auto-roll nesta sessão</span><strong id="rngAutoSessionTime">00:00:00</strong></div><div><span>Auto-roll total</span><strong id="rngAutoTotalTime">00:00:00</strong></div></div></section>
+          <section class="rng-extra-section hidden" data-rng-panel="events"><div class="section-heading"><h2>Eventos</h2></div><p class="rng-event-status" id="rngEventStatus">Verificando a conexão…</p><div class="rng-extra-grid" id="rngEventSchedule"></div><div class="section-heading rng-subheading"><h2>Títulos limitados obtidos</h2></div><div class="rng-extra-grid" id="rngLimitedTitles"></div></section>
         </section>
 
         <section class="view media-tool-view" id="compressorView">
@@ -114,6 +124,53 @@
           <div class="hidden" aria-hidden="true"><input id="compressionImageQuality" value="60" /><input id="compressionImageScale" value="60" /><div id="compressionPreviewCard"><img id="compressionPreviewOriginal" /><img id="compressionPreviewResult" /><strong id="compressionPreviewTitle"></strong><small id="compressionPreviewMeta"></small></div></div>
           <label class="tool-destination"><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="compressionFolderPath">Downloads</span><button type="button" id="chooseCompressionFolder">Alterar</button></div></label>
           <section class="queue-section"><div class="section-heading"><h2>Arquivos</h2><span id="compressionCount">0 itens</span></div><div class="queue-list" id="compressionList"><div class="empty-state"><p>Adicione arquivos para comprimir.</p></div></div><button class="primary-button" id="startCompression" type="button">Comprimir arquivos</button></section>
+        </section>
+
+        <section class="view renamer-view" id="renamerView">
+          <div class="hero compact"><div class="eyebrow">ORGANIZAR</div><h1>Renomear arquivos</h1><p>Padronize vários nomes de uma vez com uma prévia antes de aplicar.</p></div>
+          <section class="renamer-panel">
+            <div class="renamer-import-row">
+              <button class="primary-button" id="chooseRenameFiles" type="button">Selecionar arquivos</button>
+              <div class="renamer-dropzone" id="renameDropzone" tabindex="0" role="button" aria-label="Arraste arquivos ou uma pasta aqui; as subpastas também serão lidas. Pressione Enter para selecionar arquivos">
+                <strong>Arraste arquivos ou uma pasta aqui</strong><span>As subpastas também serão incluídas</span>
+              </div>
+            </div>
+            <section class="renamer-options" aria-labelledby="renameOptionsHeading">
+              <div class="section-heading"><h2 id="renameOptionsHeading">Como formar o novo nome</h2><span>A extensão do arquivo não muda</span></div>
+              <div class="renamer-rule-grid">
+                <section class="renamer-rule" aria-labelledby="renameAddTextHeading">
+                  <div class="renamer-rule-heading"><strong id="renameAddTextHeading">Adicionar texto</strong><span>Opcional</span></div>
+                  <div class="renamer-rule-fields">
+                    <label><span class="field-label">Antes do nome</span><input class="text-input" id="renamePrefix" type="text" placeholder="Ex.: Viagem-" /></label>
+                    <label><span class="field-label">Depois do nome</span><input class="text-input" id="renameSuffix" type="text" placeholder="Ex.: -Editado" /></label>
+                  </div>
+                </section>
+                <section class="renamer-rule" aria-labelledby="renameReplaceHeading">
+                  <div class="renamer-rule-heading"><strong id="renameReplaceHeading">Trocar um trecho</strong><span>Opcional</span></div>
+                  <div class="renamer-rule-fields">
+                    <label><span class="field-label">Trecho atual</span><input class="text-input" id="renameFind" type="text" placeholder="Ex.: IMG_" /></label>
+                    <label><span class="field-label">Trocar por</span><input class="text-input" id="renameReplacement" type="text" placeholder="Ex.: Foto_" /></label>
+                  </div>
+                  <p class="renamer-rule-example">Exemplo: IMG_123.png → Foto_123.png</p>
+                </section>
+              </div>
+              <div class="renamer-numbering-section">
+                <label class="renamer-numbering-toggle"><input id="renameNumbering" type="checkbox" /><span><strong>Adicionar numeração sequencial</strong><small>Ex.: Foto-001.png, Foto-002.png</small></span></label>
+                <div class="renamer-numbering">
+                  <label><span class="field-label">Número inicial</span><input class="text-input" id="renameNumberStart" type="number" min="0" max="999999999" value="1" /></label>
+                  <label><span class="field-label">Casas do número</span><input class="text-input" id="renameNumberDigits" type="number" min="1" max="8" value="3" /></label>
+                  <label><span class="field-label">Onde inserir</span><select id="renameNumberPosition"><option value="suffix">Depois do nome</option><option value="prefix">Antes do nome</option></select></label>
+                  <label><span class="field-label">Separador</span><select id="renameNumberSeparator"><option value="-">Hífen ( - )</option><option value="_">Sublinhado ( _ )</option><option value=" ">Espaço</option></select></label>
+                </div>
+              </div>
+            </section>
+            <section class="renamer-preview" aria-labelledby="renamePreviewHeading">
+              <div class="section-heading"><h2 id="renamePreviewHeading">Prévia</h2><span id="renamePreviewCount">0 arquivos</span></div>
+              <div class="renamer-list" id="renamePreviewList" aria-live="polite"><div class="renamer-empty">Selecione ou arraste arquivos para ver os novos nomes.</div></div>
+              <div class="renamer-actions"><span id="renameStatus" role="status" aria-live="polite">Nenhuma alteração aplicada.</span><div><button class="outline-button" id="clearRenameFiles" type="button" disabled>Limpar</button><button class="primary-button" id="applyFileRenames" type="button" disabled>Renomear arquivos</button></div></div>
+            </section>
+            <p class="renamer-note">Os arquivos permanecem nas pastas atuais. A ferramenta não substitui arquivos existentes.</p>
+          </section>
         </section>
 
         <section class="view qr-tool-view" id="qrGeneratorView">
@@ -159,9 +216,8 @@
         <section class="view screenshot-view" id="screenshotView">
           <div class="hero compact"><div class="eyebrow">CAPTURA</div><h1>Captura de tela</h1></div>
           <section class="recorder-card screenshot-capture-card">
-            <button class="primary-button recorder-button" id="captureScreenshot" type="button">Capturar tela</button>
-            <label class="screenshot-shortcut-row"><span class="field-label">Atalho para captura e edição</span><input class="text-input shortcut-input" id="screenshotShortcut" value="" placeholder="Nenhum atalho" autocomplete="off" aria-label="Atalho para captura e edição" /></label>
-            <label class="screenshot-quick-shortcut-row"><span class="field-label">Atalho para captura rápida</span><input class="text-input shortcut-input" id="quickScreenshotShortcut" value="" placeholder="Nenhum atalho" autocomplete="off" aria-label="Atalho para captura rápida" /><small>Salva direto na pasta, sem abrir o editor.</small></label>
+            <label class="screenshot-shortcut-row"><span class="field-label">Atalho para captura e edição</span><input class="text-input shortcut-input" id="screenshotShortcut" value="" placeholder="Clique e pressione uma tecla" autocomplete="off" aria-label="Atalho para captura e edição" /><small>Uma tecla ou combinação, por exemplo Ctrl + Print Screen.</small></label>
+            <label class="screenshot-quick-shortcut-row"><span class="field-label">Atalho para captura rápida</span><input class="text-input shortcut-input" id="quickScreenshotShortcut" value="" placeholder="Clique e pressione uma tecla" autocomplete="off" aria-label="Atalho para captura rápida" /><small>Combinação opcional. Salva direto na pasta, sem abrir o editor.</small></label>
             <label class="tool-destination"><span class="field-label">Salvar capturas em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="screenshotFolderPath">Downloads</span><button type="button" id="chooseScreenshotFolder">Alterar</button></div></label>
           </section>
         </section>
@@ -409,13 +465,18 @@
       <span class="rng-unlock-icon">✦</span>
       <div><small>TÍTULO DESBLOQUEADO</small><strong id="rngUnlockTitle"></strong><span id="rngUnlockDetails"></span></div>
     </div>
+    <div class="rng-unlock-notice rng-achievement-notice" id="rngAchievementNotice" aria-hidden="true" role="status" aria-live="polite">
+      <span class="rng-unlock-icon">🏆</span>
+      <div><small>CONQUISTA CONCLUÍDA</small><strong id="rngAchievementTitle"></strong><span id="rngAchievementDetails"></span></div>
+    </div>
+    <audio id="rngTitleUnlockSound" src="./assets/rng-title-deep.mp3" preload="auto" aria-hidden="true"></audio>
     <div class="rng-debug-backdrop hidden" id="rngDebugDialog" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="rngDebugTitle">
       <section class="rng-debug-card">
         <header class="rng-debug-heading"><div><span class="eyebrow">SOMENTE DESENVOLVIMENTO</span><h2 id="rngDebugTitle">Debug de títulos</h2></div><button class="suggestion-close" id="closeRngDebug" type="button" aria-label="Fechar debug">×</button></header>
         <p class="rng-debug-note">Adicionar ou remover títulos altera apenas o perfil local de desenvolvimento; não consome rolagens.</p>
         <label class="rng-debug-field"><span>Título</span><select id="rngDebugTitleSelect" aria-label="Título para testar"></select></label>
         <div class="rng-debug-selection" id="rngDebugSelectionState"></div>
-        <div class="rng-debug-actions"><button class="outline-button" id="rngDebugSimulate" type="button">Simular animação</button><button class="primary-button" id="rngDebugAdd" type="button">Adicionar título</button><button class="outline-button" id="rngDebugRemove" type="button">Remover título</button></div>
+        <div class="rng-debug-actions"><button class="outline-button" id="rngDebugSimulate" type="button">Simular animação</button><button class="outline-button" id="rngDebugSoundTest" type="button">Testar som</button><button class="primary-button" id="rngDebugAdd" type="button">Adicionar título</button><button class="outline-button" id="rngDebugRemove" type="button">Remover título</button></div>
         <section class="rng-debug-progression" aria-label="Testar progressão">
           <h3>Testar progressão</h3>
           <div class="rng-debug-tier-row"><label class="rng-debug-field"><span>Raridade</span><select id="rngDebugTierSelect" aria-label="Raridade para completar"></select></label><label class="rng-debug-field"><span>Marco</span><select id="rngDebugMilestone" aria-label="Quantidade para marco"><option value="5">5 títulos</option><option value="10">10 títulos</option><option value="20">20 títulos</option></select></label></div>
@@ -435,6 +496,8 @@
     </div>
     <script src="./changelog.js"></script>
     <script src="./screenshot-editor.js"></script>
+    <script src="./renamer.js"></script>
+    <script src="./renamer-ui.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

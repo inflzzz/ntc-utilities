@@ -1,4 +1,10 @@
 const crypto = require('node:crypto');
+const { LIMITED_REWARDS } = require('./rng-events.cjs');
+
+const THOUSAND_ROLL_BONUS_EVERY = 1000;
+const THOUSAND_ROLL_BONUS_MULTIPLIER = 4;
+const TEN_THOUSAND_ROLL_BONUS_EVERY = 10_000;
+const TEN_THOUSAND_ROLL_BONUS_MULTIPLIER = 10;
 
 const TIERS = [
   { id: 'basic', label: 'Básico' },
@@ -78,6 +84,15 @@ const CATEGORY_TIER_IDS = new Set(TIERS.map(tier => tier.id));
 const BASIC_ODDS_SHAPES = [35n, 32n, 30n, 28n, 26n, 24n, 22n, 20n, 19n, 18n, 17n, 16n, 15n, 14n, 13n, 12n, 11n, 10n, 8n];
 const BASIC_ODDS_SHAPE_TOTAL = BASIC_ODDS_SHAPES.reduce((sum, weight) => sum + weight, 0n);
 const wholeOddsFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+const brazilClock = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const SECRETS = [
+  { id: 'secret-77777', name: 'O Observador', hint: 'A rolagem exata.' },
+  { id: 'secret-seven', name: 'Eco de Sete', hint: 'Sete vezes o mesmo destino.' },
+  { id: 'secret-pair', name: 'Dupla Singular', hint: 'Dois raros seguidos.' },
+  { id: 'secret-million', name: 'Sorte Nua', hint: 'Um milhão sem bônus.' },
+  { id: 'secret-hundred', name: 'Ironia Suprema', hint: 'O comum sob sorte extrema.' },
+  { id: 'secret-autohour', name: 'Vigília Automática', hint: 'Uma hora sem pausa.' }
+];
 
 function geometricOdds(start, numerator, denominator, index) {
   let value = start;
@@ -145,11 +160,30 @@ function nonNegativeInteger(value, fallback = 0) {
   return Number.isFinite(number) && number >= 0 ? Math.floor(number) : fallback;
 }
 
+function equalHourBonusAt(timestamp) {
+  if (!Number.isFinite(timestamp)) return { active: false, multiplier: 1, time: '' };
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) return { active: false, multiplier: 1, time: '' };
+  const parts = Object.fromEntries(brazilClock.formatToParts(date).filter(part => part.type === 'hour' || part.type === 'minute').map(part => [part.type, Number(part.value)]));
+  const hour = parts.hour;
+  const minute = parts.minute;
+  const active = hour === minute;
+  return {
+    active,
+    multiplier: active ? 2 : 1,
+    time: active ? `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}` : ''
+  };
+}
+
 function normalizeState(value = {}) {
   const collectedIds = [...new Set((Array.isArray(value.collectedIds) ? value.collectedIds : []).filter(id => titleById.has(id)))];
+  const collectedRarest = collectedIds.reduce((best, id) => { const title = titleById.get(id); return title.denominator && (!best || title.denominator > best.denominator) ? title : best; }, null);
   const totalRolls = nonNegativeInteger(value.totalRolls);
   const seenDiscoveries = new Set();
-  const recentDiscoveries = (Array.isArray(value.recentDiscoveries) ? value.recentDiscoveries : [])
+  const historySource = Array.isArray(value.titleHistory)
+    ? [...value.titleHistory, ...(Array.isArray(value.recentDiscoveries) ? value.recentDiscoveries : [])]
+    : (Array.isArray(value.recentDiscoveries) ? value.recentDiscoveries : []);
+  const titleHistory = historySource
     .filter(discovery => {
       if (!discovery || !titleById.has(discovery.titleId) || !collectedIds.includes(discovery.titleId)) return false;
       const roll = nonNegativeInteger(discovery.roll);
@@ -157,23 +191,63 @@ function normalizeState(value = {}) {
       seenDiscoveries.add(discovery.titleId);
       return true;
     })
-    .slice(0, 8)
     .map(discovery => ({
       titleId: discovery.titleId,
       roll: nonNegativeInteger(discovery.roll),
       currentOdds: String(discovery.currentOdds || '').slice(0, 80),
       isBonusRoll: Boolean(discovery.isBonusRoll),
-      rollBonusMultiplier: Math.max(1, Math.min(10, nonNegativeInteger(discovery.rollBonusMultiplier, 1)))
-    }));
+      rollBonusMultiplier: Math.max(1, Math.min(10, nonNegativeInteger(discovery.rollBonusMultiplier, 1))),
+      isEqualHourBonus: Boolean(discovery.isEqualHourBonus),
+      equalHourMultiplier: discovery.isEqualHourBonus ? 2 : 1,
+      equalHourTime: discovery.isEqualHourBonus && /^(?:[01]\d|2[0-3]):(?:[01]\d|2[0-3])$/.test(String(discovery.equalHourTime || '')) && String(discovery.equalHourTime).slice(0, 2) === String(discovery.equalHourTime).slice(3, 5) ? String(discovery.equalHourTime) : '',
+      isThousandRollBonus: Boolean(discovery.isThousandRollBonus),
+      thousandRollMultiplier: discovery.isThousandRollBonus ? THOUSAND_ROLL_BONUS_MULTIPLIER : 1,
+      isTenThousandRollBonus: Boolean(discovery.isTenThousandRollBonus),
+      tenThousandRollMultiplier: discovery.isTenThousandRollBonus ? TEN_THOUSAND_ROLL_BONUS_MULTIPLIER : 1,
+      rolledAt: nonNegativeInteger(discovery.rolledAt),
+      eventName: String(discovery.eventName || '').slice(0, 60),
+      eventMultiplier: Math.max(1, Math.min(5, nonNegativeInteger(discovery.eventMultiplier, 1))),
+      eventFocusTierLabel: String(discovery.eventFocusTierLabel || '').slice(0, 40),
+      eventFocusMultiplier: Math.max(1, Math.min(3, nonNegativeInteger(discovery.eventFocusMultiplier, 1)))
+    }))
+    .slice(0, titles.length);
+  const recentDiscoveries = titleHistory.slice(0, 8);
   return {
     collectedIds,
     bonusRollCounter: nonNegativeInteger(value.bonusRollCounter) % 10,
     totalRolls,
+    manualRolls: nonNegativeInteger(value.manualRolls),
     totalAppSeconds: nonNegativeInteger(value.totalAppSeconds),
     totalAutoRollSeconds: nonNegativeInteger(value.totalAutoRollSeconds),
     lastAutoRollSessionSeconds: nonNegativeInteger(value.lastAutoRollSessionSeconds),
     lastTitleId: titleById.has(value.lastTitleId) ? value.lastTitleId : null,
-    recentDiscoveries
+    recentDiscoveries,
+    titleHistory,
+    trackedRolls: nonNegativeInteger(value.trackedRolls),
+    tierRolls: Object.fromEntries(TIERS.map(tier => [tier.id, nonNegativeInteger(value.tierRolls?.[tier.id])])),
+    duplicateRolls: nonNegativeInteger(value.duplicateRolls),
+    luckMultiplierSum: nonNegativeInteger(value.luckMultiplierSum),
+    luckBpsSum: nonNegativeInteger(value.luckBpsSum),
+    luckBpsSamples: nonNegativeInteger(value.luckBpsSamples),
+    maxMultiplier: Math.max(1, nonNegativeInteger(value.maxMultiplier, 1)),
+    sinceSingular: value.sinceSingular === null || value.sinceSingular === undefined ? null : nonNegativeInteger(value.sinceSingular),
+    longestSingularDrought: nonNegativeInteger(value.longestSingularDrought),
+    sameTitleStreak: nonNegativeInteger(value.sameTitleStreak),
+    longestSameTitleStreak: nonNegativeInteger(value.longestSameTitleStreak),
+    singularStreak: nonNegativeInteger(value.singularStreak),
+    rarestOdds: collectedRarest ? String(collectedRarest.denominator) : /^\d+$/.test(String(value.rarestOdds || '')) ? String(value.rarestOdds) : '0',
+    rarestTitleId: collectedRarest?.id || (titleById.has(value.rarestTitleId) ? value.rarestTitleId : null),
+    luckiestOdds: /^\d+$/.test(String(value.luckiestOdds || '')) ? String(value.luckiestOdds) : '0',
+    luckiestRoll: nonNegativeInteger(value.luckiestRoll),
+    sessionBest: { rolls: nonNegativeInteger(value.sessionBest?.rolls), newTitles: nonNegativeInteger(value.sessionBest?.newTitles), bestOdds: String(value.sessionBest?.bestOdds || '0') },
+    unlockedSecrets: [...new Set((Array.isArray(value.unlockedSecrets) ? value.unlockedSecrets : []).filter(id => SECRETS.some(secret => secret.id === id)))],
+    limitedTitles: [...new Set((Array.isArray(value.limitedTitles) ? value.limitedTitles : []).filter(id => LIMITED_REWARDS.some(reward => reward.titleId === id)))],
+    eventsParticipated: nonNegativeInteger(value.eventsParticipated),
+    participation: typeof value.participation === 'string' ? value.participation.slice(0, 48) : null,
+    eventRollProgress: {
+      windowId: typeof value.eventRollProgress?.windowId === 'string' ? value.eventRollProgress.windowId.slice(0, 48) : '',
+      rolls: nonNegativeInteger(value.eventRollProgress?.rolls)
+    }
   };
 }
 
@@ -200,10 +274,10 @@ function luckForState(value = {}) {
   };
 }
 
-function currentWeights(value = {}, { bonusRoll = false } = {}) {
+function currentWeights(value = {}, { bonusRoll = false, equalHourBonus = false, thousandRollBonus = false, tenThousandRollBonus = false, eventMultiplier = 1, focusTierId = '', focusMultiplier = 1 } = {}) {
   const state = normalizeState(value);
   const { totalBps, bonusMultiplier } = luckForState(state);
-  const activeLuckBps = totalBps * (bonusRoll ? bonusMultiplier : 1);
+  const activeLuckBps = totalBps * (bonusRoll ? bonusMultiplier : 1) * (equalHourBonus ? 2 : 1) * (thousandRollBonus ? THOUSAND_ROLL_BONUS_MULTIPLIER : 1) * (tenThousandRollBonus ? TEN_THOUSAND_ROLL_BONUS_MULTIPLIER : 1);
   const tierBonuses = new Map(TIERS.map(tier => [tier.id, categoryBonusBps(state, tier.id)]));
   const weights = new Map();
   let boostedRareTotal = 0n;
@@ -213,6 +287,22 @@ function currentWeights(value = {}, { bonusRoll = false } = {}) {
     const weight = title.baseWeight * BigInt(activeLuckBps) * BigInt(categoryMultiplierBps) / 100_000_000n;
     weights.set(title.id, weight);
     boostedRareTotal += weight;
+  }
+  const baselineRareTotal = boostedRareTotal;
+  const globalEventMultiplier = Math.max(1, Math.min(5, nonNegativeInteger(eventMultiplier, 1)));
+  const rarityFocusMultiplier = Math.max(1, Math.min(3, nonNegativeInteger(focusMultiplier, 1)));
+  if (globalEventMultiplier > 1 || (focusTierId && rarityFocusMultiplier > 1)) {
+    let eventRareTotal = 0n;
+    for (const title of rareTitles) {
+      const focused = title.tier === focusTierId ? BigInt(rarityFocusMultiplier) : 1n;
+      const eventWeight = weights.get(title.id) * BigInt(globalEventMultiplier) * focused;
+      weights.set(title.id, eventWeight);
+      eventRareTotal += eventWeight;
+    }
+    const rareChanceCap = baselineRareTotal > POOL / 2n ? baselineRareTotal : POOL / 2n;
+    const cappedTotal = eventRareTotal < rareChanceCap ? eventRareTotal : rareChanceCap;
+    for (const title of rareTitles) weights.set(title.id, weights.get(title.id) * cappedTotal / (eventRareTotal || 1n));
+    boostedRareTotal = rareTitles.reduce((sum, title) => sum + weights.get(title.id), 0n);
   }
   if (boostedRareTotal > POOL) {
     for (const title of rareTitles) {
@@ -246,12 +336,21 @@ function secureRandomBelow(maximum) {
   }
 }
 
-function rollTitle(value = {}, randomValue = secureRandomBelow(POOL)) {
+function rollTitle(value = {}, randomValue = secureRandomBelow(POOL), { rolledAt = null, event = null, autoRollSeconds = 0, limitedRewardValue } = {}) {
   const state = normalizeState(value);
+  const priorSecrets = new Set(state.unlockedSecrets);
+  const priorLimited = new Set(state.limitedTitles);
   const nextRoll = state.bonusRollCounter + 1;
   const bonusRoll = nextRoll >= 10;
   const rollBonusMultiplier = bonusRoll ? luckForState(state).bonusMultiplier : 1;
-  const weights = currentWeights(state, { bonusRoll });
+  const thousandRollBonus = (state.totalRolls + 1) % THOUSAND_ROLL_BONUS_EVERY === 0;
+  const tenThousandRollBonus = (state.totalRolls + 1) % TEN_THOUSAND_ROLL_BONUS_EVERY === 0;
+  const equalHourBonus = equalHourBonusAt(rolledAt);
+  const eventMultiplier = event?.multiplier || 1;
+  const eventFocusTierId = event?.focusTierId || '';
+  const eventFocusTierLabel = event?.focusTierLabel || '';
+  const eventFocusMultiplier = event?.focusMultiplier || 1;
+  const weights = currentWeights(state, { bonusRoll, equalHourBonus: equalHourBonus.active, thousandRollBonus, tenThousandRollBonus, eventMultiplier, focusTierId: eventFocusTierId, focusMultiplier: eventFocusMultiplier });
   const roll = BigInt(randomValue);
   if (roll < 0n || roll >= POOL) throw new RangeError('O valor de sorteio está fora da distribuição.');
   let cumulative = 0n;
@@ -261,26 +360,100 @@ function rollTitle(value = {}, randomValue = secureRandomBelow(POOL)) {
     if (roll < cumulative) { selected = title; break; }
   }
   const isNew = !state.collectedIds.includes(selected.id);
+  const previousTitleId = state.lastTitleId;
   if (isNew) state.collectedIds.push(selected.id);
   state.totalRolls += 1;
   state.lastTitleId = selected.id;
   state.bonusRollCounter = bonusRoll ? 0 : nextRoll;
-  if (isNew) {
-    state.recentDiscoveries = [
-      { titleId: selected.id, roll: state.totalRolls, currentOdds: oddsLabel(weights.get(selected.id)), isBonusRoll: bonusRoll, rollBonusMultiplier },
-      ...state.recentDiscoveries.filter(discovery => discovery.titleId !== selected.id)
-    ].slice(0, 8);
+  const odds = (POOL * 2n + weights.get(selected.id)) / (weights.get(selected.id) * 2n);
+  const appliedFocusMultiplier = selected.tier === eventFocusTierId ? eventFocusMultiplier : 1;
+  const multiplier = rollBonusMultiplier * equalHourBonus.multiplier * (thousandRollBonus ? 4 : 1) * (tenThousandRollBonus ? 10 : 1) * eventMultiplier * appliedFocusMultiplier;
+  state.trackedRolls++;
+  state.tierRolls[selected.tier]++;
+  if (!isNew) state.duplicateRolls++;
+  state.luckMultiplierSum += multiplier;
+  state.luckBpsSum += luckForState(value).totalBps * multiplier;
+  state.luckBpsSamples++;
+  state.maxMultiplier = Math.max(state.maxMultiplier, multiplier);
+  state.sinceSingular = TIERS.findIndex(tier => tier.id === selected.tier) >= 2 ? 0 : state.sinceSingular === null ? null : state.sinceSingular + 1;
+  state.longestSingularDrought = Math.max(state.longestSingularDrought, state.sinceSingular || 0);
+  state.sameTitleStreak = previousTitleId === selected.id ? state.sameTitleStreak + 1 : 1;
+  state.longestSameTitleStreak = Math.max(state.longestSameTitleStreak, state.sameTitleStreak);
+  state.singularStreak = TIERS.findIndex(tier => tier.id === selected.tier) >= 2 ? state.singularStreak + 1 : 0;
+  if (BigInt(state.rarestOdds) < selected.denominator && selected.denominator) { state.rarestOdds = String(selected.denominator); state.rarestTitleId = selected.id; }
+  if (BigInt(state.luckiestOdds) < odds) { state.luckiestOdds = String(odds); state.luckiestRoll = state.totalRolls; }
+  const unlock = id => { if (!state.unlockedSecrets.includes(id)) state.unlockedSecrets.push(id); };
+  if (state.totalRolls === 77_777) unlock('secret-77777');
+  if (state.sameTitleStreak >= 7) unlock('secret-seven');
+  if (state.singularStreak >= 2) unlock('secret-pair');
+  if (selected.denominator && selected.denominator >= 1_000_000n && multiplier === 1) unlock('secret-million');
+  if (selected.tier === 'basic' && multiplier >= 100) unlock('secret-hundred');
+  if (autoRollSeconds >= 3600) unlock('secret-autohour');
+  if (event?.eventId === 'fragments' && event.reward?.rollGoal) {
+    if (state.eventRollProgress.windowId !== event.id) state.eventRollProgress = { windowId: event.id, rolls: 0 };
+    state.eventRollProgress.rolls = Math.min(event.reward.rollGoal, state.eventRollProgress.rolls + 1);
+    if (state.eventRollProgress.rolls >= event.reward.rollGoal && !state.limitedTitles.includes(event.reward.titleId)) state.limitedTitles.push(event.reward.titleId);
+  } else if (event?.reward?.odds && !state.limitedTitles.includes(event.reward.titleId) && BigInt(limitedRewardValue === undefined ? secureRandomBelow(BigInt(event.reward.odds)) : limitedRewardValue) === 0n) {
+    state.limitedTitles.push(event.reward.titleId);
   }
-  return { state, title: selected, isNew, weight: weights.get(selected.id), currentOdds: oddsLabel(weights.get(selected.id)), isBonusRoll: bonusRoll, rollBonusMultiplier };
+  const specialUnlocks = [
+    ...SECRETS.filter(secret => !priorSecrets.has(secret.id) && state.unlockedSecrets.includes(secret.id)).map(secret => ({ id: secret.id, name: secret.name, tierLabel: 'Segredo' })),
+    ...LIMITED_REWARDS.filter(reward => !priorLimited.has(reward.titleId) && state.limitedTitles.includes(reward.titleId)).map(reward => ({ id: reward.titleId, name: reward.name, tierLabel: 'Limitado' }))
+  ];
+  if (isNew) {
+    const discovery = {
+      titleId: selected.id,
+      roll: state.totalRolls,
+      currentOdds: oddsLabel(weights.get(selected.id)),
+      isBonusRoll: bonusRoll,
+      rollBonusMultiplier,
+      isEqualHourBonus: equalHourBonus.active,
+      equalHourMultiplier: equalHourBonus.multiplier,
+      equalHourTime: equalHourBonus.time,
+      isThousandRollBonus: thousandRollBonus,
+      thousandRollMultiplier: thousandRollBonus ? THOUSAND_ROLL_BONUS_MULTIPLIER : 1,
+      isTenThousandRollBonus: tenThousandRollBonus,
+      tenThousandRollMultiplier: tenThousandRollBonus ? TEN_THOUSAND_ROLL_BONUS_MULTIPLIER : 1,
+      rolledAt: Number.isFinite(rolledAt) ? rolledAt : 0,
+      eventName: event?.name || '',
+      eventMultiplier,
+      eventFocusTierLabel,
+      eventFocusMultiplier: appliedFocusMultiplier
+    };
+    state.titleHistory = [discovery, ...state.titleHistory.filter(item => item.titleId !== selected.id)].slice(0, titles.length);
+    state.recentDiscoveries = state.titleHistory.slice(0, 8);
+  }
+  return {
+    state,
+    title: selected,
+    isNew,
+    weight: weights.get(selected.id),
+    currentOdds: oddsLabel(weights.get(selected.id)),
+    isBonusRoll: bonusRoll,
+    rollBonusMultiplier,
+    isEqualHourBonus: equalHourBonus.active,
+    equalHourMultiplier: equalHourBonus.multiplier,
+    equalHourTime: equalHourBonus.time,
+    isThousandRollBonus: thousandRollBonus,
+    thousandRollMultiplier: thousandRollBonus ? THOUSAND_ROLL_BONUS_MULTIPLIER : 1,
+    isTenThousandRollBonus: tenThousandRollBonus,
+    tenThousandRollMultiplier: tenThousandRollBonus ? TEN_THOUSAND_ROLL_BONUS_MULTIPLIER : 1,
+    rolledAt: Number.isFinite(rolledAt) ? rolledAt : 0,
+    eventName: event?.name || '',
+    eventMultiplier,
+    eventFocusTierLabel,
+    eventFocusMultiplier: appliedFocusMultiplier,
+    specialUnlocks
+  };
 }
 
-function rollBatch(value = {}, randomValues) {
+function rollBatch(value = {}, randomValues, { rolledAt = null, event = null, autoRollSeconds = 0, limitedRewardValue } = {}) {
   const startingState = normalizeState(value);
   const rollsPerCycle = luckForState(startingState).rollsPerCycle;
   let state = startingState;
   const results = [];
   for (let index = 0; index < rollsPerCycle; index++) {
-    const outcome = rollTitle(state, Array.isArray(randomValues) ? randomValues[index] : undefined);
+    const outcome = rollTitle(state, Array.isArray(randomValues) ? randomValues[index] : undefined, { rolledAt, event, autoRollSeconds, limitedRewardValue });
     state = outcome.state;
     results.push({
       title: outcome.title,
@@ -288,7 +461,20 @@ function rollBatch(value = {}, randomValues) {
       currentOdds: outcome.currentOdds,
       roll: state.totalRolls,
       isBonusRoll: outcome.isBonusRoll,
-      rollBonusMultiplier: outcome.rollBonusMultiplier
+      rollBonusMultiplier: outcome.rollBonusMultiplier,
+      isEqualHourBonus: outcome.isEqualHourBonus,
+      equalHourMultiplier: outcome.equalHourMultiplier,
+      equalHourTime: outcome.equalHourTime,
+      isThousandRollBonus: outcome.isThousandRollBonus,
+      thousandRollMultiplier: outcome.thousandRollMultiplier,
+      isTenThousandRollBonus: outcome.isTenThousandRollBonus,
+      tenThousandRollMultiplier: outcome.tenThousandRollMultiplier,
+      rolledAt: outcome.rolledAt,
+      eventName: outcome.eventName,
+      eventMultiplier: outcome.eventMultiplier,
+      eventFocusTierLabel: outcome.eventFocusTierLabel,
+      eventFocusMultiplier: outcome.eventFocusMultiplier,
+      specialUnlocks: outcome.specialUnlocks
     });
   }
   return { state, results };
@@ -311,7 +497,7 @@ function publicCatalog(value = {}) {
   const collected = new Set(state.collectedIds);
   return titles.map(title => ({
     id: title.id,
-    name: title.name,
+    name: collected.has(title.id) ? title.name : '???',
     tier: title.tier,
     tierLabel: title.tierLabel,
     baseOdds: oddsLabel(title.baseWeight),
@@ -386,6 +572,7 @@ function debugRemoveTitle(value = {}, titleId) {
   const removed = state.collectedIds.includes(titleId);
   state.collectedIds = state.collectedIds.filter(id => id !== titleId);
   state.recentDiscoveries = state.recentDiscoveries.filter(discovery => discovery.titleId !== titleId);
+  state.titleHistory = state.titleHistory.filter(discovery => discovery.titleId !== titleId);
   return { state: normalizeState(state), title, removed };
 }
 
@@ -394,17 +581,24 @@ function debugClearTitles(value = {}) {
   const removedCount = state.collectedIds.length;
   state.collectedIds = [];
   state.recentDiscoveries = [];
+  state.titleHistory = [];
   return { state: normalizeState(state), removedCount };
 }
 
 module.exports = {
   POOL,
+  THOUSAND_ROLL_BONUS_EVERY,
+  THOUSAND_ROLL_BONUS_MULTIPLIER,
+  TEN_THOUSAND_ROLL_BONUS_EVERY,
+  TEN_THOUSAND_ROLL_BONUS_MULTIPLIER,
   TIERS,
   CATEGORY_MILESTONES,
   ROLL_MILESTONES,
   BONUS_MILESTONES,
   TITLES: titles,
+  SECRETS,
   basePoolWeight,
+  equalHourBonusAt,
   normalizeState,
   luckForState,
   currentWeights,

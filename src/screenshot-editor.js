@@ -430,7 +430,9 @@
   window.NTC_ScreenshotEditor = {
     open(options) {
       callbacks = options || {}; commands = []; undoStack = []; redoStack = []; gesture = null; activeHandleDrag = null; selectedCurveArrow = null; selectedImageOverlay = null; nextCommandId = 1; crop = null; stageDirty = true; pendingOverlayImage = null; colorInput.value = '#ffffff';
-      dialog.classList.remove('hidden'); setTool('pen'); setSaving(false); updateHistoryButtons();
+      const requestedTool = options?.initialTool;
+      const initialTool = tools.some(button => button.dataset.shotTool === requestedTool) ? requestedTool : 'pen';
+      dialog.classList.remove('hidden'); setTool(initialTool); setSaving(false); updateHistoryButtons();
       image = new Image();
       image.onload = () => { stage.width = image.naturalWidth; stage.height = image.naturalHeight; crop = { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight }; render(); setStatus(`${image.naturalWidth} × ${image.naturalHeight} px · Ctrl+C copia · Esc descarta sem salvar.`); };
       image.onerror = () => setStatus('A captura não pôde ser aberta no editor.');

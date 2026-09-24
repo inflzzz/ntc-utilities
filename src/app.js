@@ -17,7 +17,8 @@ let screenshotCaptureBusy = false;
 let compressionQueue = []; let compressionRunning = false;
 let qrQueue = []; let qrRunning = false; let qrPreparing = false; let qrCancelRequested = false; let qrSelectedId = null; let qrPreviewTimer = null; let qrPreviewRequestId = 0;
 let videoEdit = { source: null, meta: null, cuts: [], audioTracks: [], selectionStart: 0, selectionEnd: 0, outputName: '', exporting: false }; let videoEditDrag = null; let videoEditWaveform = [];
-let rngState = null; let rngSelectedTier = 'basic'; let rngRequestRunning = false; let rngTimer = null; let rngUnlockTimer = null; let rngDebugEnabled = false; let rngDebugPopulated = false;
+let rngState = null; let rngSelectedTier = 'basic'; let rngHistoryQuery = ''; let rngHistoryTier = 'recent'; let rngRequestRunning = false; let rngTimer = null; let rngUnlockTimer = null; let rngAchievementTimer = null; let rngAchievementNextTimer = null; let rngAchievementUnlocks = null; let rngAchievementNoticeQueue = []; let rngAchievementNoticeActive = false; let rngAchievementNoticeCurrentId = null; let rngDebugEnabled = false; let rngDebugPopulated = false;
+let rngStateReceivedAt = 0; let rngActiveSection = 'history';
 
 let splashValue = 0;
 const advanceSplash = () => { splashValue = Math.min(92, splashValue + (splashValue < 70 ? 4 : 1.5)); loadingProgress.style.width = `${splashValue}%`; loadingTrack.setAttribute('aria-valuenow', String(Math.round(splashValue))); };
@@ -32,6 +33,47 @@ function qrFailureMessage(error) { const message = String(error?.message || erro
 function formatRecordingTime(milliseconds) { const seconds = Math.floor(Math.max(0, milliseconds) / 1000); const hours = String(Math.floor(seconds / 3600)).padStart(2, '0'); const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0'); return `${hours}:${minutes}:${String(seconds % 60).padStart(2, '0')}`; }
 function formatRngDuration(seconds) { const total = Math.max(0, Math.floor(Number(seconds) || 0)); const hours = Math.floor(total / 3600); const minutes = Math.floor((total % 3600) / 60); return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`; }
 function formatRngPercent(basisPoints) { return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format((Number(basisPoints) || 0) / 100)}%`; }
+const rngBrazilClock = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+function trustedRngUtc() {
+  if (!rngState?.timeVerification?.verified || !Number.isFinite(rngState.timeVerification.utcMs)) return null;
+  return rngState.timeVerification.utcMs + Math.max(0, performance.now() - rngStateReceivedAt);
+}
+function getEqualHourClockStatus(utcMs) {
+  if (!Number.isFinite(utcMs)) return null;
+  for (let offset = 0; offset < 24 * 60; offset++) {
+    const sample = utcMs + offset * 60_000;
+    const parts = Object.fromEntries(rngBrazilClock.formatToParts(new Date(sample)).filter(part => ['hour', 'minute'].includes(part.type)).map(part => [part.type, Number(part.value)]));
+    if (parts.hour === parts.minute) return { active: offset === 0, time: `${String(parts.hour).padStart(2, '0')}:${String(parts.minute).padStart(2, '0')}`, seconds: offset === 0 ? Math.ceil((60_000 - utcMs % 60_000) / 1000) : Math.ceil((offset * 60_000 - utcMs % 60_000) / 1000) };
+  }
+  return null;
+}
+function updateRngClockStatus() {
+  const status = $('#rngClockStatus');
+  if (!status) return;
+  const clock = getEqualHourClockStatus(trustedRngUtc());
+  status.dataset.active = String(Boolean(clock?.active));
+  $('#rngClockTitle').textContent = !clock ? 'Horário aguardando verificação' : clock.active ? 'Horas iguais ativas' : 'Próximas horas iguais';
+  $('#rngClockDetail').textContent = !clock ? 'Sem bônus de horário até validar o UTC online.' : clock.active
+    ? `${clock.time} · chances raras ×2 em todas as rolagens · termina em ${formatRngDuration(clock.seconds)}`
+    : `${clock.time} · chances raras ×2 começam em ${formatRngDuration(clock.seconds)}`;
+}
+function rngRollBoostLabels(result, includeCombined = true) {
+  const labels = [];
+  const sequenceMultiplier = result.isBonusRoll ? Math.max(1, Number(result.rollBonusMultiplier) || 1) : 1;
+  const equalHourMultiplier = result.isEqualHourBonus ? 2 : 1;
+  const thousandRollMultiplier = result.isThousandRollBonus ? Math.max(1, Number(result.thousandRollMultiplier) || 4) : 1;
+  const tenThousandRollMultiplier = result.isTenThousandRollBonus ? Math.max(1, Number(result.tenThousandRollMultiplier) || 10) : 1;
+  if (result.isBonusRoll) labels.push(`Rolagem bônus ×${sequenceMultiplier}`);
+  if (result.isEqualHourBonus) labels.push(`Horas iguais ×2${result.equalHourTime ? ` · ${safeText(result.equalHourTime)}` : ''}`);
+  if (result.isThousandRollBonus) labels.push('Marco de 1.000 rolagens ×4');
+  if (result.isTenThousandRollBonus) labels.push('Marco de 10.000 rolagens ×10');
+  if (result.eventMultiplier > 1) labels.push(`${safeText(result.eventName || 'Evento')} ×${result.eventMultiplier}`);
+  const focusMultiplier = Math.max(1, Number(result.eventFocusMultiplier) || 1);
+  if (result.eventFocusTierLabel) labels.push(`${safeText(result.eventName || 'Evento')} · ${safeText(result.eventFocusTierLabel)} em foco${focusMultiplier > 1 ? ` ×${focusMultiplier}` : ''}`);
+  const combinedMultiplier = sequenceMultiplier * equalHourMultiplier * thousandRollMultiplier * tenThousandRollMultiplier * (result.eventMultiplier || 1) * focusMultiplier;
+  if (includeCombined && combinedMultiplier > 1 && labels.length > 1) labels.push(`Bônus acumulados ×${combinedMultiplier}`);
+  return labels;
+}
 function showRngUnlock(result) {
   if (!result?.title) return;
   const notice = $('#rngUnlockNotice');
@@ -45,11 +87,61 @@ function showRngUnlock(result) {
   clearTimeout(rngUnlockTimer);
   rngUnlockTimer = setTimeout(() => { notice.classList.remove('show'); notice.setAttribute('aria-hidden', 'true'); }, 4200);
 }
+function showNextRngAchievementNotice() {
+  if (rngAchievementNoticeActive || !rngAchievementNoticeQueue.length) return;
+  const achievement = rngAchievementNoticeQueue.shift();
+  const notice = $('#rngAchievementNotice');
+  rngAchievementNoticeActive = true;
+  rngAchievementNoticeCurrentId = achievement.id;
+  $('#rngAchievementTitle').textContent = achievement.name;
+  $('#rngAchievementDetails').textContent = achievement.description;
+  notice.setAttribute('aria-hidden', 'false');
+  notice.classList.add('show');
+  clearTimeout(rngAchievementTimer);
+  rngAchievementTimer = setTimeout(() => {
+    notice.classList.remove('show');
+    notice.setAttribute('aria-hidden', 'true');
+    rngAchievementNoticeActive = false;
+    rngAchievementNoticeCurrentId = null;
+    if (rngAchievementNoticeQueue.length) {
+      clearTimeout(rngAchievementNextTimer);
+      rngAchievementNextTimer = setTimeout(showNextRngAchievementNotice, 280);
+    }
+  }, 4200);
+}
+function queueRngAchievementNotices(achievements) {
+  for (const achievement of achievements) {
+    if (achievement.id !== rngAchievementNoticeCurrentId && !rngAchievementNoticeQueue.some(item => item.id === achievement.id)) rngAchievementNoticeQueue.push(achievement);
+  }
+  showNextRngAchievementNotice();
+}
+function shouldPlayRngTitleSound(result, isHidden) {
+  const soundTiers = ['unique', 'legendary', 'mythic', 'exalted', 'glorious', 'transcendent', 'dimensional', 'ntc'];
+  return Boolean(isHidden && result?.isNew === true && !result?.simulation && soundTiers.includes(result.title?.tier));
+}
+async function playRngTitleSound(result, { preview = false } = {}) {
+  if (!preview && !shouldPlayRngTitleSound(result, true)) return false;
+  if (!preview) {
+    let isHidden = false;
+    try { isHidden = await window.ntc.isWindowMinimizedOrHidden(); } catch { return false; }
+    if (!shouldPlayRngTitleSound(result, isHidden)) return false;
+  }
+  const audio = $('#rngTitleUnlockSound');
+  if (!audio) return false;
+  audio.volume = 0.65;
+  audio.currentTime = 0;
+  try { await audio.play(); return true; } catch { return false; }
+}
+async function previewRngTitleSound() {
+  if (!rngDebugEnabled) return;
+  const played = await playRngTitleSound(null, { preview: true });
+  $('#rngDebugStatus').textContent = played ? 'Prévia do som tocada.' : 'Não foi possível tocar o som de título.';
+}
 function updateRngDebugControls(state = rngState) {
   if (!rngDebugEnabled || !state?.catalog?.length) return;
   const select = $('#rngDebugTitleSelect');
   if (!rngDebugPopulated) {
-    select.innerHTML = state.tiers.map(tier => `<optgroup label="${safeText(tier.label)}">${state.catalog.filter(title => title.tier === tier.id).map(title => `<option value="${safeText(title.id)}">${safeText(title.name)}</option>`).join('')}</optgroup>`).join('');
+    select.innerHTML = state.tiers.map(tier => `<optgroup label="${safeText(tier.label)}">${(state.debugCatalog || state.catalog).filter(title => title.tier === tier.id).map(title => `<option value="${safeText(title.id)}">${safeText(title.name)}</option>`).join('')}</optgroup>`).join('');
     select.value = state.catalog.at(-1)?.id || '';
     rngDebugPopulated = true;
   }
@@ -91,7 +183,7 @@ function closeRngDebug() {
 function simulateRngUnlock() {
   const title = rngState?.catalog.find(item => item.id === $('#rngDebugTitleSelect').value);
   if (!rngDebugEnabled || !title) return;
-  showRngUnlock({ title, currentOdds: title.currentOdds, simulation: true });
+  showRngUnlock({ title: { ...title, name: rngState.debugCatalog?.find(item => item.id === title.id)?.name || title.name }, currentOdds: title.currentOdds, simulation: true });
   $('#rngDebugStatus').textContent = 'Animação exibida; coleção e rolagens não foram alteradas.';
 }
 async function debugAddSelectedRngTitle() {
@@ -111,7 +203,7 @@ async function debugRemoveSelectedRngTitle() {
   try {
     const result = await window.ntc.debugRemoveRngTitle($('#rngDebugTitleSelect').value);
     renderRngState(result.state);
-    $('#rngDebugStatus').textContent = result.removed ? `${selected?.name || 'Título'} removido do perfil de desenvolvimento.` : 'Esse título não está na coleção.';
+    $('#rngDebugStatus').textContent = result.removed ? `${rngState?.debugCatalog?.find(item => item.id === selected?.id)?.name || selected?.name || 'Título'} removido do perfil de desenvolvimento.` : 'Esse título não está na coleção.';
   } catch (error) { $('#rngDebugStatus').textContent = cleanError(error); }
 }
 async function debugClearRngCollection() {
@@ -147,20 +239,114 @@ async function debugRngAction(action) {
   } catch (error) { status.textContent = cleanError(error); }
 }
 function updateRngTimers() {
+  updateRngClockStatus();
   if (!rngState) return;
-  const elapsed = Math.max(0, Math.floor((Date.now() - rngState.snapshotAt) / 1000));
+  const elapsed = Math.max(0, Math.floor((performance.now() - rngStateReceivedAt) / 1000));
   $('#rngAppSessionTime').textContent = formatRngDuration(rngState.appSessionSeconds + elapsed);
   $('#rngAppTotalTime').textContent = formatRngDuration(rngState.totalAppSeconds + elapsed);
   $('#rngAutoSessionTime').textContent = formatRngDuration(rngState.autoRollActive ? rngState.autoRollSessionSeconds + elapsed : rngState.autoRollSessionSeconds);
   $('#rngAutoTotalTime').textContent = formatRngDuration(rngState.totalAutoRollSeconds + (rngState.autoRollActive ? elapsed : 0));
 }
+function normalizeRngSearch(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim(); }
+function renderRngTitleHistory(state) {
+  const filter = $('#rngTitleHistoryTier');
+  if (!filter.dataset.ready) {
+    filter.innerHTML = '<option value="recent">Recentes</option><option value="all">Todas as raridades</option>' + state.tiers.map(tier => `<option value="${safeText(tier.id)}">${safeText(tier.label)}</option>`).join('');
+    filter.value = rngHistoryTier;
+    filter.dataset.ready = 'true';
+  }
+  const collected = state.catalog.filter(title => title.collected);
+  const history = new Map((Array.isArray(state.titleHistory) ? state.titleHistory : []).map(record => [record.titleId, record]));
+  const entries = collected.map((title, index) => ({ title, record: history.get(title.id) || null, index }))
+    .sort((a, b) => {
+      if (a.record && b.record) return b.record.roll - a.record.roll;
+      if (a.record) return -1;
+      if (b.record) return 1;
+      return a.index - b.index;
+    });
+  const query = normalizeRngSearch(rngHistoryQuery);
+  const recentEntries = entries.filter(entry => entry.record).slice(0, 8);
+  const sourceEntries = rngHistoryTier === 'recent' ? recentEntries : entries;
+  const visible = sourceEntries.filter(({ title, record }) => {
+    if (rngHistoryTier !== 'recent' && rngHistoryTier !== 'all' && title.tier !== rngHistoryTier) return false;
+    if (!query) return true;
+    const boosts = record ? rngRollBoostLabels(record).join(' ') : '';
+    const timestamp = record?.rolledAt ? new Date(record.rolledAt).toLocaleString('pt-BR') : '';
+    return normalizeRngSearch([title.name, title.tierLabel, record?.roll, record?.currentOdds, boosts, timestamp].join(' ')).includes(query);
+  });
+  $('#rngTitleHistoryCount').textContent = rngHistoryTier === 'recent' ? `${visible.length} recentes` : `${visible.length} de ${collected.length} títulos`;
+  const historyEmptyMessage = !collected.length
+    ? 'Os títulos que você obtiver aparecerão aqui com os detalhes da rolagem.'
+    : rngHistoryTier === 'recent' && recentEntries.length === 0
+      ? 'Ainda não há títulos recentes registrados.'
+      : 'Nenhum título corresponde à busca e ao filtro.';
+  $('#rngTitleHistoryList').innerHTML = visible.map(({ title, record }) => {
+    const boosts = record ? rngRollBoostLabels(record) : [];
+    const bonusBadges = boosts.map(label => `<small class="rng-discovery-badge${label.startsWith('Bônus acumulados') ? ' is-combined' : ''}">${safeText(label)}</small>`).join('');
+    const rolledAt = record?.rolledAt ? new Date(record.rolledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+    const detail = record
+      ? `<div class="rng-discovery-detail"><span><small>Rolagem</small><strong>#${new Intl.NumberFormat('pt-BR').format(record.roll)}</strong></span><span><small>Chance na rolagem</small><strong>${safeText(record.currentOdds || title.baseOdds)}</strong></span></div>`
+      : '';
+    const meta = rolledAt || bonusBadges ? `<div class="rng-discovery-meta">${rolledAt ? `<span class="rng-discovery-date"><small>Obtido</small><time>${safeText(rolledAt)}</time></span>` : ''}${bonusBadges ? `<div class="rng-discovery-badges">${bonusBadges}</div>` : ''}</div>` : '';
+    return `<article class="rng-discovery-card rng-title-history-card${record ? ' has-record' : ''}" data-tier="${safeText(title.tier)}"><span class="rng-discovery-mark" aria-hidden="true">✦</span><div class="rng-discovery-copy"><div class="rng-discovery-name-line"><strong>${safeText(title.name)}</strong><span>${safeText(title.tierLabel)}</span></div>${meta}</div>${detail}</article>`;
+  }).join('') || `<div class="rng-discovery-empty">${historyEmptyMessage}</div>`;
+}
+function rngBigOdds(value) { try { return BigInt(value || 0) > 0n ? `1 em ${new Intl.NumberFormat('pt-BR').format(BigInt(value))}` : '—'; } catch { return '—'; } }
+function renderRngExpansion(state) {
+  const number = value => new Intl.NumberFormat('pt-BR').format(value || 0);
+  const achievementGroups = new Map();
+  for (const item of state.achievements || []) achievementGroups.set(item.category, [...(achievementGroups.get(item.category) || []), item]);
+  $('#rngAchievements').innerHTML = [...achievementGroups].map(([category, achievements]) => `<section class="rng-achievement-group"><h3>${safeText(category)}</h3><div class="rng-extra-grid">${achievements.map(item => `<article class="rng-info-card${item.unlocked ? ' unlocked' : ''}"><span class="rng-info-icon">${item.unlocked ? '✦' : '◇'}</span><div><strong>${safeText(item.name)}</strong><p>${safeText(item.description)}</p><small>${item.unlocked ? 'Concluída' : `${number(item.progress)} / ${number(item.goal)}`}</small></div></article>`).join('')}</div></section>`).join('');
+  $('#rngSecrets').innerHTML = (state.secrets || []).map(item => `<article class="rng-info-card unlocked"><span class="rng-info-icon">✧</span><div><strong>${safeText(item.name)}</strong><p>${safeText(item.hint)}</p></div></article>`).join('') || '<p class="rng-section-empty">Nenhum segredo descoberto. Os segredos ocultos não aparecem na coleção.</p>';
+  const stats = state.statistics || {};
+  const rows = [
+    ['Rolagens medidas', number(stats.measuredRolls)], ['Títulos únicos', number(stats.uniqueTitles)], ['Repetidos medidos', number(stats.duplicates)],
+    ['Sorte média nas rolagens medidas', stats.averageLuck === null ? 'Ainda não medida' : `×${Number(stats.averageLuck || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`],
+    ['Maior multiplicador', `×${number(stats.maxMultiplier || 1)}`], ['Título mais raro', stats.rarestTitle ? `${stats.rarestTitle} · ${rngBigOdds(stats.rarestOdds)}` : 'Ainda não medido'],
+    ['Roll mais sortudo', stats.luckiestRoll ? `#${number(stats.luckiestRoll)} · ${rngBigOdds(stats.luckiestOdds)}` : 'Ainda não medido'],
+    ['Maior seca de Singular+', number(stats.longestSingularDrought)], ['Mesmo título seguido', number(stats.longestSameTitleStreak)],
+    ['Melhor sessão', `${number(stats.bestSession?.rolls)} rolagens · ${number(stats.bestSession?.newTitles)} novos`]
+  ];
+  $('#rngStatistics').innerHTML = rows.map(([label, value]) => `<article class="rng-stat-card"><span>${safeText(label)}</span><strong>${safeText(value)}</strong></article>`).join('') + `<article class="rng-stat-card rng-tier-stats"><span>Resultados por raridade · medidos nesta atualização</span><div>${(state.tiers || []).map(tier => `<span>${safeText(tier.label)} <strong>${number(stats.tierRolls?.[tier.id])}</strong></span>`).join('')}</div></article>`;
+  const verified = state.timeVerification?.verified;
+  const active = state.activeEvent;
+  $('#rngEventStatus').textContent = verified ? active ? `${active.name}${active.focusTierLabel ? ` · ${active.focusTierLabel} em foco ×${active.focusMultiplier}` : ` ×${active.multiplier}`} · participando` : 'Entre durante a janela para participar.' : 'Eventos pausados até verificar a conexão.';
+  const localDate = utcMs => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: 'short' }).format(new Date(utcMs));
+  const localTime = utcMs => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(utcMs));
+  const now = verified ? trustedRngUtc() : null;
+  const nextByEvent = new Map();
+  for (const window of state.eventSchedule || []) {
+    const open = now !== null && window.startUtc <= now && now < window.endUtc;
+    const previous = nextByEvent.get(window.eventId);
+    if (!previous || (open && !previous.open)) nextByEvent.set(window.eventId, { ...window, open });
+  }
+  $('#rngEventSchedule').innerHTML = [...nextByEvent.values()].map(window => {
+    const joined = active?.id === window.id;
+    const momentLabel = window.open ? 'Ativo agora' : `Próximo · ${localDate(window.startUtc)}`;
+    const boostLabel = window.focusTierLabel ? `${window.focusTierLabel} em foco ×${window.focusMultiplier}` : `×${window.multiplier}`;
+    const goal = window.reward?.rollGoal || 0;
+    const progress = state.eventRollProgress?.windowId === window.id ? state.eventRollProgress.rolls || 0 : 0;
+    const rewardDetails = goal ? `<small class="rng-event-reward">${number(goal)} rolagens na participação · título garantido: ${safeText(window.reward.name)}</small>${joined ? `<small class="rng-event-progress">Progresso desta edição · ${number(progress)} / ${number(goal)}</small>` : ''}` : window.reward ? '<small class="rng-event-reward">Edição com título limitado</small>' : '';
+    return `<article class="rng-event-card${window.open ? ' is-open' : ''}"><div class="rng-event-main"><span class="rng-event-kicker">${safeText(window.description)} · ${safeText(boostLabel)} · ${window.durationMinutes || Math.round((window.endUtc - window.startUtc) / 60_000)} min</span><strong>${safeText(window.name)}</strong><span class="rng-event-time"><small>${momentLabel}</small><b>${localTime(window.startUtc)}</b></span>${rewardDetails}</div>${window.open ? `<button type="button" class="outline-button" data-join-rng-event="${safeText(window.id)}" ${joined ? 'disabled' : ''}>${joined ? 'Participando' : 'Participar'}</button>` : ''}</article>`;
+  }).join('') || '<p class="rng-section-empty">A agenda aparece após verificar a conexão.</p>';
+  $('#rngLimitedTitles').innerHTML = (state.limitedTitles || []).map(reward => `<article class="rng-info-card unlocked"><span class="rng-info-icon">✦</span><div><strong>${safeText(reward.name)}</strong><p>Edição ${safeText(reward.edition)}</p></div></article>`).join('') || '<p class="rng-section-empty">Nenhum título limitado obtido.</p>';
+}
 function renderRngState(state) {
   if (!state?.catalog?.length) return;
   const previousRoll = rngState?.totalRolls ?? null;
+  const unlockedAchievements = (state.achievements || []).filter(item => item.unlocked);
+  const newlyUnlockedAchievements = rngAchievementUnlocks === null
+    ? []
+    : unlockedAchievements.filter(item => !rngAchievementUnlocks.has(item.id));
+  rngAchievementUnlocks = new Set(unlockedAchievements.map(item => item.id));
+  if (state !== rngState) rngStateReceivedAt = performance.now();
   rngState = state;
   const totalCollected = state.collectedIds.length;
   $('#rngCollectionCount').textContent = `${totalCollected} / ${state.totalTitles}`;
   $('#rngRollCount').textContent = new Intl.NumberFormat('pt-BR').format(state.totalRolls);
+  $('#rngSessionRolls').textContent = new Intl.NumberFormat('pt-BR').format(state.session?.rolls || 0);
+  $('#rngSessionBest').textContent = state.session?.bestOdds && state.session.bestOdds !== '0' ? `1 em ${new Intl.NumberFormat('pt-BR').format(BigInt(state.session.bestOdds))}` : '—';
+  $('#rngSessionDrought').textContent = state.statistics?.sinceSingular === null ? 'Ainda não medido' : new Intl.NumberFormat('pt-BR').format(state.statistics?.sinceSingular || 0);
   $('#rngProgressBar').style.width = `${Math.min(100, totalCollected / state.totalTitles * 100)}%`;
   $('#rngProgressBar').parentElement.setAttribute('aria-valuenow', String(totalCollected));
   $('#rngProgressBar').parentElement.setAttribute('aria-valuemax', String(state.totalTitles));
@@ -174,6 +360,10 @@ function renderRngState(state) {
   $('#rngRollBatchInfo').textContent = `${state.rollsPerCycle} ${state.rollsPerCycle === 1 ? 'rolagem' : 'rolagens'} por ciclo`;
   const rollsUntilBonus = state.bonusRollEvery - state.bonusRollCounter;
   $('#rngBonusRollInfo').textContent = `Rolagem bônus ×${state.bonusMultiplier} em ${rollsUntilBonus} ${rollsUntilBonus === 1 ? 'rolagem' : 'rolagens'}`;
+  const rollsUntilThousandBonus = 1000 - (state.totalRolls % 1000);
+  $('#rngThousandBonusInfo').textContent = `Mega bônus ×4 em ${new Intl.NumberFormat('pt-BR').format(rollsUntilThousandBonus)} ${rollsUntilThousandBonus === 1 ? 'rolagem' : 'rolagens'}`;
+  const rollsUntilTenThousandBonus = 10_000 - (state.totalRolls % 10_000);
+  $('#rngTenThousandBonusInfo').textContent = `Bônus supremo ×10 em ${new Intl.NumberFormat('pt-BR').format(rollsUntilTenThousandBonus)} ${rollsUntilTenThousandBonus === 1 ? 'rolagem' : 'rolagens'}`;
 
   const latest = state.latestResult;
   const resultCard = $('#rngLastResult');
@@ -181,22 +371,24 @@ function renderRngState(state) {
   resultCard.dataset.tier = latest?.title?.tier || '';
   $('#rngResultCaption').textContent = latest ? `${latest.isNew ? 'NOVO TÍTULO' : 'REPETIDO'} · ${safeText(latest.title.tierLabel || '')}` : 'ÚLTIMO RESULTADO';
   $('#rngResultTitle').textContent = latest?.title?.name || 'Ainda sem rolagens';
-  $('#rngResultOdds').textContent = latest ? `Chance na rolagem · ${latest.currentOdds}${latest.isBonusRoll ? ` · bônus ×${latest.rollBonusMultiplier || state.bonusMultiplier}` : ''} · #${new Intl.NumberFormat('pt-BR').format(latest.roll)}` : 'O título e a chance aparecem aqui.';
+  const latestBoosts = latest ? rngRollBoostLabels(latest).join(' · ') : '';
+  $('#rngResultOdds').textContent = latest ? `Chance na rolagem · ${latest.currentOdds}${latestBoosts ? ` · ${latestBoosts}` : ''} · #${new Intl.NumberFormat('pt-BR').format(latest.roll)}` : 'O título e a chance aparecem aqui.';
   const results = Array.isArray(state.latestResults) ? state.latestResults : [];
-  const newlyUnlocked = results.filter(result => result.roll > (previousRoll ?? 0) && result.isNew).at(-1);
-  if (previousRoll !== null && newlyUnlocked) showRngUnlock(newlyUnlocked);
+  const newUnlocks = results.filter(result => result.roll > (previousRoll ?? 0) && result.isNew);
+  const newlyUnlocked = newUnlocks.at(-1);
+  if (previousRoll !== null && newlyUnlocked) {
+    showRngUnlock(newlyUnlocked);
+    const audibleUnlock = newUnlocks.filter(result => shouldPlayRngTitleSound(result, true)).at(-1);
+    if (audibleUnlock) void playRngTitleSound(audibleUnlock);
+  }
+  const specialUnlock = results.filter(result => result.roll > (previousRoll ?? 0)).flatMap(result => result.specialUnlocks || []).at(-1);
+  if (previousRoll !== null && specialUnlock) showRngUnlock({ title: { name: specialUnlock.name, tierLabel: specialUnlock.tierLabel, tier: 'ntc' }, roll: state.totalRolls, currentOdds: specialUnlock.tierLabel });
+  if (newlyUnlockedAchievements.length) queueRngAchievementNotices(newlyUnlockedAchievements);
   const batchResults = $('#rngBatchResults');
   batchResults.classList.toggle('hidden', results.length < 2);
-  batchResults.innerHTML = results.length < 2 ? '' : results.map(result => `<article class="rng-batch-result${result.isNew ? ' is-new' : ''}" data-tier="${safeText(result.title?.tier || '')}"><span>${result.isNew ? 'NOVO TÍTULO' : 'REPETIDO'} · #${new Intl.NumberFormat('pt-BR').format(result.roll)}${result.isBonusRoll ? ' · BONUS ROLL' : ''}</span><strong>${safeText(result.title?.name || '')}</strong><span>${safeText(result.title?.tierLabel || '')} · ${safeText(result.currentOdds || '')}</span></article>`).join('');
+  batchResults.innerHTML = results.length < 2 ? '' : results.map(result => { const boosts = rngRollBoostLabels(result); return `<article class="rng-batch-result${result.isNew ? ' is-new' : ''}" data-tier="${safeText(result.title?.tier || '')}"><span>${result.isNew ? 'NOVO TÍTULO' : 'REPETIDO'} · #${new Intl.NumberFormat('pt-BR').format(result.roll)}${boosts.length ? ` · ${safeText(boosts.join(' · '))}` : ''}</span><strong>${safeText(result.title?.name || '')}</strong><span>${safeText(result.title?.tierLabel || '')} · ${safeText(result.currentOdds || '')}</span></article>`; }).join('');
 
-  const discoveries = Array.isArray(state.recentDiscoveries) ? state.recentDiscoveries : [];
-  $('#rngDiscoveryCount').textContent = `${discoveries.length} ${discoveries.length === 1 ? 'registrada' : 'registradas'}`;
-  $('#rngDiscoveryLog').innerHTML = discoveries.map(discovery => {
-    const title = state.catalog.find(item => item.id === discovery.titleId);
-    if (!title) return '';
-    const chanceLabel = `Chance na rolagem${discovery.isBonusRoll ? ` · bônus ×${discovery.rollBonusMultiplier || state.bonusMultiplier}` : ''}`;
-    return `<article class="rng-discovery-card" data-tier="${safeText(title.tier)}"><span class="rng-discovery-mark" aria-hidden="true">✦</span><div class="rng-discovery-copy"><strong>${safeText(title.name)}</strong><span>${safeText(title.tierLabel)}</span></div><div class="rng-discovery-detail"><span><small>Rolagem</small><strong>#${new Intl.NumberFormat('pt-BR').format(discovery.roll)}</strong></span><span><small>${safeText(chanceLabel)}</small><strong>${safeText(discovery.currentOdds)}</strong></span></div></article>`;
-  }).filter(Boolean).join('') || '<div class="rng-discovery-empty">Os títulos inéditos e a rolagem em que apareceram vão ficar registrados aqui.</div>';
+  renderRngTitleHistory(state);
 
   const tiers = state.tiers;
   if (!tiers.some(tier => tier.id === rngSelectedTier)) rngSelectedTier = tiers[0]?.id || 'basic';
@@ -209,6 +401,7 @@ function renderRngState(state) {
   const selectedTier = tiers.find(tier => tier.id === rngSelectedTier);
   $('#rngTierCount').textContent = `${visible.filter(title => title.collected).length} / ${visible.length} · ${safeText(selectedTier?.label || '')}`;
   $('#rngCatalog').innerHTML = visible.map(title => `<article class="rng-title-row${title.collected ? ' collected' : ' locked'}"><span class="rng-title-mark">${title.collected ? '✧' : '·'}</span><div class="rng-title-info"><strong>${safeText(title.name)}</strong><span>${title.collected ? 'Obtido' : 'Não encontrado'}</span></div><div class="rng-title-odds"><strong>${safeText(title.currentOdds)}</strong><small>Chance atual</small>${title.currentOdds !== title.baseOdds ? `<small>Base ${safeText(title.baseOdds)}</small>` : ''}</div></article>`).join('');
+  renderRngExpansion(state);
   updateRngDebugControls(state);
   updateRngTimers();
 }
@@ -252,7 +445,10 @@ async function stopScreenRecording() { if (!screenRecorder.recorder) return; $('
 async function configureRecordingShortcut(value) { const shortcut = String(value || '').trim(); if (!shortcut) { await window.ntc.unregisterScreenShortcut(); localStorage.removeItem('ntc-record-shortcut'); return true; } const result = await window.ntc.registerScreenShortcut(shortcut); if (!result.ok) { showToast(result.message || 'Não foi possível registrar esse atalho.'); return false; } localStorage.setItem('ntc-record-shortcut', shortcut); return true; }
 async function configureScreenshotShortcut(value) { const shortcut = String(value || '').trim(); if (!shortcut) { await window.ntc.unregisterScreenshotShortcut(); localStorage.removeItem('ntc-screenshot-shortcut'); return true; } const result = await window.ntc.registerScreenshotShortcut(shortcut); if (!result.ok) { showToast(result.message || 'Não foi possível registrar esse atalho.'); return false; } localStorage.setItem('ntc-screenshot-shortcut', shortcut); return true; }
 async function configureQuickScreenshotShortcut(value) { const shortcut = String(value || '').trim(); if (!shortcut) { await window.ntc.unregisterQuickScreenshotShortcut(); localStorage.removeItem('ntc-quick-screenshot-shortcut'); return true; } const destination = localStorage.getItem('ntc-screenshot-folder') || folder || await window.ntc.defaultDownloadFolder(); const result = await window.ntc.registerQuickScreenshotShortcut(shortcut, destination); if (!result.ok) { showToast(result.message || 'Não foi possível registrar o atalho de captura rápida.'); return false; } localStorage.setItem('ntc-quick-screenshot-shortcut', shortcut); return true; }
-function shortcutFromEvent(event) { const ignored = ['Control', 'Shift', 'Alt', 'Meta']; if (ignored.includes(event.key)) return ''; const keyNames = { ' ': 'Space', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', '+': 'Plus' }; const key = keyNames[event.key] || (event.key.length === 1 ? event.key.toUpperCase() : event.key); const parts = []; if (event.ctrlKey || event.metaKey) parts.push('CommandOrControl'); if (event.altKey) parts.push('Alt'); if (event.shiftKey) parts.push('Shift'); parts.push(key); return parts.join('+'); }
+function shortcutFromEvent(event) { const eventKey = String(event.key || ''); const eventCode = String(event.code || ''); const ignored = ['Control', 'Shift', 'Alt', 'Meta']; if (ignored.includes(eventKey)) return ''; const printScreenKeys = ['PrintScreen', 'Print', 'Snapshot', 'PrtSc', 'PrtScn', 'SysReq']; const hasControl = Boolean(event.ctrlKey || event.control || event.metaKey || event.meta); const isPrintScreen = ['PrintScreen', 'Snapshot'].includes(eventCode) || printScreenKeys.includes(eventKey) || (eventKey === 'Cancel' && hasControl); const keyNames = { ' ': 'Space', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', '+': 'Plus' }; const key = isPrintScreen ? 'PrintScreen' : keyNames[eventKey] || (eventKey.length === 1 ? eventKey.toUpperCase() : eventKey); const parts = []; if (hasControl) parts.push('CommandOrControl'); if (event.altKey || event.alt) parts.push('Alt'); if (event.shiftKey || event.shift) parts.push('Shift'); parts.push(key); return parts.join('+'); }
+function formatShortcutInput(shortcut) { return shortcut.replace('CommandOrControl', 'Ctrl').replaceAll('PrintScreen', 'Print Screen').replaceAll('+', ' + '); }
+function bindShortcutRecorder(selector, storageKey, configure) { const input = $(selector); input.value = formatShortcutInput(localStorage.getItem(storageKey) || ''); input.addEventListener('focus', () => window.ntc.setShortcutRecorderFocused(true)); input.addEventListener('blur', () => window.ntc.setShortcutRecorderFocused(false)); input.addEventListener('keydown', async event => { event.preventDefault(); if (event.key === 'Backspace' || event.key === 'Delete') { input.value = ''; await configure(''); return; } const shortcut = shortcutFromEvent(event); if (!shortcut) return; input.value = formatShortcutInput(shortcut); const saved = await configure(shortcut); if (!saved) input.value = formatShortcutInput(localStorage.getItem(storageKey) || ''); }); }
+window.ntc.onShortcutRecorderInput(input => { const target = document.activeElement; if (!target?.classList.contains('shortcut-input')) return; target.dispatchEvent(new KeyboardEvent('keydown', { key: input.key, code: input.code, ctrlKey: input.ctrlKey, metaKey: input.metaKey, altKey: input.altKey, shiftKey: input.shiftKey, bubbles: true, cancelable: true })); });
 async function captureAndEditScreenshot(capture) {
   if (screenshotCaptureBusy || !$('#screenshotEditorDialog').classList.contains('hidden')) return;
   screenshotCaptureBusy = true;
@@ -263,6 +459,7 @@ async function captureAndEditScreenshot(capture) {
     let savedOrCopied = false;
     window.NTC_ScreenshotEditor.open({
       dataUrl: capture.dataUrl,
+      initialTool: 'crop',
       onSave: async blob => {
         const result = await window.ntc.saveScreenshot(destination, new Uint8Array(await blob.arrayBuffer()));
         addHistory({ title: result.filename, type: 'image', format: 'PNG', quality: 'captura anotada', size: formatBytes(result.size), file: result.file, time: 'Agora', operation: 'screenshot' });
@@ -276,7 +473,6 @@ async function captureAndEditScreenshot(capture) {
     showToast(`Não foi possível capturar a tela: ${cleanError(error)}`);
   } finally { screenshotCaptureBusy = false; }
 }
-async function captureScreenshotNow() { if (screenshotCaptureBusy) return; try { await captureAndEditScreenshot(await window.ntc.captureScreenshot()); } catch (error) { showToast(`Não foi possível capturar a tela: ${cleanError(error)}`); } }
 function openChangelog() {
   const list = $('#changelogList'); list.replaceChildren(...(window.NTC_CHANGELOG || []).map(entry => {
     const article = document.createElement('article'); article.className = 'changelog-entry';
@@ -732,11 +928,14 @@ window.ntc.onQrEvent(update => { const item = qrQueue.find(entry => entry.id ===
 window.ntc.onRngState(renderRngState);
 $('#rngRollButton').onclick = performManualRngRoll;
 $('#rngAutoButton').onclick = toggleRngAutoRoll;
+$('.rng-section-tabs').addEventListener('click', event => { const button = event.target.closest('[data-rng-section]'); if (!button) return; rngActiveSection = button.dataset.rngSection; $$('[data-rng-section]').forEach(tab => tab.classList.toggle('active', tab.dataset.rngSection === rngActiveSection)); $$('[data-rng-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.rngPanel !== rngActiveSection)); });
+$('#rngEventSchedule').addEventListener('click', async event => { const button = event.target.closest('[data-join-rng-event]'); if (!button) return; button.disabled = true; try { renderRngState(await window.ntc.joinRngEvent(button.dataset.joinRngEvent)); } catch (error) { showToast(cleanError(error)); button.disabled = false; } });
 $('#rngDebugTrigger').onclick = openRngDebug;
 $('#closeRngDebug').onclick = closeRngDebug;
 $('#rngDebugDialog').addEventListener('click', event => { if (event.target === $('#rngDebugDialog')) closeRngDebug(); });
 $('#rngDebugTitleSelect').onchange = () => { $('#rngDebugStatus').textContent = ''; updateRngDebugControls(); };
 $('#rngDebugSimulate').onclick = simulateRngUnlock;
+$('#rngDebugSoundTest').onclick = previewRngTitleSound;
 $('#rngDebugAdd').onclick = debugAddSelectedRngTitle;
 $('#rngDebugRemove').onclick = debugRemoveSelectedRngTitle;
 $('#rngDebugClearAll').onclick = debugClearRngCollection;
@@ -747,17 +946,20 @@ $('#rngDebugGrantTotalTitles').onclick = () => debugRngAction('total');
 $('#rngDebugBonus').onclick = () => debugRngAction('bonus');
 initializeRngDebug();
 $('#rngTierFilters').addEventListener('click', event => { const tab = event.target.closest('[data-rng-tier]'); if (!tab) return; rngSelectedTier = tab.dataset.rngTier; if (rngState) renderRngState(rngState); });
+$('#rngTitleHistorySearch').addEventListener('input', event => { rngHistoryQuery = event.currentTarget.value; if (rngState) renderRngTitleHistory(rngState); });
+$('#rngTitleHistoryTier').addEventListener('change', event => { rngHistoryTier = event.currentTarget.value; if (rngState) renderRngTitleHistory(rngState); });
 window.addEventListener('focus', () => { if ($('#rngView').classList.contains('active')) loadRngState(); });
 loadRngState(); rngTimer = setInterval(updateRngTimers, 1000);
 $('#chooseRecorderFolder').onclick = async () => { const chosen = await window.ntc.chooseDownloadFolder(); if (!chosen) return; localStorage.setItem('ntc-recorder-folder', chosen); syncSettings(); showToast('Pasta de gravações atualizada.'); };
 $('#chooseScreenshotFolder').onclick = async () => { const chosen = await window.ntc.chooseDownloadFolder(); if (!chosen) return; localStorage.setItem('ntc-screenshot-folder', chosen); const shortcut = localStorage.getItem('ntc-quick-screenshot-shortcut'); if (shortcut) await configureQuickScreenshotShortcut(shortcut); syncSettings(); showToast('Pasta de capturas atualizada.'); };
 $('#chooseCompression').onclick = async () => addCompressionFiles(await window.ntc.chooseCompressorFiles()); $('#compressionDropzone').onclick = async () => addCompressionFiles(await window.ntc.chooseCompressorFiles()); bindDropzone('compressionDropzone', () => window.ntc.chooseCompressorFiles(), addCompressionFiles); $('#compressionPreset').onchange = () => { applyCompressionPreset(); updateCompressionPreview(); }; ['compressionResolution', 'compressionFps', 'compressionCrf', 'compressionBitrate', 'compressionImageQuality', 'compressionImageScale'].forEach(id => $(`#${id}`).addEventListener('input', updateCompressionPreview)); $('#startCompression').onclick = startCompressionQueue; $('#chooseCompressionFolder').onclick = async () => { const chosen = await window.ntc.chooseDownloadFolder(); if (chosen) { localStorage.setItem('ntc-compression-folder', chosen); $('#compressionFolderPath').textContent = chosen; } };
 $('#recordResolution').value = localStorage.getItem('ntc-record-resolution') || 'original'; $('#recordResolution').addEventListener('change', event => localStorage.setItem('ntc-record-resolution', event.target.value)); $('#toggleRecording').onclick = startScreenRecording;
-$('#captureScreenshot').onclick = captureScreenshotNow;
 $('#recordMicrophone').addEventListener('change', event => localStorage.setItem('ntc-record-microphone', event.target.value));
-const legacyRecordShortcut = localStorage.getItem('ntc-record-shortcut'); if (legacyRecordShortcut === 'Ctrl+Shift+R') localStorage.removeItem('ntc-record-shortcut'); $('#recordShortcut').value = localStorage.getItem('ntc-record-shortcut') || ''; $('#recordShortcut').addEventListener('keydown', async event => { event.preventDefault(); const input = event.currentTarget; if (event.key === 'Backspace' || event.key === 'Delete') { input.value = ''; await configureRecordingShortcut(''); return; } const shortcut = shortcutFromEvent(event); if (!shortcut) return; input.value = shortcut.replace('CommandOrControl', 'Ctrl').replaceAll('+', ' + '); const saved = await configureRecordingShortcut(shortcut); if (!saved) input.value = localStorage.getItem('ntc-record-shortcut') || ''; });
-$('#screenshotShortcut').value = localStorage.getItem('ntc-screenshot-shortcut') || ''; $('#screenshotShortcut').addEventListener('keydown', async event => { event.preventDefault(); const input = event.currentTarget; if (event.key === 'Backspace' || event.key === 'Delete') { input.value = ''; await configureScreenshotShortcut(''); return; } const shortcut = shortcutFromEvent(event); if (!shortcut) return; input.value = shortcut.replace('CommandOrControl', 'Ctrl').replaceAll('+', ' + '); const saved = await configureScreenshotShortcut(shortcut); if (!saved) input.value = localStorage.getItem('ntc-screenshot-shortcut') || ''; });
-$('#quickScreenshotShortcut').value = localStorage.getItem('ntc-quick-screenshot-shortcut') || ''; $('#quickScreenshotShortcut').addEventListener('keydown', async event => { event.preventDefault(); const input = event.currentTarget; if (event.key === 'Backspace' || event.key === 'Delete') { input.value = ''; await configureQuickScreenshotShortcut(''); return; } const shortcut = shortcutFromEvent(event); if (!shortcut) return; input.value = shortcut.replace('CommandOrControl', 'Ctrl').replaceAll('+', ' + '); const saved = await configureQuickScreenshotShortcut(shortcut); if (!saved) input.value = localStorage.getItem('ntc-quick-screenshot-shortcut') || ''; });
+const legacyRecordShortcut = localStorage.getItem('ntc-record-shortcut'); if (legacyRecordShortcut === 'Ctrl+Shift+R') localStorage.removeItem('ntc-record-shortcut');
+for (const shortcutKey of ['ntc-record-shortcut', 'ntc-screenshot-shortcut', 'ntc-quick-screenshot-shortcut']) if (localStorage.getItem(shortcutKey) === 'CommandOrControl+Cancel') localStorage.setItem(shortcutKey, 'CommandOrControl+PrintScreen');
+bindShortcutRecorder('#recordShortcut', 'ntc-record-shortcut', configureRecordingShortcut);
+bindShortcutRecorder('#screenshotShortcut', 'ntc-screenshot-shortcut', configureScreenshotShortcut);
+bindShortcutRecorder('#quickScreenshotShortcut', 'ntc-quick-screenshot-shortcut', configureQuickScreenshotShortcut);
 if (localStorage.getItem('ntc-record-shortcut')) void configureRecordingShortcut(localStorage.getItem('ntc-record-shortcut'));
 if (localStorage.getItem('ntc-screenshot-shortcut')) void configureScreenshotShortcut(localStorage.getItem('ntc-screenshot-shortcut'));
 if (localStorage.getItem('ntc-quick-screenshot-shortcut')) void configureQuickScreenshotShortcut(localStorage.getItem('ntc-quick-screenshot-shortcut'));

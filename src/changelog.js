@@ -1,5 +1,17 @@
 window.NTC_CHANGELOG = [
   {
+    version: '0.7.0',
+    date: '23 set. 2026',
+    changes: [
+      'Novo Renomear arquivos em lote: arraste arquivos ou uma pasta, configure prefixo, busca/substituição e numeração, confira a prévia e aplique sem sobrescrever outros arquivos.',
+      'O NTC RNG ganhou páginas de Conquistas, Estatísticas e Eventos, histórico mais completo, recordes pessoais e títulos secretos que só aparecem após serem descobertos.',
+      'Conquistas agora notificam quando são atingidas. Há marcos para rolagens totais, 1.000/10.000/100.000/1.000.000 cliques manuais (separados do Auto-roll), coleção e raridades.',
+      'Eventos programados usam horário UTC verificado independentemente do relógio do PC: raridade semanal em foco, Chuva de Sorte, Eclipse e Chuva de Fragmentos com título garantido após 1.000 rolagens participantes.',
+      'Horas iguais e bônus acumulados ficam registrados junto às novas descobertas; títulos raros podem tocar um aviso sonoro discreto.',
+      'Atalhos de captura aceitam Print Screen e o editor abre pronto para selecionar a área; refinamentos nas setas e nas interações das imagens inseridas.'
+    ]
+  },
+  {
     version: '0.6.1',
     date: '23 set. 2026',
     changes: [

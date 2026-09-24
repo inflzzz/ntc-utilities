@@ -62,9 +62,10 @@ Use o aplicativo somente para conteúdos que você possui ou tem permissão para
 ## NTC RNG
 
 - Jogo local de sorte com 200 títulos em português, probabilidades explícitas e auto-roll ao abrir o app.
-- A coleção libera automaticamente bônus por raridade e ciclos de 2× a partir de 50 títulos e 3× a partir de 100; não há fragmentos, craft ou equipamentos.
-- Destaca títulos inéditos e registra em qual número de rolagem cada descoberta aconteceu.
-- Coleção, descobertas e estatísticas ficam salvas neste computador.
+- A coleção libera automaticamente bônus por raridade e ciclos extras de rolagem; conquistas, estatísticas e recordes acompanham a progressão.
+- Eventos programados incluem chances maiores por raridade, horários iguais e títulos de edição limitada. Eventos e recompensas dependem de UTC verificado, não do relógio do PC.
+- Alguns títulos secretos só são revelados após descobertos; o histórico registra as condições e bônus ativos em cada título novo.
+- Coleção, descobertas e estatísticas ficam salvas neste computador e são preservadas nas atualizações.
 
 ## Desenvolver localmente
 
@@ -81,7 +82,7 @@ pnpm start
 pnpm package:win
 ```
 
-O instalador da versão atual será criado em `dist/NTC.Utilities.Setup.0.6.1.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git. O setup usa páginas brancas limpas, permite escolher a pasta e oferece a opção de remover outras cópias registradas do NTC Utilities. Atualizações silenciosas fazem essa limpeza automaticamente e preservam histórico, preferências e arquivos pessoais.
+O instalador da versão atual será criado em `dist/NTC.Utilities.Setup.0.7.0.exe`. Durante o build, o script baixa `yt-dlp`, FFmpeg e FFprobe para `resources/bin/`, inclui os três no instalador e mantém essa pasta fora do Git. O setup usa páginas brancas limpas, permite escolher a pasta e oferece a opção de remover outras cópias registradas do NTC Utilities. Atualizações silenciosas fazem essa limpeza automaticamente e preservam histórico, preferências e arquivos pessoais.
 
 Para uma publicação oficial que suporte atualização dentro do app, use `pnpm release:win` com `GH_TOKEN` configurado. Esse comando envia o instalador e os arquivos de atualização necessários para a Release do GitHub.
 

@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
@@ -14,14 +15,41 @@ test('screenshot capture has a separate shortcut, destination and annotation edi
   const main = read('main.cjs');
   for (const tool of ['pen', 'arrow', 'rect', 'ellipse', 'highlight', 'blur', 'pixelate', 'crop', 'text', 'number']) assert.match(html, new RegExp(`data-shot-tool="${tool}"`));
   assert.match(html, /id="screenshotArrowSize"/);
-  assert.match(html, /id="captureScreenshot"/);
+  assert.doesNotMatch(html, /id="captureScreenshot"/);
   assert.match(html, /id="screenshotShortcut"/);
+  assert.match(html, /Ctrl \+ Print Screen/);
+  const shortcutFunction = app.match(/function shortcutFromEvent\(event\) \{[^\n]*\}/)?.[0];
+  assert.ok(shortcutFunction, 'the shortcut recorder should translate key combinations');
+  const shortcutFromEvent = vm.runInNewContext(`(${shortcutFunction})`);
+  assert.equal(shortcutFromEvent({ key: 'PrintScreen', code: 'PrintScreen', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false }), 'CommandOrControl+PrintScreen');
+  assert.equal(shortcutFromEvent({ key: 'Unidentified', code: 'PrintScreen', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false }), 'CommandOrControl+PrintScreen');
+  assert.equal(shortcutFromEvent({ key: 'Snapshot', code: 'Snapshot', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false }), 'CommandOrControl+PrintScreen');
+  assert.equal(shortcutFromEvent({ key: 'PrintScreen', code: 'PrintScreen', control: true, meta: false, alt: false, shift: false }), 'CommandOrControl+PrintScreen');
+  assert.equal(shortcutFromEvent({ key: 'Cancel', code: 'Cancel', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false }), 'CommandOrControl+PrintScreen');
+  assert.equal(shortcutFromEvent({ key: 'P', code: 'KeyP', ctrlKey: true, metaKey: false, altKey: false, shiftKey: true }), 'CommandOrControl+Shift+P');
+  const formatter = app.match(/function formatShortcutInput\(shortcut\) \{[^\n]*\}/)?.[0];
+  assert.equal(vm.runInNewContext(`(${formatter})`)('CommandOrControl+PrintScreen'), 'Ctrl + Print Screen');
+  assert.match(main, /PrintScreen\$[\s\S]*já está em uso pelo Windows ou por outro programa/);
+  assert.match(main, /before-input-event[\s\S]*shortcutRecorderFocused[\s\S]*shortcut-recorder-input/);
+  assert.match(main, /Windows does not emit a keyDown for Print Screen[\s\S]*input\.type !== 'keyUp'/);
+  assert.match(main, /input\.key === 'Cancel' && \(input\.control \|\| input\.meta\)/);
+  assert.match(app, /CommandOrControl\+Cancel[\s\S]*CommandOrControl\+PrintScreen/);
+  assert.match(preload, /setShortcutRecorderFocused:[\s\S]*shortcut-recorder-focus/);
+  assert.match(preload, /onShortcutRecorderInput:[\s\S]*shortcut-recorder-input/);
+  assert.match(app, /onShortcutRecorderInput[\s\S]*new KeyboardEvent\('keydown'/);
+  assert.match(app, /setShortcutRecorderFocused\(true\)/);
+  assert.doesNotMatch(app, /captureScreenshotNow/);
+  assert.match(html, /Ctrl \+ Print Screen/);
+  assert.match(app, /function shortcutFromEvent/);
+  assert.doesNotMatch(app, /captureScreenshotNow/);
   assert.match(html, /id="chooseScreenshotFolder"/);
   assert.match(html, /id="screenshotUndo"/);
   assert.match(editor, /window\.NTC_ScreenshotEditor/);
   assert.match(editor, /output\.toBlob/);
   assert.match(app, /window\.ntc\.saveScreenshot/);
   assert.match(app, /window\.ntc\.copyScreenshot/);
+  assert.match(app, /window\.NTC_ScreenshotEditor\.open\(\{[\s\S]*?initialTool: 'crop'/);
+  assert.match(editor, /const requestedTool = options\?\.initialTool;[\s\S]*?tools\.some\(button => button\.dataset\.shotTool === requestedTool\) \? requestedTool : 'pen'[\s\S]*?setTool\(initialTool\)/);
   assert.match(preload, /registerScreenshotShortcut:.*register-screenshot-shortcut/);
   assert.match(preload, /onScreenshotHotkeyCapture/);
   assert.match(main, /ipcMain\.handle\('screen-capture-save'/);
@@ -40,9 +68,12 @@ test('screenshot capture has a separate shortcut, destination and annotation edi
   assert.doesNotMatch(preload, /commitScreenshot|finishScreenshot/);
 });
 
-test('minimizing hides the window in the tray while the main-process roll clock keeps running', () => {
+test('minimizing uses the taskbar while closing hides the window in the tray', () => {
   const main = read('main.cjs');
-  assert.match(main, /window-minimize',[\s\S]*ensureTray\(\); window\.hide\(\)/);
+  const minimizeHandler = main.match(/ipcMain\.handle\('window-minimize',[^\n]+/)?.[0] || '';
+  assert.match(minimizeHandler, /window\.minimize\(\)/);
+  assert.doesNotMatch(minimizeHandler, /ensureTray|window\.hide\(\)/);
+  assert.doesNotMatch(main, /mainWindow\.on\('minimize'/);
   assert.match(main, /mainWindow\.on\('close',[\s\S]*event\.preventDefault\(\); ensureTray\(\); mainWindow\.hide\(\)/);
   assert.match(main, /trayIcon\.on\('click', showMainWindow\)/);
   assert.match(main, /label: 'Sair do NTC Utilities', click: requestExitFromTray/);

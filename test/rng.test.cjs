@@ -2,11 +2,17 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 const {
   POOL,
+  TEN_THOUSAND_ROLL_BONUS_EVERY,
+  TEN_THOUSAND_ROLL_BONUS_MULTIPLIER,
+  THOUSAND_ROLL_BONUS_EVERY,
+  THOUSAND_ROLL_BONUS_MULTIPLIER,
   TIERS,
   TITLES,
   basePoolWeight,
+  equalHourBonusAt,
   normalizeState,
   luckForState,
   currentWeights,
@@ -42,10 +48,11 @@ test('base odds are distinct and the complete weighted pool sums to exactly 100%
   const catalog = publicCatalog({});
   const luckyLad = catalog.find(title => title.id === 'unique-08');
   const luckiestLad = catalog.find(title => title.id === 'unique-20');
-  assert.equal(luckyLad.name, 'Lucky Lad');
+  assert.equal(luckyLad.name, '???');
   assert.equal(luckyLad.tierLabel, 'Lendário');
   assert.equal(luckyLad.baseOdds, '1 em 278.000.000');
-  assert.equal(luckiestLad.name, 'Luckiest Lad');
+  assert.equal(luckiestLad.name, '???');
+  assert.equal(publicCatalog({ collectedIds: ['unique-08', 'unique-20'] }).find(title => title.id === 'unique-20').name, 'Luckiest Lad');
   assert.equal(luckiestLad.tierLabel, 'Lendário');
   assert.equal(luckiestLad.baseOdds, '1 em 777.777.777');
   assert.equal(catalog.find(title => title.id === 'legendary-08').tierLabel, 'Singular');
@@ -71,6 +78,80 @@ test('rare odds show the exact base denominator and collection luck raises rare 
   assert.equal(luckForState(state).passiveBps, 100);
   assert.equal(luckForState(state).totalBps, 10_100);
   assert.ok(currentWeights(state).get(target.id) > currentWeights({}).get(target.id));
+});
+
+test('equal-hour clock bonus is active for the whole local matching minute and stacks with the tenth-roll bonus', () => {
+  for (let hour = 0; hour < 24; hour++) {
+    const matchingMinute = new Date(2026, 8, 23, hour, hour, 37).getTime();
+    assert.deepEqual(equalHourBonusAt(matchingMinute), {
+      active: true,
+      multiplier: 2,
+      time: `${String(hour).padStart(2, '0')}:${String(hour).padStart(2, '0')}`
+    });
+    const neighboringMinute = new Date(2026, 8, 23, hour, (hour + 1) % 24, 37).getTime();
+    assert.equal(equalHourBonusAt(neighboringMinute).active, false);
+  }
+
+  const equalHourAt = new Date(2026, 8, 23, 20, 20, 37).getTime();
+  const normalState = normalizeState({});
+  const rareId = TITLES.find(title => title.tier === 'epic').id;
+  const normalWeights = currentWeights(normalState);
+  const equalHourWeights = currentWeights(normalState, { equalHourBonus: true });
+  assert.ok(equalHourWeights.get(rareId) > normalWeights.get(rareId));
+  assert.ok(equalHourWeights.get(TITLES[0].id) < normalWeights.get(TITLES[0].id));
+
+  const bonusState = { totalRolls: 9, bonusRollCounter: 9 };
+  const result = rollTitle(bonusState, 0n, { rolledAt: equalHourAt });
+  assert.equal(result.isBonusRoll, true);
+  assert.equal(result.rollBonusMultiplier, 2);
+  assert.equal(result.isEqualHourBonus, true);
+  assert.equal(result.equalHourMultiplier, 2);
+  assert.equal(result.equalHourTime, '20:20');
+  assert.equal(result.state.recentDiscoveries[0].rolledAt, equalHourAt);
+  assert.equal(result.state.recentDiscoveries[0].isBonusRoll, true);
+  assert.equal(result.state.recentDiscoveries[0].isEqualHourBonus, true);
+  const bonusOnlyWeight = currentWeights(bonusState, { bonusRoll: true }).get(rareId);
+  const stackedWeight = currentWeights(bonusState, { bonusRoll: true, equalHourBonus: true }).get(rareId);
+  assert.ok(stackedWeight > bonusOnlyWeight, 'the two active bonuses multiply together');
+});
+
+test('every thousandth roll gets ×4 and combines multiplicatively with the other active bonuses', () => {
+  assert.equal(THOUSAND_ROLL_BONUS_EVERY, 1000);
+  assert.equal(THOUSAND_ROLL_BONUS_MULTIPLIER, 4);
+  const equalHourAt = new Date(2026, 8, 23, 20, 20, 37).getTime();
+  const beforeMilestone = { totalRolls: 999, bonusRollCounter: 9 };
+  const result = rollTitle(beforeMilestone, 0n, { rolledAt: equalHourAt });
+  assert.equal(result.state.totalRolls, 1000);
+  assert.equal(result.isBonusRoll, true, 'the 1000th roll also lands on the normal 10-roll bonus');
+  assert.equal(result.isEqualHourBonus, true);
+  assert.equal(result.isThousandRollBonus, true);
+  assert.equal(result.thousandRollMultiplier, 4);
+  assert.equal(result.state.recentDiscoveries[0].isThousandRollBonus, true);
+  assert.equal(result.state.recentDiscoveries[0].thousandRollMultiplier, 4);
+  assert.equal(result.state.recentDiscoveries[0].rolledAt, equalHourAt);
+  const baseWeight = currentWeights(beforeMilestone).get(TITLES.find(title => title.tier === 'epic').id);
+  const stackedWeight = currentWeights(beforeMilestone, { bonusRoll: true, equalHourBonus: true, thousandRollBonus: true }).get(TITLES.find(title => title.tier === 'epic').id);
+  assert.ok(stackedWeight > baseWeight);
+});
+
+test('every ten-thousandth roll gets ×10 and stacks with roll, clock, and thousand-roll bonuses', () => {
+  assert.equal(TEN_THOUSAND_ROLL_BONUS_EVERY, 10_000);
+  assert.equal(TEN_THOUSAND_ROLL_BONUS_MULTIPLIER, 10);
+  const equalHourAt = new Date(2026, 8, 23, 20, 20, 37).getTime();
+  const beforeMilestone = { totalRolls: 9_999, bonusRollCounter: 9 };
+  const result = rollTitle(beforeMilestone, 0n, { rolledAt: equalHourAt });
+  assert.equal(result.state.totalRolls, 10_000);
+  assert.equal(result.isBonusRoll, true);
+  assert.equal(result.isEqualHourBonus, true);
+  assert.equal(result.isThousandRollBonus, true);
+  assert.equal(result.isTenThousandRollBonus, true);
+  assert.equal(result.tenThousandRollMultiplier, 10);
+  assert.equal(result.state.recentDiscoveries[0].isTenThousandRollBonus, true);
+  assert.equal(result.state.recentDiscoveries[0].tenThousandRollMultiplier, 10);
+  const titleId = TITLES.find(title => title.tier === 'epic').id;
+  const baseWeight = currentWeights(beforeMilestone).get(titleId);
+  const stackedWeight = currentWeights(beforeMilestone, { bonusRoll: true, equalHourBonus: true, thousandRollBonus: true, tenThousandRollBonus: true }).get(titleId);
+  assert.ok(stackedWeight > baseWeight, 'all simultaneously active multipliers raise rare-title weight');
 });
 
 test('collection luck advances once per pair of new titles, and caps at +100%', () => {
@@ -186,20 +267,21 @@ test('each roll grants exactly one title and duplicates do not grant collection 
   assert.equal(repeat.state.recentDiscoveries[0].roll, 1);
 });
 
-test('recent discoveries record exact roll numbers, persist, and keep only the latest eight new titles', () => {
+test('title history records exact rolls and bonus details while recent discoveries remains an eight-item compatibility view', () => {
+  const ordinaryTime = new Date(2026, 8, 23, 12, 34, 0).getTime();
   const rollSpecificTitle = (state, titleId) => {
     const weights = currentWeights(state, { bonusRoll: state.bonusRollCounter === 9 });
     let roll = 0n;
     for (const title of TITLES) {
-      if (title.id === titleId) return rollTitle(state, roll);
+      if (title.id === titleId) return rollTitle(state, roll, { rolledAt: ordinaryTime });
       roll += weights.get(title.id);
     }
     throw new Error(`Unknown title: ${titleId}`);
   };
 
-  let state = rollTitle({}, 0n).state;
-  assert.deepEqual(state.recentDiscoveries, [{ titleId: 'basic-01', roll: 1, currentOdds: '1 em 2', isBonusRoll: false, rollBonusMultiplier: 1 }]);
-  state = rollTitle(state, 0n).state;
+  let state = rollTitle({}, 0n, { rolledAt: ordinaryTime }).state;
+  assert.deepEqual(state.recentDiscoveries, [{ titleId: 'basic-01', roll: 1, currentOdds: '1 em 2', isBonusRoll: false, rollBonusMultiplier: 1, isEqualHourBonus: false, equalHourMultiplier: 1, equalHourTime: '', isThousandRollBonus: false, thousandRollMultiplier: 1, isTenThousandRollBonus: false, tenThousandRollMultiplier: 1, rolledAt: ordinaryTime, eventName: '', eventMultiplier: 1, eventFocusTierLabel: '', eventFocusMultiplier: 1 }]);
+  state = rollTitle(state, 0n, { rolledAt: ordinaryTime }).state;
   assert.equal(state.recentDiscoveries.length, 1, 'a duplicate must not create a discovery record');
   state = rollSpecificTitle(state, 'basic-02').state;
   assert.deepEqual(state.recentDiscoveries.slice(0, 2).map(({ titleId, roll }) => ({ titleId, roll })), [
@@ -211,8 +293,13 @@ test('recent discoveries record exact roll numbers, persist, and keep only the l
   assert.equal(state.recentDiscoveries.length, 8);
   assert.equal(state.recentDiscoveries[0].titleId, 'basic-11');
   assert.equal(state.recentDiscoveries.at(-1).titleId, 'basic-04');
+  assert.equal(state.titleHistory.length, 11);
+  assert.equal(state.titleHistory[0].titleId, 'basic-11');
+  assert.equal(state.titleHistory.at(-1).titleId, 'basic-01');
   assert.deepEqual(normalizeState(JSON.parse(JSON.stringify(state))), state);
-  assert.deepEqual(normalizeState({ totalRolls: 2, collectedIds: ['basic-01'], recentDiscoveries: [{ titleId: 'basic-01', roll: 3, currentOdds: 'bad' }] }).recentDiscoveries, []);
+  const legacy = normalizeState({ totalRolls: 3, collectedIds: ['basic-01', 'basic-02'], recentDiscoveries: [{ titleId: 'basic-01', roll: 1, currentOdds: '1 em 2' }] });
+  assert.equal(legacy.titleHistory.length, 1, 'old recent discoveries migrate into the full-history data model');
+  assert.deepEqual(normalizeState({ totalRolls: 2, collectedIds: ['basic-01'], recentDiscoveries: [{ titleId: 'basic-01', roll: 3, currentOdds: 'bad' }] }).titleHistory, []);
 });
 
 test('development debug tools add, remove, and clear titles without consuming rolls or time', () => {
@@ -239,6 +326,7 @@ test('development debug tools add, remove, and clear titles without consuming ro
   assert.equal(cleared.removedCount, 1);
   assert.deepEqual(cleared.state.collectedIds, []);
   assert.deepEqual(cleared.state.recentDiscoveries, []);
+  assert.deepEqual(cleared.state.titleHistory, []);
   assert.equal(cleared.state.totalRolls, 41);
   assert.equal(cleared.state.totalAppSeconds, 900);
   assert.equal(cleared.state.totalAutoRollSeconds, 300);
@@ -247,11 +335,12 @@ test('development debug tools add, remove, and clear titles without consuming ro
 
 test('roll boundaries move to the next title without overlaps or missing outcomes', () => {
   const weights = currentWeights({});
+  const ordinaryTime = new Date(2026, 8, 23, 12, 34, 0).getTime();
   const first = TITLES[0];
   const second = TITLES[1];
-  assert.equal(rollTitle({}, weights.get(first.id) - 1n).title.id, first.id);
-  assert.equal(rollTitle({}, weights.get(first.id)).title.id, second.id);
-  assert.equal(rollTitle({}, POOL - 1n).title.id, TITLES.at(-1).id);
+  assert.equal(rollTitle({}, weights.get(first.id) - 1n, { rolledAt: ordinaryTime }).title.id, first.id);
+  assert.equal(rollTitle({}, weights.get(first.id), { rolledAt: ordinaryTime }).title.id, second.id);
+  assert.equal(rollTitle({}, POOL - 1n, { rolledAt: ordinaryTime }).title.id, TITLES.at(-1).id);
 });
 
 test('the game is reachable from Home and its controls use the isolated main-process API', () => {
@@ -266,19 +355,42 @@ test('the game is reachable from Home and its controls use the isolated main-pro
   assert.match(html, /data-open-tool="rng"/);
   assert.match(html, /id="rngView"/);
   assert.match(html, /id="rngCatalog"/);
-  assert.match(html, /id="rngDiscoveryLog"/);
+  assert.match(html, /id="rngTitleHistoryList"/);
+  assert.match(html, /id="rngTitleHistorySearch"/);
+  assert.match(html, /id="rngTitleHistoryTier"/);
+  assert.match(html, /<option value="recent">Recentes<\/option>/);
+  assert.doesNotMatch(html, /Descobertas recentes|rngDiscoveryLog/);
   assert.match(html, /id="rngUnlockNotice"/);
+  assert.match(html, /id="rngTitleUnlockSound" src="\.\/assets\/rng-title-deep\.mp3"/);
   assert.doesNotMatch(html, /rngNextLuck|rngWorkshop|rngRelic|rngCatalyst|rngFocus|rngCategoryProgress|Fragmentos|Oficina/);
   assert.doesNotMatch(app, /rngNextLuck|rngWorkshop|rngRelic|rngCatalyst|rngFocus|rngCategoryProgress|fragments|relics|catalysts|craftRngItem/);
   assert.match(html, /id="rngDebugClearAll"/);
+  assert.match(html, /id="rngDebugSoundTest"/);
   assert.match(styles, /\.rng-profile-panel\s*\{\s*align-self:\s*start;/);
   assert.match(app, /window\.ntc\.onRngState\(renderRngState\)/);
   assert.match(app, /rng-discovery-detail/);
+  assert.match(app, /state.titleHistory/);
+  assert.match(app, /rngHistoryTier = 'recent'/);
+  assert.match(app, /rngHistoryTier === 'recent'/);
+  assert.doesNotMatch(app, /Detalhes da obtenção não foram registrados nesta versão|com registro/);
+  assert.match(app, /normalizeRngSearch/);
+  assert.match(app, /Horas iguais ×2/);
+  assert.match(app, /Bônus acumulados ×/);
+  assert.match(app, /Marco de 1\.000 rolagens ×4/);
+  assert.match(app, /Marco de 10\.000 rolagens ×10/);
+  assert.match(html, /id="rngThousandBonusInfo"/);
+  assert.match(html, /id="rngTenThousandBonusInfo"/);
+  assert.match(html, /id="rngClockStatus"/);
+  assert.match(app, /getEqualHourClockStatus/);
   assert.match(app, /<small>Rolagem<\/small>/);
   assert.match(app, /Chance na rolagem/);
   assert.match(app, /Chance atual/);
-  assert.match(styles, /\.rng-discovery-track\s*\{\s*display:\s*grid;\s*grid-template-columns:\s*repeat\(2/);
-  assert.doesNotMatch(styles, /\.rng-discovery-track\s*\{[^}]*grid-auto-flow:\s*column/);
+  assert.match(styles, /\.rng-title-history-list\s*\{[^}]*grid-template-columns:\s*repeat\(2/);
+  assert.match(app, /class="rng-discovery-meta"/);
+  assert.match(styles, /\.rng-title-history-card\s*\{[^}]*min-height:\s*72px/);
+  assert.match(styles, /\.rng-title-history-card \.rng-discovery-detail\s*\{[^}]*grid-template-columns:\s*repeat\(2/);
+  assert.match(styles, /\.rng-title-history-card:not\(\.has-record\)\s*\{[^}]*min-height:\s*62px/);
+  assert.doesNotMatch(styles, /\.rng-title-history-list\s*\{[^}]*grid-auto-flow:\s*column/);
   assert.match(app, /showRngUnlock\(newlyUnlocked\)/);
   assert.match(app, /isDevelopmentBuild\(\)/);
   assert.match(app, /rngDebugEnabled = await window\.ntc\.isDevelopmentBuild\(\);\s*if \(!rngDebugEnabled\) return;\s*\$\('#rngDebugTrigger'\)\.classList\.remove\('hidden'\)/);
@@ -288,6 +400,16 @@ test('the game is reachable from Home and its controls use the isolated main-pro
   assert.match(main, /ipcMain\.handle\('is-development-build', \(\) => !app\.isPackaged\)/);
   assert.match(main, /setInterval\(\(\) => \{[\s\S]*performRngRoll\(\)/);
   assert.match(main, /recentDiscoveries:\s*rngGame\.recentDiscoveries/);
+  assert.match(main, /titleHistory:\s*rngGame\.titleHistory/);
+  assert.match(main, /isEqualHourBonus:\s*result\.isEqualHourBonus/);
+  assert.match(main, /isThousandRollBonus:\s*result\.isThousandRollBonus/);
+  assert.match(main, /isTenThousandRollBonus:\s*result\.isTenThousandRollBonus/);
+  assert.match(preload, /isWindowMinimizedOrHidden:.*window-is-minimized-or-hidden/);
+  assert.match(main, /window-is-minimized-or-hidden[\s\S]*isMinimized\(\)[\s\S]*isVisible\(\)/);
+  assert.match(app, /audio\.volume = 0\.65[\s\S]*audio\.play\(\)/);
+  assert.match(app, /\$\('#rngDebugSoundTest'\)\.onclick = previewRngTitleSound/);
+  assert.match(app, /async function previewRngTitleSound\(\)[\s\S]*if \(!rngDebugEnabled\) return;[\s\S]*playRngTitleSound\(null, \{ preview: true \}\)/);
+  assert.ok(fs.statSync(path.join(root, 'src', 'assets', 'rng-title-deep.mp3')).size > 0, 'the provided title sound is packaged with the app');
   assert.match(html, /class="[^"]*rng-debug-trigger[^\"]*hidden"[^>]*id="rngDebugTrigger"/);
   assert.match(main, /if\s*\(!app\.isPackaged\)\s*\{[\s\S]*debug-rng-add-title[\s\S]*debug-rng-clear-titles/);
   assert.match(preload, /debugClearRngTitles:.*debug-rng-clear-titles/);
@@ -302,4 +424,18 @@ test('the game is reachable from Home and its controls use the isolated main-pro
   assert.match(rng, /Lucky Lad/);
   assert.match(rng, /Luckiest Lad/);
   assert.match(main, /ntc-rng-state\.json/);
+});
+
+test('deep title sound is silent below Singular and only plays for new titles while minimized or in tray', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
+  const functionSource = app.match(/function shouldPlayRngTitleSound\(result, isHidden\)\s*\{[\s\S]*?\n\}/)?.[0];
+  assert.ok(functionSource, 'the sound gate should be testable independently of the UI');
+  const shouldPlay = vm.runInNewContext(`(${functionSource})`);
+  const result = tier => ({ isNew: true, title: { tier } });
+  assert.equal(shouldPlay(result('basic'), true), false);
+  assert.equal(shouldPlay(result('epic'), true), false);
+  for (const tier of ['unique', 'legendary', 'mythic', 'exalted', 'glorious', 'transcendent', 'dimensional', 'ntc']) assert.equal(shouldPlay(result(tier), true), true, `${tier} should play the sound`);
+  assert.equal(shouldPlay(result('unique'), false), false, 'keep the app quiet while visible');
+  assert.equal(shouldPlay({ ...result('unique'), isNew: false }, true), false, 'duplicates stay silent');
+  assert.equal(shouldPlay({ ...result('unique'), simulation: true }, true), false, 'debug previews stay silent');
 });

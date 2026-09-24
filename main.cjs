@@ -1,11 +1,14 @@
-const { app, BrowserWindow, dialog, ipcMain, shell, clipboard, desktopCapturer, globalShortcut, screen, nativeImage, Notification, Tray, Menu } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell, clipboard, desktopCapturer, globalShortcut, screen, nativeImage, Notification, Tray, Menu, powerMonitor } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const { autoUpdater } = require('electron-updater');
 const sharp = require('sharp');
 const { normalizeQrUrl, normalizeQrOptions, renderQr, saveQrImage } = require('./src/qr.cjs');
-const { TIERS: rngTiers, TITLES: rngTitles, normalizeState: normalizeRngState, luckForState, rollBatch: rollRngBatch, publicCatalog: publicRngCatalog, publicProgress: publicRngProgress, debugGrantTitle, debugRemoveTitle, debugClearTitles, debugGrantTierTitles, debugGrantTotalTitles, debugReadyBonusRoll } = require('./src/rng.cjs');
+const { previewFileRenames, renameFiles } = require('./src/renamer-files.cjs');
+const { POOL: rngPool, TIERS: rngTiers, TITLES: rngTitles, SECRETS: rngSecrets, normalizeState: normalizeRngState, luckForState, rollBatch: rollRngBatch, publicCatalog: publicRngCatalog, publicProgress: publicRngProgress, debugGrantTitle, debugRemoveTitle, debugClearTitles, debugGrantTierTitles, debugGrantTotalTitles, debugReadyBonusRoll } = require('./src/rng.cjs');
+const { TrustedClock } = require('./src/rng-time.cjs');
+const { LIMITED_REWARDS, eventSchedule, activeEvent, joinEvent } = require('./src/rng-events.cjs');
 
 // Evita artefatos visuais que alguns drivers de vídeo exibem apenas no monitor.
 // A captura de tela continua normal nesses casos porque ela lê o frame antes da
@@ -28,6 +31,7 @@ let screenshotShortcutBusy = false;
 let quickScreenshotShortcut = null;
 let quickScreenshotShortcutBusy = false;
 let quickScreenshotFolder = '';
+let shortcutRecorderFocused = false;
 let launchAtLoginEnabled = true;
 let updateState = { status: 'idle' };
 let rngGame = normalizeRngState();
@@ -41,6 +45,16 @@ let rngLastPersistAt = 0;
 let rngShutdownSaved = false;
 let rngLatestResult = null;
 let rngLatestResults = [];
+const rngTrustedClock = new TrustedClock();
+const rngMonotonicMs = () => Number(process.hrtime.bigint() / 1_000_000n);
+let rngSessionRolls = 0;
+let rngSessionNewTitles = 0;
+let rngSessionBestOdds = 0n;
+let rngLastTimeSync = 0;
+let rngAppSessionBaselineSeconds = 0;
+let rngLastEventWindowId = null;
+let rngNextEventCheckAt = 0;
+let rngLastHeartbeatAt = 0;
 const hosts = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'];
 const audioExtensions = ['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.opus', '.wma'];
 const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.webm', '.wmv', '.m4v'];
@@ -61,7 +75,7 @@ function loadRngGame() {
     } catch { rngGame = normalizeRngState(); }
   }
 }
-function accountRngTime(now = Date.now()) {
+function accountRngTime(now = rngMonotonicMs()) {
   if (rngAppAccountedAt) { const elapsed = Math.floor((now - rngAppAccountedAt) / 1000); if (elapsed > 0) { rngGame.totalAppSeconds += elapsed; rngAppAccountedAt += elapsed * 1000; } }
   if (rngAutoRollStartedAt && rngAutoAccountedAt) { const elapsed = Math.floor((now - rngAutoAccountedAt) / 1000); if (elapsed > 0) { rngGame.totalAutoRollSeconds += elapsed; rngAutoAccountedAt += elapsed * 1000; rngGame.lastAutoRollSessionSeconds = Math.floor((now - rngAutoRollStartedAt) / 1000); } }
 }
@@ -76,27 +90,77 @@ function persistRngGame() {
     }
     fs.renameSync(temporary, file);
     if (!fs.existsSync(backup)) fs.copyFileSync(file, backup);
-    rngLastPersistAt = Date.now();
+    rngLastPersistAt = rngMonotonicMs();
   } catch {
     try { if (fs.existsSync(`${rngStatePath()}.tmp`)) fs.unlinkSync(`${rngStatePath()}.tmp`); } catch { /* Keep the previous durable save. */ }
     try { if (fs.existsSync(`${rngBackupPath()}.tmp`)) fs.unlinkSync(`${rngBackupPath()}.tmp`); } catch { /* Keep the previous backup. */ }
   }
 }
-function rngSnapshot(now = Date.now()) {
+function makeRngAchievement(id, category, name, description, value, goal) {
+  return { id, category, name, description, unlocked: value >= goal, progress: Math.min(value, goal), goal };
+}
+function buildRngAchievements() {
+  const collected = new Set(rngGame.collectedIds);
+  const hasTier = tierId => rngTitles.some(title => title.tier === tierId && collected.has(title.id));
+  const achievements = [
+    makeRngAchievement('rolls-1', 'Rolagens', 'A primeira de muitas', 'Faça sua primeira rolagem', rngGame.totalRolls, 1),
+    makeRngAchievement('rolls-100', 'Rolagens', 'Aquecimento', 'Faça 100 rolagens', rngGame.totalRolls, 100),
+    makeRngAchievement('rolls-1000', 'Rolagens', 'Persistência', 'Faça 1.000 rolagens', rngGame.totalRolls, 1_000),
+    makeRngAchievement('rolls-10000', 'Rolagens', 'Dez mil destinos', 'Faça 10.000 rolagens', rngGame.totalRolls, 10_000),
+    makeRngAchievement('rolls-100000', 'Rolagens', 'Lenda incansável', 'Faça 100.000 rolagens', rngGame.totalRolls, 100_000),
+    makeRngAchievement('manual-rolls-1000', 'Rolagens manuais', 'Mil cliques', 'Clique em Rolar 1.000 vezes', rngGame.manualRolls, 1_000),
+    makeRngAchievement('manual-rolls-10000', 'Rolagens manuais', 'Dez mil cliques', 'Clique em Rolar 10.000 vezes', rngGame.manualRolls, 10_000),
+    makeRngAchievement('manual-rolls-100000', 'Rolagens manuais', 'Dedicação manual', 'Clique em Rolar 100.000 vezes', rngGame.manualRolls, 100_000),
+    makeRngAchievement('manual-rolls-1000000', 'Rolagens manuais', 'Um milhão de cliques', 'Clique em Rolar 1.000.000 de vezes', rngGame.manualRolls, 1_000_000),
+    makeRngAchievement('unique-10', 'Coleção', 'Começando a coleção', 'Descubra 10 títulos diferentes', collected.size, 10),
+    makeRngAchievement('unique-50', 'Coleção', 'Colecionador', 'Descubra 50 títulos diferentes', collected.size, 50),
+    makeRngAchievement('unique-100', 'Coleção', 'Metade do caminho', 'Descubra 100 títulos diferentes', collected.size, 100),
+    makeRngAchievement('unique-200', 'Coleção', 'Coleção completa', 'Descubra todos os 200 títulos', collected.size, 200)
+  ];
+  for (const tier of rngTiers) {
+    if (tier.id === 'basic') continue;
+    const unlocked = hasTier(tier.id);
+    achievements.push(makeRngAchievement('tier-' + tier.id, 'Raridades', 'Primeiro ' + tier.label, 'Encontre um título ' + tier.label, unlocked ? 1 : 0, 1));
+  }
+  achievements.push(
+    makeRngAchievement('streak-repeat-7', 'Marcos de sorte', 'Disco riscado', 'Consiga o mesmo título 7 vezes seguidas', rngGame.longestSameTitleStreak, 7),
+    makeRngAchievement('drought-1000', 'Marcos de sorte', 'A maré vira', 'Passe 1.000 rolagens sem obter Singular+', rngGame.longestSingularDrought, 1_000),
+    makeRngAchievement('multiplier-100', 'Marcos de sorte', 'Sorte astronômica', 'Alcance um multiplicador de ×100', rngGame.maxMultiplier, 100),
+    makeRngAchievement('events-1', 'Eventos', 'Na hora certa', 'Participe de um evento', rngGame.eventsParticipated, 1),
+    makeRngAchievement('events-10', 'Eventos', 'Presença constante', 'Participe de 10 eventos', rngGame.eventsParticipated, 10),
+    makeRngAchievement('limited-title', 'Eventos', 'Edição especial', 'Obtenha um título limitado de evento', rngGame.limitedTitles.length, 1)
+  );
+  return achievements;
+}
+function rngSnapshot(now = rngMonotonicMs()) {
   accountRngTime(now);
   const luck = luckForState(rngGame);
+  const trustedUtc = rngTrustedClock.now();
+  const participation = activeEvent(trustedUtc, rngGame.participation);
+  const achievements = buildRngAchievements();
   return {
     tiers: rngTiers,
     catalog: publicRngCatalog(rngGame),
+    debugCatalog: app.isPackaged ? undefined : rngTitles.map(title => ({ id: title.id, name: title.name, tier: title.tier })),
     collectedIds: rngGame.collectedIds,
     recentDiscoveries: rngGame.recentDiscoveries,
+    titleHistory: rngGame.titleHistory,
+    achievements,
+    secrets: rngSecrets.filter(secret => rngGame.unlockedSecrets.includes(secret.id)),
+    limitedTitles: LIMITED_REWARDS.filter(reward => rngGame.limitedTitles.includes(reward.titleId)),
+    statistics: { measuredRolls: rngGame.trackedRolls, tierRolls: rngGame.tierRolls, duplicates: rngGame.duplicateRolls, uniqueTitles: rngGame.collectedIds.length, averageLuck: rngGame.luckBpsSamples ? rngGame.luckBpsSum / rngGame.luckBpsSamples / 10_000 : null, maxMultiplier: rngGame.maxMultiplier, sinceSingular: rngGame.sinceSingular, longestSingularDrought: rngGame.longestSingularDrought, longestSameTitleStreak: rngGame.longestSameTitleStreak, rarestTitle: rngTitles.find(title => title.id === rngGame.rarestTitleId)?.name || null, rarestOdds: rngGame.rarestOdds, luckiestOdds: rngGame.luckiestOdds, luckiestRoll: rngGame.luckiestRoll, bestSession: rngGame.sessionBest },
+    session: { rolls: rngSessionRolls, newTitles: rngSessionNewTitles, bestOdds: String(rngSessionBestOdds) },
+    timeVerification: rngTrustedClock.status(),
+    eventSchedule: trustedUtc === null ? [] : eventSchedule(trustedUtc),
+    activeEvent: participation,
+    eventRollProgress: rngGame.eventRollProgress,
     ...publicRngProgress(rngGame),
     lastTitleId: rngGame.lastTitleId,
     totalRolls: rngGame.totalRolls,
     totalTitles: rngTitles.length,
     totalAppSeconds: rngGame.totalAppSeconds,
     appSessionStartedAt: rngAppSessionStartedAt,
-    appSessionSeconds: rngAppSessionStartedAt ? Math.floor((now - rngAppSessionStartedAt) / 1000) : 0,
+    appSessionSeconds: rngGame.totalAppSeconds - rngAppSessionBaselineSeconds,
     totalAutoRollSeconds: rngGame.totalAutoRollSeconds,
     autoRollStartedAt: rngAutoRollStartedAt || 0,
     autoRollSessionSeconds: rngAutoRollStartedAt ? Math.floor((now - rngAutoRollStartedAt) / 1000) : rngGame.lastAutoRollSessionSeconds,
@@ -114,35 +178,77 @@ function rngSnapshot(now = Date.now()) {
 function sendRngState() {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('rng-state', rngSnapshot());
 }
-function performRngRoll() {
-  const outcome = rollRngBatch(rngGame);
+function performRngRoll({ manual = false } = {}) {
+  const rolledAt = rngTrustedClock.now();
+  const participation = activeEvent(rolledAt, rngGame.participation);
+  const autoRollSeconds = rngAutoRollStartedAt ? Math.floor((rngMonotonicMs() - rngAutoRollStartedAt) / 1000) : 0;
+  const outcome = rollRngBatch(rngGame, undefined, { rolledAt, event: participation, autoRollSeconds });
   rngGame = outcome.state;
+  rngSessionRolls += outcome.results.length;
+  rngSessionNewTitles += outcome.results.filter(result => result.isNew).length;
+  for (const result of outcome.results) {
+    const resultTitle = rngTitles.find(title => title.id === result.title.id);
+    const denominator = resultTitle?.denominator || (resultTitle?.baseWeight ? rngPool / resultTitle.baseWeight : 0n);
+    if (denominator > rngSessionBestOdds) rngSessionBestOdds = denominator;
+  }
+  if (rngSessionRolls > rngGame.sessionBest.rolls) rngGame.sessionBest = { rolls: rngSessionRolls, newTitles: rngSessionNewTitles, bestOdds: String(rngSessionBestOdds) };
   rngLatestResults = outcome.results.map(result => ({
     title: { id: result.title.id, name: result.title.name, tier: result.title.tier, tierLabel: result.title.tierLabel },
     isNew: result.isNew,
     currentOdds: result.currentOdds,
     roll: result.roll,
     isBonusRoll: result.isBonusRoll,
-    rollBonusMultiplier: result.rollBonusMultiplier
+    rollBonusMultiplier: result.rollBonusMultiplier,
+    isEqualHourBonus: result.isEqualHourBonus,
+    equalHourMultiplier: result.equalHourMultiplier,
+    equalHourTime: result.equalHourTime,
+    isThousandRollBonus: result.isThousandRollBonus,
+    thousandRollMultiplier: result.thousandRollMultiplier,
+    isTenThousandRollBonus: result.isTenThousandRollBonus,
+    tenThousandRollMultiplier: result.tenThousandRollMultiplier,
+    rolledAt: result.rolledAt,
+    eventName: result.eventName,
+    eventMultiplier: result.eventMultiplier,
+    eventFocusTierLabel: result.eventFocusTierLabel,
+    eventFocusMultiplier: result.eventFocusMultiplier,
+    specialUnlocks: result.specialUnlocks
   }));
   rngLatestResult = rngLatestResults[rngLatestResults.length - 1] || null;
+  if (manual) rngGame.manualRolls++;
   persistRngGame();
   sendRngState();
   return rngLatestResults;
 }
 function startRngClock() {
-  const now = Date.now(); rngAppSessionStartedAt = now; rngAppAccountedAt = now; rngLastPersistAt = now;
+  const now = rngMonotonicMs(); rngAppSessionStartedAt = now; rngAppAccountedAt = now; rngLastPersistAt = now; rngAppSessionBaselineSeconds = rngGame.totalAppSeconds; rngLastHeartbeatAt = now;
   rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0;
   if (rngClock) clearInterval(rngClock);
   rngClock = setInterval(() => {
-    const tick = Date.now();
+    const tick = rngMonotonicMs();
+    if (tick - rngLastHeartbeatAt > 10_000) {
+      rngTrustedClock.invalidate();
+      if (rngAutoRollStartedAt) rngGame.lastAutoRollSessionSeconds = Math.max(0, Math.floor((rngLastHeartbeatAt - rngAutoRollStartedAt) / 1000));
+      rngAppAccountedAt = tick;
+      rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0;
+      rngLastTimeSync = tick;
+      persistRngGame(); sendRngState(); updateTrayStatus();
+      void rngTrustedClock.sync().then(sendRngState);
+    }
+    rngLastHeartbeatAt = tick;
+    if (tick - rngLastTimeSync >= 60_000) { rngLastTimeSync = tick; void rngTrustedClock.sync().then(sendRngState); }
+    if (tick >= rngNextEventCheckAt) {
+      rngNextEventCheckAt = tick + 1000;
+      const utc = rngTrustedClock.now();
+      const currentWindow = utc === null ? null : eventSchedule(utc, 0).find(window => window.startUtc <= utc && utc < window.endUtc)?.id || null;
+      if (currentWindow !== rngLastEventWindowId) { rngLastEventWindowId = currentWindow; sendRngState(); }
+    }
     if (rngAutoRollStartedAt && tick >= rngNextAutoRollAt) { rngNextAutoRollAt = tick + 1000; performRngRoll(); }
     if (tick - rngLastPersistAt >= 5000) { accountRngTime(tick); persistRngGame(); }
   }, 200);
 }
 function startRngAutoRoll() {
   if (rngAutoRollStartedAt) return false;
-  const now = Date.now();
+  const now = rngMonotonicMs();
   rngAutoRollStartedAt = now; rngAutoAccountedAt = now; rngNextAutoRollAt = now + 1000; rngGame.lastAutoRollSessionSeconds = 0;
   updateTrayStatus(); sendRngState();
   return true;
@@ -297,18 +403,24 @@ async function saveRawScreenshot(folder, value) {
   const stat = fs.statSync(file);
   return { file, filename, size: stat.size, width: metadata.width, height: metadata.height };
 }
+function appShortcutConflictMessage(value) {
+  const shortcut = String(value || '').replace(/CommandOrControl/gi, 'Ctrl').replace(/PrintScreen/gi, 'Print Screen').replaceAll('+', ' + ');
+  return /(?:^|\+)PrintScreen$/i.test(String(value || ''))
+    ? `${shortcut} já está em uso pelo Windows ou por outro programa (por exemplo, o ShareX). Desative esse mesmo atalho no outro programa e tente novamente.`
+    : 'Esta tecla já está sendo usada pelo sistema ou por outro atalho.';
+}
 function registerAppShortcut(value, activeShortcut, otherShortcuts, callback, restoreCallback) {
   if (!value) return { ok: false, message: 'Escolha uma tecla para o atalho.' };
   if ((Array.isArray(otherShortcuts) ? otherShortcuts : [otherShortcuts]).includes(value)) return { ok: false, message: 'Esse atalho já está configurado para outra função do NTC.' };
   if (value === activeShortcut) return { ok: true, accelerator: value };
-  if (globalShortcut.isRegistered(value)) return { ok: false, message: 'Esta tecla já está sendo usada pelo sistema ou por outro atalho.' };
-  if (activeShortcut) globalShortcut.unregister(activeShortcut);
   try {
-    if (!globalShortcut.register(value, callback)) throw new Error('Esta tecla já está sendo usada pelo sistema.');
+    if (globalShortcut.isRegistered(value)) return { ok: false, message: appShortcutConflictMessage(value) };
+    if (activeShortcut) globalShortcut.unregister(activeShortcut);
+    if (!globalShortcut.register(value, callback)) throw new Error(appShortcutConflictMessage(value));
     return { ok: true, accelerator: value };
   } catch (error) {
-    if (activeShortcut && restoreCallback) globalShortcut.register(activeShortcut, restoreCallback);
-    return { ok: false, message: error.message || 'Essa tecla não pode ser usada como atalho global.' };
+    if (activeShortcut && restoreCallback) { try { globalShortcut.register(activeShortcut, restoreCallback); } catch {} }
+    return { ok: false, message: /PrintScreen/i.test(value) ? appShortcutConflictMessage(value) : 'Essa tecla não pode ser usada como atalho global.' };
   }
 }
 function findDownloadedFile(item, reportedFile) {
@@ -427,7 +539,22 @@ async function createWaveform(file) {
 }
 function createWindow() {
   mainWindow = new BrowserWindow({ width: 1160, height: 760, minWidth: 930, minHeight: 640, icon: path.join(__dirname, 'build', 'ntc-logo.png'), backgroundColor: '#090909', frame: false, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false } });
-  mainWindow.on('minimize', event => { event.preventDefault(); ensureTray(); mainWindow.hide(); });
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    // Windows does not emit a keyDown for Print Screen; ShareX captures this key on keyUp.
+    if (!shortcutRecorderFocused || input.type !== 'keyUp') return;
+    const printScreenKeys = ['PrintScreen', 'Print', 'Snapshot', 'PrtSc', 'PrtScn', 'SysReq'];
+    const isPrintScreen = ['PrintScreen', 'Snapshot'].includes(input.code) || printScreenKeys.includes(input.key) || (input.key === 'Cancel' && (input.control || input.meta));
+    if (!isPrintScreen) return;
+    event.preventDefault();
+    mainWindow.webContents.send('shortcut-recorder-input', {
+      key: 'PrintScreen',
+      code: 'PrintScreen',
+      ctrlKey: Boolean(input.control),
+      metaKey: Boolean(input.meta),
+      altKey: Boolean(input.alt),
+      shiftKey: Boolean(input.shift)
+    });
+  });
   mainWindow.on('close', event => {
     if (forceClose || process.platform !== 'win32') return;
     event.preventDefault(); ensureTray(); mainWindow.hide();
@@ -442,21 +569,28 @@ app.whenReady().then(() => {
   app.setAppUserModelId('com.ntccorporation.utilities');
   initializeLoginAtStartup();
   loadRngGame(); startRngClock();
+  void rngTrustedClock.sync().then(sendRngState);
+  powerMonitor.on('suspend', () => { accountRngTime(); rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0; rngTrustedClock.invalidate(); persistRngGame(); sendRngState(); updateTrayStatus(); });
+  powerMonitor.on('resume', () => { rngTrustedClock.invalidate(); rngAppAccountedAt = rngMonotonicMs(); rngLastHeartbeatAt = rngMonotonicMs(); rngLastTimeSync = rngMonotonicMs(); void rngTrustedClock.sync().then(sendRngState); });
   ipcMain.handle('get-app-version', () => app.getVersion());
+  ipcMain.on('shortcut-recorder-focus', (event, focused) => {
+    if (mainWindow && event.sender === mainWindow.webContents) shortcutRecorderFocused = Boolean(focused);
+  });
   ipcMain.handle('get-launch-at-login', () => ({ enabled: launchAtLoginEnabled, supported: process.platform === 'win32' }));
   ipcMain.handle('set-launch-at-login', (_event, enabled) => setLoginAtStartup(enabled));
   ipcMain.handle('is-development-build', () => !app.isPackaged);
   ipcMain.handle('get-rng-state', () => rngSnapshot());
+  ipcMain.handle('join-rng-event', (_event, eventId) => { const joined = joinEvent(rngTrustedClock.now(), eventId); if (rngGame.participation !== joined) rngGame.eventsParticipated++; rngGame.participation = joined; persistRngGame(); sendRngState(); return rngSnapshot(); });
   ipcMain.handle('app-entered', event => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return false;
     return startRngAutoRoll();
   });
   ipcMain.handle('roll-rng', () => {
     if (rngAutoRollStartedAt) throw new Error('Pause o Auto-roll para fazer uma rolagem manual.');
-    return performRngRoll();
+    return performRngRoll({ manual: true });
   });
   ipcMain.handle('set-rng-auto-roll', (_event, active) => {
-    const now = Date.now();
+    const now = rngMonotonicMs();
     if (active && !rngAutoRollStartedAt) {
       rngAutoRollStartedAt = now; rngAutoAccountedAt = now; rngNextAutoRollAt = now + 1000; rngGame.lastAutoRollSessionSeconds = 0;
       const result = performRngRoll();
@@ -509,11 +643,12 @@ app.whenReady().then(() => {
   }
   ipcMain.handle('get-default-download-folder', () => app.getPath('downloads'));
   ipcMain.handle('get-free-space', (_event, folder) => { try { const stat = fs.statfsSync(folder || app.getPath('downloads')); return Number(stat.bavail) * Number(stat.bsize); } catch { return null; } });
-  ipcMain.handle('window-minimize', event => { const window = BrowserWindow.fromWebContents(event.sender); if (!window) return false; ensureTray(); window.hide(); return true; });
+  ipcMain.handle('window-minimize', event => { const window = BrowserWindow.fromWebContents(event.sender); if (!window) return false; window.minimize(); return true; });
   ipcMain.handle('window-toggle-maximize', event => { const window = BrowserWindow.fromWebContents(event.sender); if (!window) return false; if (window.isMaximized()) window.unmaximize(); else window.maximize(); return window.isMaximized(); });
   ipcMain.handle('window-close', event => BrowserWindow.fromWebContents(event.sender)?.close());
   ipcMain.handle('window-force-close', event => { forceClose = true; BrowserWindow.fromWebContents(event.sender)?.close(); });
   ipcMain.handle('window-is-maximized', event => BrowserWindow.fromWebContents(event.sender)?.isMaximized() || false);
+  ipcMain.handle('window-is-minimized-or-hidden', event => { const window = BrowserWindow.fromWebContents(event.sender); return Boolean(window && window === mainWindow && (window.isMinimized() || !window.isVisible())); });
   ipcMain.handle('choose-download-folder', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha a pasta de destino', properties: ['openDirectory', 'createDirectory'] }); return result.canceled ? null : result.filePaths[0]; });
   ipcMain.handle('choose-media-files', async () => {
     const result = await dialog.showOpenDialog({ title: 'Escolha arquivos de áudio ou vídeo', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Mídia', extensions: [...audioExtensions, ...videoExtensions].map(extension => extension.slice(1)) }] });
@@ -522,6 +657,9 @@ app.whenReady().then(() => {
   ipcMain.handle('choose-video-files', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha vídeos', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Vídeos', extensions: videoExtensions.map(extension => extension.slice(1)) }] }); return result.canceled ? [] : result.filePaths; });
   ipcMain.handle('choose-image-files', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha imagens', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Imagens', extensions: imageExtensions.map(extension => extension.slice(1)) }] }); return result.canceled ? [] : result.filePaths; });
   ipcMain.handle('choose-compressor-files', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha arquivos para comprimir', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Mídias e imagens', extensions: [...audioExtensions, ...videoExtensions, ...imageExtensions].map(extension => extension.slice(1)) }] }); return result.canceled ? [] : result.filePaths; });
+  ipcMain.handle('choose-rename-files', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha arquivos para renomear', properties: ['openFile', 'multiSelections'] }); return result.canceled ? [] : result.filePaths; });
+  ipcMain.handle('preview-file-renames', (_event, payload) => previewFileRenames(payload?.files, payload?.options));
+  ipcMain.handle('rename-files', (_event, payload) => renameFiles(payload?.files, payload?.options));
   ipcMain.handle('choose-cover-file', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha uma capa', properties: ['openFile'], filters: [{ name: 'Imagens', extensions: ['jpg', 'jpeg', 'png'] }] }); return result.canceled ? null : result.filePaths[0]; });
   ipcMain.handle('inspect-media', (_event, file) => inspectMedia(file));
   ipcMain.handle('inspect-video', (_event, file) => inspectVideo(file));
@@ -643,7 +781,6 @@ app.whenReady().then(() => {
     args.push(output); await run('ffmpeg', args); const stat = fs.statSync(output); return { file: output, size: stat.size, kind: isVideo ? 'video' : 'audio' };
   });
   ipcMain.handle('screen-sources', async () => (await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1, height: 1 } })).map(source => ({ id: source.id, name: source.name })));
-  ipcMain.handle('screen-capture', () => captureDesktopScreenshot());
   ipcMain.handle('screen-capture-save', (_event, folder, buffer) => saveRawScreenshot(folder, buffer));
   ipcMain.handle('screen-capture-copy', async (_event, buffer) => {
     const { data } = await inspectScreenshotBuffer(buffer);
@@ -720,7 +857,7 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   if (rngShutdownSaved) return;
   rngShutdownSaved = true;
-  const now = Date.now(); accountRngTime(now);
+  const now = rngMonotonicMs(); accountRngTime(now);
   if (rngAutoRollStartedAt) rngGame.lastAutoRollSessionSeconds = Math.floor((now - rngAutoRollStartedAt) / 1000);
   rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0;
   if (rngClock) clearInterval(rngClock);

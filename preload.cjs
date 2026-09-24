@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('ntc', {
   closeWindow: () => ipcRenderer.invoke('window-close'),
   forceCloseWindow: () => ipcRenderer.invoke('window-force-close'),
   isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  isWindowMinimizedOrHidden: () => ipcRenderer.invoke('window-is-minimized-or-hidden'),
   onWindowMaximized: callback => { const listener = (_event, maximized) => callback(maximized); ipcRenderer.on('window-maximized', listener); return () => ipcRenderer.removeListener('window-maximized', listener); },
   chooseDownloadFolder: () => ipcRenderer.invoke('choose-download-folder'),
   chooseMediaFiles: () => ipcRenderer.invoke('choose-media-files'),
@@ -19,6 +20,9 @@ contextBridge.exposeInMainWorld('ntc', {
   chooseVideoEditorAudio: () => ipcRenderer.invoke('choose-video-editor-audio'),
   chooseImageFiles: () => ipcRenderer.invoke('choose-image-files'),
   chooseCompressorFiles: () => ipcRenderer.invoke('choose-compressor-files'),
+  chooseRenameFiles: () => ipcRenderer.invoke('choose-rename-files'),
+  previewFileRenames: payload => ipcRenderer.invoke('preview-file-renames', payload),
+  renameFiles: payload => ipcRenderer.invoke('rename-files', payload),
   chooseCoverFile: () => ipcRenderer.invoke('choose-cover-file'),
   inspectMedia: (filePath) => ipcRenderer.invoke('inspect-media', filePath),
   inspectVideo: (filePath) => ipcRenderer.invoke('inspect-video', filePath),
@@ -27,6 +31,7 @@ contextBridge.exposeInMainWorld('ntc', {
   previewQr: (payload) => ipcRenderer.invoke('preview-qr', payload),
   generateQr: (payload) => ipcRenderer.invoke('generate-qr', payload),
   getRngState: () => ipcRenderer.invoke('get-rng-state'),
+  joinRngEvent: eventId => ipcRenderer.invoke('join-rng-event', eventId),
   rollRng: () => ipcRenderer.invoke('roll-rng'),
   setRngAutoRoll: (active) => ipcRenderer.invoke('set-rng-auto-roll', active),
   appEntered: () => ipcRenderer.invoke('app-entered'),
@@ -68,7 +73,6 @@ contextBridge.exposeInMainWorld('ntc', {
   cancelScreenRecording: (id) => ipcRenderer.invoke('screen-recording-cancel', id),
   registerScreenShortcut: (accelerator) => ipcRenderer.invoke('register-screen-shortcut', accelerator),
   unregisterScreenShortcut: () => ipcRenderer.invoke('unregister-screen-shortcut'),
-  captureScreenshot: () => ipcRenderer.invoke('screen-capture'),
   saveScreenshot: (folder, buffer) => ipcRenderer.invoke('screen-capture-save', folder, buffer),
   copyScreenshot: buffer => ipcRenderer.invoke('screen-capture-copy', buffer),
   showWindowFromScreenshot: () => ipcRenderer.invoke('screen-capture-show-window'),
@@ -76,6 +80,8 @@ contextBridge.exposeInMainWorld('ntc', {
   unregisterScreenshotShortcut: () => ipcRenderer.invoke('unregister-screenshot-shortcut'),
   registerQuickScreenshotShortcut: (accelerator, folder) => ipcRenderer.invoke('register-quick-screenshot-shortcut', accelerator, folder),
   unregisterQuickScreenshotShortcut: () => ipcRenderer.invoke('unregister-quick-screenshot-shortcut'),
+  setShortcutRecorderFocused: focused => ipcRenderer.send('shortcut-recorder-focus', Boolean(focused)),
+  onShortcutRecorderInput: callback => { const listener = (_event, input) => callback(input); ipcRenderer.on('shortcut-recorder-input', listener); return () => ipcRenderer.removeListener('shortcut-recorder-input', listener); },
   onUpdateEvent: (callback) => {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('update-event', listener);
