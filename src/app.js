@@ -94,7 +94,7 @@ function showNextRngAchievementNotice() {
   rngAchievementNoticeActive = true;
   rngAchievementNoticeCurrentId = achievement.id;
   $('#rngAchievementTitle').textContent = achievement.name;
-  $('#rngAchievementDetails').textContent = achievement.description;
+  $('#rngAchievementDetails').textContent = `${achievement.description}${achievement.luckBonusBps ? ` · +${formatRngPercent(achievement.luckBonusBps)} de sorte permanente` : ''}`;
   notice.setAttribute('aria-hidden', 'false');
   notice.classList.add('show');
   clearTimeout(rngAchievementTimer);
@@ -296,11 +296,12 @@ function renderRngExpansion(state) {
   const number = value => new Intl.NumberFormat('pt-BR').format(value || 0);
   const achievementGroups = new Map();
   for (const item of state.achievements || []) achievementGroups.set(item.category, [...(achievementGroups.get(item.category) || []), item]);
-  $('#rngAchievements').innerHTML = [...achievementGroups].map(([category, achievements]) => `<section class="rng-achievement-group"><h3>${safeText(category)}</h3><div class="rng-extra-grid">${achievements.map(item => `<article class="rng-info-card${item.unlocked ? ' unlocked' : ''}"><span class="rng-info-icon">${item.unlocked ? '✦' : '◇'}</span><div><strong>${safeText(item.name)}</strong><p>${safeText(item.description)}</p><small>${item.unlocked ? 'Concluída' : `${number(item.progress)} / ${number(item.goal)}`}</small></div></article>`).join('')}</div></section>`).join('');
+  $('#rngAchievements').innerHTML = [...achievementGroups].map(([category, achievements]) => `<section class="rng-achievement-group"><h3>${safeText(category)}</h3><div class="rng-extra-grid">${achievements.map(item => `<article class="rng-info-card${item.unlocked ? ' unlocked' : ''}"><span class="rng-info-icon">${item.unlocked ? '✦' : '◇'}</span><div><strong>${safeText(item.name)}</strong><p>${safeText(item.description)}</p>${item.luckBonusBps ? `<small class="rng-achievement-reward">Bônus permanente de sorte · +${formatRngPercent(item.luckBonusBps)}</small>` : ''}<small>${item.unlocked ? 'Concluída' : `${number(item.progress)} / ${number(item.goal)}`}</small></div></article>`).join('')}</div></section>`).join('');
   $('#rngSecrets').innerHTML = (state.secrets || []).map(item => `<article class="rng-info-card unlocked"><span class="rng-info-icon">✧</span><div><strong>${safeText(item.name)}</strong><p>${safeText(item.hint)}</p></div></article>`).join('') || '<p class="rng-section-empty">Nenhum segredo descoberto. Os segredos ocultos não aparecem na coleção.</p>';
   const stats = state.statistics || {};
   const rows = [
     ['Rolagens medidas', number(stats.measuredRolls)], ['Títulos únicos', number(stats.uniqueTitles)], ['Repetidos medidos', number(stats.duplicates)],
+    ['Sorte permanente das conquistas', `+${formatRngPercent(state.achievementLuckBps)}`],
     ['Sorte média nas rolagens medidas', stats.averageLuck === null ? 'Ainda não medida' : `×${Number(stats.averageLuck || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`],
     ['Maior multiplicador', `×${number(stats.maxMultiplier || 1)}`], ['Título mais raro', stats.rarestTitle ? `${stats.rarestTitle} · ${rngBigOdds(stats.rarestOdds)}` : 'Ainda não medido'],
     ['Roll mais sortudo', stats.luckiestRoll ? `#${number(stats.luckiestRoll)} · ${rngBigOdds(stats.luckiestOdds)}` : 'Ainda não medido'],
@@ -352,6 +353,7 @@ function renderRngState(state) {
   $('#rngProgressBar').parentElement.setAttribute('aria-valuemax', String(state.totalTitles));
   $('#rngLuckValue').textContent = `+${formatRngPercent(state.totalLuckBps - 10_000)}`;
   $('#rngCollectionLuck').textContent = `+${formatRngPercent(state.passiveLuckBps)} coleção`;
+  $('#rngAchievementLuck').textContent = `+${formatRngPercent(state.achievementLuckBps)} conquistas`;
   $('#rngAutoButton').textContent = state.autoRollActive ? 'Pausar Auto-roll' : 'Iniciar Auto-roll';
   $('#rngAutoButton').classList.toggle('is-active', state.autoRollActive);
   $('#rngRollButton').disabled = Boolean(state.autoRollActive || rngRequestRunning);

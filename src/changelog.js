@@ -1,5 +1,14 @@
 window.NTC_CHANGELOG = [
   {
+    version: '0.7.1',
+    date: '23 set. 2026',
+    changes: [
+      'Conquistas difíceis agora concedem bônus permanentes e acumuláveis de sorte; cada conquista de raridade dá exatamente +1%.',
+      'A sorte total mostra separadamente os bônus da coleção e das conquistas, e cada conquista exibe sua recompensa antes de ser concluída.',
+      'A notificação de conquista também informa o bônus permanente recebido. Os saves existentes continuam preservados e só recebem bônus quando os dados comprovam a conquista.'
+    ]
+  },
+  {
     version: '0.7.0',
     date: '23 set. 2026',
     changes: [

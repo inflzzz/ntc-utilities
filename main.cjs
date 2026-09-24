@@ -6,7 +6,7 @@ const { autoUpdater } = require('electron-updater');
 const sharp = require('sharp');
 const { normalizeQrUrl, normalizeQrOptions, renderQr, saveQrImage } = require('./src/qr.cjs');
 const { previewFileRenames, renameFiles } = require('./src/renamer-files.cjs');
-const { POOL: rngPool, TIERS: rngTiers, TITLES: rngTitles, SECRETS: rngSecrets, normalizeState: normalizeRngState, luckForState, rollBatch: rollRngBatch, publicCatalog: publicRngCatalog, publicProgress: publicRngProgress, debugGrantTitle, debugRemoveTitle, debugClearTitles, debugGrantTierTitles, debugGrantTotalTitles, debugReadyBonusRoll } = require('./src/rng.cjs');
+const { POOL: rngPool, TIERS: rngTiers, TITLES: rngTitles, SECRETS: rngSecrets, normalizeState: normalizeRngState, achievementLuckRewardBps, luckForState, rollBatch: rollRngBatch, publicCatalog: publicRngCatalog, publicProgress: publicRngProgress, debugGrantTitle, debugRemoveTitle, debugClearTitles, debugGrantTierTitles, debugGrantTotalTitles, debugReadyBonusRoll } = require('./src/rng.cjs');
 const { TrustedClock } = require('./src/rng-time.cjs');
 const { LIMITED_REWARDS, eventSchedule, activeEvent, joinEvent } = require('./src/rng-events.cjs');
 
@@ -97,7 +97,7 @@ function persistRngGame() {
   }
 }
 function makeRngAchievement(id, category, name, description, value, goal) {
-  return { id, category, name, description, unlocked: value >= goal, progress: Math.min(value, goal), goal };
+  return { id, category, name, description, unlocked: value >= goal, progress: Math.min(value, goal), goal, luckBonusBps: achievementLuckRewardBps(id) };
 }
 function buildRngAchievements() {
   const collected = new Set(rngGame.collectedIds);
@@ -168,6 +168,7 @@ function rngSnapshot(now = rngMonotonicMs()) {
     latestResult: rngLatestResult,
     latestResults: rngLatestResults,
     passiveLuckBps: luck.passiveBps,
+    achievementLuckBps: luck.achievementBonusBps,
     totalLuckBps: luck.totalBps,
     rollsPerCycle: luck.rollsPerCycle,
     bonusMultiplier: luck.bonusMultiplier,

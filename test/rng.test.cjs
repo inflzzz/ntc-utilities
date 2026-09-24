@@ -14,6 +14,7 @@ const {
   basePoolWeight,
   equalHourBonusAt,
   normalizeState,
+  achievementLuckRewardBps,
   luckForState,
   currentWeights,
   rollTitle,
@@ -78,6 +79,43 @@ test('rare odds show the exact base denominator and collection luck raises rare 
   assert.equal(luckForState(state).passiveBps, 100);
   assert.equal(luckForState(state).totalBps, 10_100);
   assert.ok(currentWeights(state).get(target.id) > currentWeights({}).get(target.id));
+});
+
+test('every rarity achievement gives a permanent additive 1% luck bonus', () => {
+  const nonBasicTiers = TIERS.filter(tier => tier.id !== 'basic');
+  const rarityState = normalizeState({ collectedIds: nonBasicTiers.map(tier => `${tier.id}-01`) });
+  const rarityLuck = luckForState(rarityState);
+
+  for (const tier of nonBasicTiers) {
+    const oneRarity = normalizeState({ collectedIds: [`${tier.id}-01`] });
+    const oneBasic = normalizeState({ collectedIds: ['basic-01'] });
+    assert.equal(achievementLuckRewardBps(`tier-${tier.id}`), 100, `${tier.id} awards exactly 1%`);
+    assert.equal(luckForState(oneRarity).totalBps - luckForState(oneBasic).totalBps, 100, `${tier.id} stacks +1% over the same collection luck`);
+  }
+  assert.equal(achievementLuckRewardBps('tier-basic'), 0);
+  assert.equal(rarityLuck.achievementBonusBps, nonBasicTiers.length * 100);
+  assert.equal(rarityLuck.totalBps, 10_000 + rarityLuck.passiveBps + nonBasicTiers.length * 100);
+  const epicId = TITLES.find(title => title.tier === 'epic').id;
+  assert.ok(currentWeights({ collectedIds: ['epic-01'] }).get(epicId) > currentWeights({ collectedIds: ['basic-01'] }).get(epicId));
+  assert.equal(luckForState({}).achievementBonusBps, 0, 'unearned rarity achievements do not grant luck');
+});
+
+test('difficult achievement luck rewards stack and old save evidence grants only proven milestones', () => {
+  const allTitles = TITLES.map(title => title.id);
+  const earned = luckForState({
+    collectedIds: allTitles,
+    totalRolls: 100_000,
+    manualRolls: 1_000_000,
+    longestSameTitleStreak: 7,
+    longestSingularDrought: 1_000,
+    maxMultiplier: 100,
+    eventsParticipated: 10,
+    limitedTitles: ['limited-first-rain']
+  });
+  assert.equal(earned.achievementBonusBps, 1_500);
+  assert.equal(earned.passiveBps, 10_000);
+  assert.equal(earned.totalBps, 21_500, 'achievement bonuses add to collection luck without replacing it');
+  assert.equal(luckForState({ totalRolls: 99_999, manualRolls: 999_999 }).achievementBonusBps, 0);
 });
 
 test('equal-hour clock bonus is active for the whole local matching minute and stacks with the tenth-roll bonus', () => {

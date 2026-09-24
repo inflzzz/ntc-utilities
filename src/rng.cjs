@@ -80,6 +80,17 @@ const BONUS_MILESTONES = [
   { count: 100, multiplier: 5 },
   { count: 175, multiplier: 10 }
 ];
+const ACHIEVEMENT_LUCK_REWARDS = Object.freeze({
+  ...Object.fromEntries(TIERS.filter(tier => tier.id !== 'basic').map(tier => [`tier-${tier.id}`, 100])),
+  'rolls-100000': 100,
+  'manual-rolls-1000000': 150,
+  'unique-200': 100,
+  'streak-repeat-7': 50,
+  'drought-1000': 50,
+  'multiplier-100': 50,
+  'events-10': 50,
+  'limited-title': 50
+});
 const CATEGORY_TIER_IDS = new Set(TIERS.map(tier => tier.id));
 const BASIC_ODDS_SHAPES = [35n, 32n, 30n, 28n, 26n, 24n, 22n, 20n, 19n, 18n, 17n, 16n, 15n, 14n, 13n, 12n, 11n, 10n, 8n];
 const BASIC_ODDS_SHAPE_TOTAL = BASIC_ODDS_SHAPES.reduce((sum, weight) => sum + weight, 0n);
@@ -257,15 +268,38 @@ function categoryBonusBps(value = {}, tierId) {
   return CATEGORY_MILESTONES.reduce((bonus, milestone) => collected >= milestone.count ? milestone.bonusBps : bonus, 0);
 }
 
+function achievementLuckRewardBps(achievementId) {
+  return ACHIEVEMENT_LUCK_REWARDS[achievementId] || 0;
+}
+
+function unlockedAchievementLuckBps(state) {
+  const unlockedTiers = new Set(state.collectedIds.map(id => titleById.get(id)?.tier));
+  let bonusBps = 0;
+  if (state.totalRolls >= 100_000) bonusBps += ACHIEVEMENT_LUCK_REWARDS['rolls-100000'];
+  if (state.manualRolls >= 1_000_000) bonusBps += ACHIEVEMENT_LUCK_REWARDS['manual-rolls-1000000'];
+  if (state.collectedIds.length >= 200) bonusBps += ACHIEVEMENT_LUCK_REWARDS['unique-200'];
+  for (const tier of TIERS) {
+    if (tier.id !== 'basic' && unlockedTiers.has(tier.id)) bonusBps += ACHIEVEMENT_LUCK_REWARDS[`tier-${tier.id}`];
+  }
+  if (state.longestSameTitleStreak >= 7) bonusBps += ACHIEVEMENT_LUCK_REWARDS['streak-repeat-7'];
+  if (state.longestSingularDrought >= 1_000) bonusBps += ACHIEVEMENT_LUCK_REWARDS['drought-1000'];
+  if (state.maxMultiplier >= 100) bonusBps += ACHIEVEMENT_LUCK_REWARDS['multiplier-100'];
+  if (state.eventsParticipated >= 10) bonusBps += ACHIEVEMENT_LUCK_REWARDS['events-10'];
+  if (state.limitedTitles.length >= 1) bonusBps += ACHIEVEMENT_LUCK_REWARDS['limited-title'];
+  return bonusBps;
+}
+
 function luckForState(value = {}) {
   const state = normalizeState(value);
   const passiveBps = Math.min(10_000, Math.floor(state.collectedIds.length / 2) * 100 + categoryBonusBps(state, 'basic'));
+  const achievementBonusBps = unlockedAchievementLuckBps(state);
   const collected = state.collectedIds.length;
   const rollMilestone = ROLL_MILESTONES.filter(item => collected >= item.count).at(-1);
   const bonusMilestone = BONUS_MILESTONES.filter(item => collected >= item.count).at(-1);
   return {
     passiveBps,
-    totalBps: 10_000 + passiveBps,
+    achievementBonusBps,
+    totalBps: 10_000 + passiveBps + achievementBonusBps,
     rollsPerCycle: rollMilestone?.rollsPerCycle || 1,
     bonusMultiplier: bonusMilestone?.multiplier || 2,
     bonusRollEvery: 10,
@@ -600,6 +634,7 @@ module.exports = {
   basePoolWeight,
   equalHourBonusAt,
   normalizeState,
+  achievementLuckRewardBps,
   luckForState,
   currentWeights,
   rollTitle,

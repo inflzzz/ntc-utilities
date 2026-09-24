@@ -529,6 +529,7 @@ body.theme-light .qr-preview-canvas { background: repeating-conic-gradient(#e6e6
 .rng-info-card strong, .rng-event-card strong { font-size: 13px; }
 .rng-info-card p { margin: 0; color: var(--muted); font-size: 11px; }
 .rng-info-card small, .rng-event-card small { color: var(--muted); font-size: 10px; }
+.rng-info-card .rng-achievement-reward { color: #d9c78e; font-weight: 650; }
 .rng-stat-card { display: grid; gap: 8px; align-content: center; min-height: 67px; }
 .rng-stat-card > span { color: var(--muted); font-size: 10px; }
 .rng-stat-card > strong { overflow-wrap: anywhere; font-size: 14px; }
