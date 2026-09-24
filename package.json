@@ -1,8 +1,9 @@
 {
   "name": "ntc-utilities",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Utilitários desktop minimalistas, locais e privados.",
   "author": "NTC Corporation",
+  "license": "GPL-3.0-only",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
@@ -25,6 +26,9 @@
       "main.cjs",
       "preload.cjs",
       "src/**",
+      "LICENSE",
+      "THIRD_PARTY_NOTICES.md",
+      "FFMPEG_BUILD_INFO.md",
       "build/ntc-logo.png",
       "package.json"
     ],

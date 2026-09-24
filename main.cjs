@@ -1,18 +1,23 @@
 const { app, BrowserWindow, dialog, ipcMain, shell, clipboard, desktopCapturer, globalShortcut, screen, nativeImage, Notification, Tray, Menu, powerMonitor } = require('electron');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const { autoUpdater } = require('electron-updater');
 const sharp = require('sharp');
 const { normalizeQrUrl, normalizeQrOptions, renderQr, saveQrImage } = require('./src/qr.cjs');
 const { previewFileRenames, renameFiles } = require('./src/renamer-files.cjs');
-const { POOL: rngPool, TIERS: rngTiers, TITLES: rngTitles, SECRETS: rngSecrets, normalizeState: normalizeRngState, achievementLuckRewardBps, luckForState, rollBatch: rollRngBatch, publicCatalog: publicRngCatalog, publicProgress: publicRngProgress, debugGrantTitle, debugRemoveTitle, debugClearTitles, debugGrantTierTitles, debugGrantTotalTitles, debugReadyBonusRoll } = require('./src/rng.cjs');
+const { POOL: rngPool, TIERS: rngTiers, TITLES: rngTitles, SECRETS: rngSecrets, RNG_RELIC_DROUGHT_PROGRESS_VERSION, RNG_MANUAL_TIME_ACHIEVEMENT_SECONDS, RNG_AUTO_TIME_ACHIEVEMENT_SECONDS, normalizeState: normalizeRngState, migrateDroughtRelicProgress, achievementLuckRewardBps, luckForState, rollBatch: rollRngBatch, publicCatalog: publicRngCatalog, publicProgress: publicRngProgress, publicRelicState, purchasePermanentUpgrade, purchaseConsumable, activateConsumable, purchaseRelic, equipRelic, unequipRelic, advanceTimedBoost, debugGrantTitle, debugRemoveTitle, debugClearTitles, debugGrantTierTitles, debugGrantTotalTitles, debugReadyBonusRoll } = require('./src/rng.cjs');
 const { TrustedClock } = require('./src/rng-time.cjs');
 const { LIMITED_REWARDS, eventSchedule, activeEvent, joinEvent } = require('./src/rng-events.cjs');
+const { initializeAutoClicker } = require('./src/autoclicker-main.cjs');
+const { initializeColorPicker } = require('./src/color-picker-main.cjs');
+const { AUDIO_EXTENSIONS, normalizeMusicFolders, normalizeMusicFiles, scanMusicFolders, scanMusicFiles, deriveMusicSearchTerms, findMusicReleaseCandidates } = require('./src/music-library.cjs');
 
 // Evita artefatos visuais que alguns drivers de vídeo exibem apenas no monitor.
 // A captura de tela continua normal nesses casos porque ela lê o frame antes da
 // composição final da GPU.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 app.disableHardwareAcceleration();
 
 if (!app.isPackaged) app.setPath('userData', path.join(__dirname, '.ntc-data'));
@@ -42,9 +47,12 @@ let rngAutoAccountedAt = 0;
 let rngNextAutoRollAt = 0;
 let rngClock = null;
 let rngLastPersistAt = 0;
+let rngLastBoostBroadcastAt = 0;
 let rngShutdownSaved = false;
 let rngLatestResult = null;
 let rngLatestResults = [];
+let rngLatestUnlocks = [];
+let rngLatestBatchSize = 0;
 const rngTrustedClock = new TrustedClock();
 const rngMonotonicMs = () => Number(process.hrtime.bigint() / 1_000_000n);
 let rngSessionRolls = 0;
@@ -55,6 +63,11 @@ let rngAppSessionBaselineSeconds = 0;
 let rngLastEventWindowId = null;
 let rngNextEventCheckAt = 0;
 let rngLastHeartbeatAt = 0;
+let autoClickerService = null;
+let colorPickerService = null;
+let musicBrainzQueue = Promise.resolve();
+let musicBrainzLastRequestAt = 0;
+const musicOnlineSearchCache = new Map();
 const hosts = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'];
 const audioExtensions = ['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.opus', '.wma'];
 const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.webm', '.wmv', '.m4v'];
@@ -64,19 +77,91 @@ function isSupportedUrl(value) { try { return hosts.includes(new URL(value).host
 function send(sender, channel, payload) { if (!sender.isDestroyed()) sender.send(channel, payload); }
 function rngStatePath() { return path.join(app.getPath('userData'), 'ntc-rng-state.json'); }
 function rngBackupPath() { return path.join(app.getPath('userData'), 'ntc-rng-state.backup.json'); }
+function musicFoldersPath() { return path.join(app.getPath('userData'), 'ntc-music-folders.json'); }
+function musicFilesPath() { return path.join(app.getPath('userData'), 'ntc-music-files.json'); }
+function removedMusicFilesPath() { return path.join(app.getPath('userData'), 'ntc-music-removed-files.json'); }
+function musicPathKey(file) { const resolved = path.resolve(file); return process.platform === 'win32' ? resolved.toLocaleLowerCase('en-US') : resolved; }
+function readRemovedMusicFiles() {
+  try { return normalizeMusicFiles(JSON.parse(fs.readFileSync(removedMusicFilesPath(), 'utf8'))); }
+  catch { return []; }
+}
+function saveRemovedMusicFiles(files) {
+  const file = removedMusicFilesPath();
+  const temporary = `${file}.tmp`;
+  const normalized = normalizeMusicFiles(files);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(temporary, JSON.stringify(normalized));
+  fs.renameSync(temporary, file);
+  return normalized;
+}
+function readMusicFolders() {
+  try { return normalizeMusicFolders(JSON.parse(fs.readFileSync(musicFoldersPath(), 'utf8'))); }
+  catch { return []; }
+}
+function readMusicFiles() {
+  try { return normalizeMusicFiles(JSON.parse(fs.readFileSync(musicFilesPath(), 'utf8'))); }
+  catch { return []; }
+}
+function saveMusicFolders(folders) {
+  const file = musicFoldersPath();
+  const temporary = `${file}.tmp`;
+  const normalized = normalizeMusicFolders(folders);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(temporary, JSON.stringify(normalized));
+  fs.renameSync(temporary, file);
+  return normalized;
+}
+function saveMusicFiles(files) {
+  const file = musicFilesPath();
+  const temporary = `${file}.tmp`;
+  const normalized = normalizeMusicFiles(files);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(temporary, JSON.stringify(normalized));
+  fs.renameSync(temporary, file);
+  return normalized;
+}
+function addMusicFiles(files) {
+  const incoming = normalizeMusicFiles(files);
+  const available = [];
+  for (const file of incoming) {
+    try {
+      const realFile = fs.realpathSync(file);
+      if (!fs.statSync(realFile).isFile() || !AUDIO_EXTENSIONS.has(path.extname(realFile).toLowerCase())) continue;
+      available.push(realFile);
+    } catch { /* Ignore dropped paths that disappeared before import. */ }
+  }
+  if (!available.length) throw new Error('Solte ou selecione arquivos de áudio compatíveis que ainda existam no PC.');
+  const saved = saveMusicFiles([...readMusicFiles(), ...available]);
+  const restored = new Set(available.map(musicPathKey));
+  saveRemovedMusicFiles(readRemovedMusicFiles().filter(file => !restored.has(musicPathKey(file))));
+  return saved;
+}
+function removeMusicTrack(filePath) {
+  if (typeof filePath !== 'string' || !AUDIO_EXTENSIONS.has(path.extname(filePath).toLowerCase())) throw new Error('Faixa inválida.');
+  const resolved = path.resolve(filePath);
+  const key = musicPathKey(resolved);
+  saveRemovedMusicFiles([...readRemovedMusicFiles(), resolved]);
+  saveMusicFiles(readMusicFiles().filter(file => musicPathKey(file) !== key));
+  return true;
+}
 function loadRngGame() {
+  let savedState = null;
   try {
-    rngGame = normalizeRngState(JSON.parse(fs.readFileSync(rngStatePath(), 'utf8')));
+    savedState = JSON.parse(fs.readFileSync(rngStatePath(), 'utf8'));
   } catch {
     try {
-      rngGame = normalizeRngState(JSON.parse(fs.readFileSync(rngBackupPath(), 'utf8')));
+      savedState = JSON.parse(fs.readFileSync(rngBackupPath(), 'utf8'));
       fs.mkdirSync(path.dirname(rngStatePath()), { recursive: true });
       fs.copyFileSync(rngBackupPath(), rngStatePath());
-    } catch { rngGame = normalizeRngState(); }
+    } catch { savedState = null; }
   }
+  const savedDroughtVersion = Number.isInteger(savedState?.droughtRelicProgressVersion) ? savedState.droughtRelicProgressVersion : 0;
+  const migratedSavedState = savedState ? migrateDroughtRelicProgress(savedState) : null;
+  rngGame = normalizeRngState(migratedSavedState || {});
+  if (savedState && savedDroughtVersion < RNG_RELIC_DROUGHT_PROGRESS_VERSION) persistRngGame();
 }
 function accountRngTime(now = rngMonotonicMs()) {
-  if (rngAppAccountedAt) { const elapsed = Math.floor((now - rngAppAccountedAt) / 1000); if (elapsed > 0) { rngGame.totalAppSeconds += elapsed; rngAppAccountedAt += elapsed * 1000; } }
+  if (rngAppAccountedAt) { const elapsed = Math.floor((now - rngAppAccountedAt) / 1000); if (elapsed > 0) { rngGame.totalAppSeconds += elapsed; rngGame = advanceTimedBoost(rngGame, elapsed); rngAppAccountedAt += elapsed * 1000; } }
   if (rngAutoRollStartedAt && rngAutoAccountedAt) { const elapsed = Math.floor((now - rngAutoAccountedAt) / 1000); if (elapsed > 0) { rngGame.totalAutoRollSeconds += elapsed; rngAutoAccountedAt += elapsed * 1000; rngGame.lastAutoRollSessionSeconds = Math.floor((now - rngAutoRollStartedAt) / 1000); } }
 }
 function persistRngGame() {
@@ -96,8 +181,8 @@ function persistRngGame() {
     try { if (fs.existsSync(`${rngBackupPath()}.tmp`)) fs.unlinkSync(`${rngBackupPath()}.tmp`); } catch { /* Keep the previous backup. */ }
   }
 }
-function makeRngAchievement(id, category, name, description, value, goal) {
-  return { id, category, name, description, unlocked: value >= goal, progress: Math.min(value, goal), goal, luckBonusBps: achievementLuckRewardBps(id) };
+function makeRngAchievement(id, category, name, description, value, goal, rewardText = '') {
+  return { id, category, name, description, unlocked: value >= goal, progress: Math.min(value, goal), goal, rewardText, luckBonusBps: achievementLuckRewardBps(id) };
 }
 function buildRngAchievements() {
   const collected = new Set(rngGame.collectedIds);
@@ -107,15 +192,26 @@ function buildRngAchievements() {
     makeRngAchievement('rolls-100', 'Rolagens', 'Aquecimento', 'Faça 100 rolagens', rngGame.totalRolls, 100),
     makeRngAchievement('rolls-1000', 'Rolagens', 'Persistência', 'Faça 1.000 rolagens', rngGame.totalRolls, 1_000),
     makeRngAchievement('rolls-10000', 'Rolagens', 'Dez mil destinos', 'Faça 10.000 rolagens', rngGame.totalRolls, 10_000),
+    makeRngAchievement('rolls-50000', 'Rolagens', 'Cinco dígitos', 'Faça 50.000 rolagens', rngGame.totalRolls, 50_000),
     makeRngAchievement('rolls-100000', 'Rolagens', 'Lenda incansável', 'Faça 100.000 rolagens', rngGame.totalRolls, 100_000),
+    makeRngAchievement('rolls-500000', 'Rolagens', 'Meio milhão de destinos', 'Faça 500.000 rolagens', rngGame.totalRolls, 500_000),
+    makeRngAchievement('rolls-1000000', 'Rolagens', 'Um milhão de destinos', 'Faça 1.000.000 de rolagens', rngGame.totalRolls, 1_000_000),
+    makeRngAchievement('rolls-5000000', 'Rolagens', 'Cinco milhões de destinos', 'Faça 5.000.000 de rolagens', rngGame.totalRolls, 5_000_000),
+    makeRngAchievement('rolls-10000000', 'Rolagens', 'Dez milhões de destinos', 'Faça 10.000.000 de rolagens', rngGame.totalRolls, 10_000_000),
     makeRngAchievement('manual-rolls-1000', 'Rolagens manuais', 'Mil cliques', 'Clique em Rolar 1.000 vezes', rngGame.manualRolls, 1_000),
     makeRngAchievement('manual-rolls-10000', 'Rolagens manuais', 'Dez mil cliques', 'Clique em Rolar 10.000 vezes', rngGame.manualRolls, 10_000),
+    makeRngAchievement('manual-rolls-50000', 'Rolagens manuais', 'Mão firme', 'Clique em Rolar 50.000 vezes', rngGame.manualRolls, 50_000),
     makeRngAchievement('manual-rolls-100000', 'Rolagens manuais', 'Dedicação manual', 'Clique em Rolar 100.000 vezes', rngGame.manualRolls, 100_000),
+    makeRngAchievement('manual-rolls-250000', 'Rolagens manuais', 'Um quarto de milhão de cliques', 'Clique em Rolar 250.000 vezes', rngGame.manualRolls, 250_000),
     makeRngAchievement('manual-rolls-1000000', 'Rolagens manuais', 'Um milhão de cliques', 'Clique em Rolar 1.000.000 de vezes', rngGame.manualRolls, 1_000_000),
     makeRngAchievement('unique-10', 'Coleção', 'Começando a coleção', 'Descubra 10 títulos diferentes', collected.size, 10),
-    makeRngAchievement('unique-50', 'Coleção', 'Colecionador', 'Descubra 50 títulos diferentes', collected.size, 50),
-    makeRngAchievement('unique-100', 'Coleção', 'Metade do caminho', 'Descubra 100 títulos diferentes', collected.size, 100),
-    makeRngAchievement('unique-200', 'Coleção', 'Coleção completa', 'Descubra todos os 200 títulos', collected.size, 200)
+    makeRngAchievement('unique-25', 'Coleção', 'Coleção em expansão', 'Descubra 25 títulos diferentes', collected.size, 25),
+    makeRngAchievement('unique-50', 'Coleção', 'Colecionador', 'Descubra 50 títulos diferentes', collected.size, 50, 'Desbloqueia 2 rolagens por clique e a Medalha do Cartógrafo'),
+    makeRngAchievement('unique-75', 'Coleção', 'Caçador de títulos', 'Descubra 75 títulos diferentes', collected.size, 75),
+    makeRngAchievement('unique-100', 'Coleção', 'Metade do caminho', 'Descubra 100 títulos diferentes', collected.size, 100, 'Desbloqueia 3 rolagens por clique'),
+    makeRngAchievement('unique-125', 'Coleção', 'Coleção avançada', 'Descubra 125 títulos diferentes', collected.size, 125),
+    makeRngAchievement('unique-150', 'Coleção', 'Quase lendário', 'Descubra 150 títulos diferentes', collected.size, 150),
+    makeRngAchievement('unique-200', 'Coleção', 'Coleção completa', 'Descubra todos os 200 títulos', collected.size, 200, 'Receba o Atlas das Possibilidades')
   ];
   for (const tier of rngTiers) {
     if (tier.id === 'basic') continue;
@@ -124,23 +220,38 @@ function buildRngAchievements() {
   }
   achievements.push(
     makeRngAchievement('streak-repeat-7', 'Marcos de sorte', 'Disco riscado', 'Consiga o mesmo título 7 vezes seguidas', rngGame.longestSameTitleStreak, 7),
-    makeRngAchievement('drought-1000', 'Marcos de sorte', 'A maré vira', 'Passe 1.000 rolagens sem obter Singular+', rngGame.longestSingularDrought, 1_000),
+    makeRngAchievement('drought-10000', 'Marcos de sorte', 'A maré vira', 'Passe 10.000 rolagens sem obter Singular+', rngGame.longestSingularDrought, 10_000),
     makeRngAchievement('multiplier-100', 'Marcos de sorte', 'Sorte astronômica', 'Alcance um multiplicador de ×100', rngGame.maxMultiplier, 100),
     makeRngAchievement('events-1', 'Eventos', 'Na hora certa', 'Participe de um evento', rngGame.eventsParticipated, 1),
+    makeRngAchievement('events-5', 'Eventos', 'Presença frequente', 'Participe de 5 eventos', rngGame.eventsParticipated, 5),
     makeRngAchievement('events-10', 'Eventos', 'Presença constante', 'Participe de 10 eventos', rngGame.eventsParticipated, 10),
+    makeRngAchievement('events-25', 'Eventos', 'Figura conhecida', 'Participe de 25 eventos', rngGame.eventsParticipated, 25),
     makeRngAchievement('limited-title', 'Eventos', 'Edição especial', 'Obtenha um título limitado de evento', rngGame.limitedTitles.length, 1)
+  );
+  const manualSeconds = Math.max(0, rngGame.totalAppSeconds - rngGame.totalAutoRollSeconds);
+  const timeSecrets = [
+    makeRngAchievement('time-manual-100h', 'Segredos', 'Guardião da Vigília', 'Mantenha o NTC aberto por 100 horas sem o Auto-roll ativo', Math.floor(manualSeconds / 3600), 100),
+    makeRngAchievement('time-auto-1000h', 'Segredos', 'Autômato Eterno', 'Acumule 1.000 horas com o Auto-roll ativo', Math.floor(rngGame.totalAutoRollSeconds / 3600), 1_000)
+  ].filter(achievement => achievement.unlocked);
+  achievements.push(...timeSecrets);
+  const completedAchievements = achievements.filter(achievement => achievement.unlocked).length;
+  achievements.push(
+    makeRngAchievement('achievement-count-10', 'Conquistas', 'Primeiros marcos', 'Conclua 10 outras conquistas do RNG', completedAchievements, 10),
+    makeRngAchievement('achievement-count-25', 'Conquistas', 'Caçador de conquistas', 'Conclua 25 outras conquistas do RNG', completedAchievements, 25),
+    makeRngAchievement('achievement-count-40', 'Conquistas', 'Mestre dos desafios', 'Conclua 40 outras conquistas do RNG', completedAchievements, 40)
   );
   return achievements;
 }
 function rngSnapshot(now = rngMonotonicMs()) {
   accountRngTime(now);
-  const luck = luckForState(rngGame);
+  const localHour = new Date().getHours();
+  const luck = luckForState(rngGame, { localHour });
   const trustedUtc = rngTrustedClock.now();
   const participation = activeEvent(trustedUtc, rngGame.participation);
   const achievements = buildRngAchievements();
   return {
     tiers: rngTiers,
-    catalog: publicRngCatalog(rngGame),
+    catalog: publicRngCatalog(rngGame, { localHour }),
     debugCatalog: app.isPackaged ? undefined : rngTitles.map(title => ({ id: title.id, name: title.name, tier: title.tier })),
     collectedIds: rngGame.collectedIds,
     recentDiscoveries: rngGame.recentDiscoveries,
@@ -148,13 +259,22 @@ function rngSnapshot(now = rngMonotonicMs()) {
     achievements,
     secrets: rngSecrets.filter(secret => rngGame.unlockedSecrets.includes(secret.id)),
     limitedTitles: LIMITED_REWARDS.filter(reward => rngGame.limitedTitles.includes(reward.titleId)),
+    fragments: rngGame.fragmentBalance,
+    permanentUpgradeLevels: rngGame.permanentUpgradeLevels,
+    permanentLuckBps: luck.permanentLuckBps,
+    nextPermanentUpgradeCost: rngGame.nextPermanentUpgradeCost,
+    consumableInventory: rngGame.consumableInventory,
+    activeBoost: rngGame.activeBoost,
+    parallelBoost: rngGame.parallelBoost,
+    boostQueue: rngGame.boostQueue,
+    relics: publicRelicState(rngGame, { localHour }),
     statistics: { measuredRolls: rngGame.trackedRolls, tierRolls: rngGame.tierRolls, duplicates: rngGame.duplicateRolls, uniqueTitles: rngGame.collectedIds.length, averageLuck: rngGame.luckBpsSamples ? rngGame.luckBpsSum / rngGame.luckBpsSamples / 10_000 : null, maxMultiplier: rngGame.maxMultiplier, sinceSingular: rngGame.sinceSingular, longestSingularDrought: rngGame.longestSingularDrought, longestSameTitleStreak: rngGame.longestSameTitleStreak, rarestTitle: rngTitles.find(title => title.id === rngGame.rarestTitleId)?.name || null, rarestOdds: rngGame.rarestOdds, luckiestOdds: rngGame.luckiestOdds, luckiestRoll: rngGame.luckiestRoll, bestSession: rngGame.sessionBest },
     session: { rolls: rngSessionRolls, newTitles: rngSessionNewTitles, bestOdds: String(rngSessionBestOdds) },
     timeVerification: rngTrustedClock.status(),
     eventSchedule: trustedUtc === null ? [] : eventSchedule(trustedUtc),
     activeEvent: participation,
     eventRollProgress: rngGame.eventRollProgress,
-    ...publicRngProgress(rngGame),
+    ...publicRngProgress(rngGame, { localHour }),
     lastTitleId: rngGame.lastTitleId,
     totalRolls: rngGame.totalRolls,
     totalTitles: rngTitles.length,
@@ -167,10 +287,15 @@ function rngSnapshot(now = rngMonotonicMs()) {
     autoRollActive: Boolean(rngAutoRollStartedAt),
     latestResult: rngLatestResult,
     latestResults: rngLatestResults,
+    latestUnlocks: rngLatestUnlocks,
+    latestBatchSize: rngLatestBatchSize,
     passiveLuckBps: luck.passiveBps,
     achievementLuckBps: luck.achievementBonusBps,
+    secretLuckBps: luck.secretBonusBps,
+    relicLuckMultiplierBps: luck.relicLuckMultiplierBps,
     totalLuckBps: luck.totalBps,
-    rollsPerCycle: luck.rollsPerCycle,
+    totalLuckBpsExact: luck.exactTotalBps,
+    rollsPerCycle: publicRngProgress(rngGame, { localHour }).rollsPerCycle,
     bonusMultiplier: luck.bonusMultiplier,
     bonusRollEvery: luck.bonusRollEvery,
     snapshotAt: now
@@ -183,7 +308,7 @@ function performRngRoll({ manual = false } = {}) {
   const rolledAt = rngTrustedClock.now();
   const participation = activeEvent(rolledAt, rngGame.participation);
   const autoRollSeconds = rngAutoRollStartedAt ? Math.floor((rngMonotonicMs() - rngAutoRollStartedAt) / 1000) : 0;
-  const outcome = rollRngBatch(rngGame, undefined, { rolledAt, event: participation, autoRollSeconds });
+  const outcome = rollRngBatch(rngGame, undefined, { rolledAt, event: participation, autoRollSeconds, localHour: new Date().getHours() });
   rngGame = outcome.state;
   rngSessionRolls += outcome.results.length;
   rngSessionNewTitles += outcome.results.filter(result => result.isNew).length;
@@ -193,7 +318,7 @@ function performRngRoll({ manual = false } = {}) {
     if (denominator > rngSessionBestOdds) rngSessionBestOdds = denominator;
   }
   if (rngSessionRolls > rngGame.sessionBest.rolls) rngGame.sessionBest = { rolls: rngSessionRolls, newTitles: rngSessionNewTitles, bestOdds: String(rngSessionBestOdds) };
-  rngLatestResults = outcome.results.map(result => ({
+  const publicResults = outcome.results.map(result => ({
     title: { id: result.title.id, name: result.title.name, tier: result.title.tier, tierLabel: result.title.tierLabel },
     isNew: result.isNew,
     currentOdds: result.currentOdds,
@@ -207,13 +332,21 @@ function performRngRoll({ manual = false } = {}) {
     thousandRollMultiplier: result.thousandRollMultiplier,
     isTenThousandRollBonus: result.isTenThousandRollBonus,
     tenThousandRollMultiplier: result.tenThousandRollMultiplier,
+    consumableMultiplier: result.consumableMultiplier,
     rolledAt: result.rolledAt,
     eventName: result.eventName,
     eventMultiplier: result.eventMultiplier,
     eventFocusTierLabel: result.eventFocusTierLabel,
     eventFocusMultiplier: result.eventFocusMultiplier,
-    specialUnlocks: result.specialUnlocks
+    specialUnlocks: result.specialUnlocks,
+    fragmentReward: result.fragmentReward,
+    consumableBoostType: result.consumableBoostType,
+    consumableBoostTypes: result.consumableBoostTypes,
+    consumableBoostMultiplier: result.consumableBoostMultiplier
   }));
+  rngLatestBatchSize = publicResults.length;
+  rngLatestUnlocks = publicResults.filter(result => result.isNew || result.specialUnlocks?.length).map(result => ({ ...result, specialUnlocks: result.specialUnlocks || [] })).slice(-20);
+  rngLatestResults = publicResults.slice(-12);
   rngLatestResult = rngLatestResults[rngLatestResults.length - 1] || null;
   if (manual) rngGame.manualRolls++;
   persistRngGame();
@@ -221,7 +354,7 @@ function performRngRoll({ manual = false } = {}) {
   return rngLatestResults;
 }
 function startRngClock() {
-  const now = rngMonotonicMs(); rngAppSessionStartedAt = now; rngAppAccountedAt = now; rngLastPersistAt = now; rngAppSessionBaselineSeconds = rngGame.totalAppSeconds; rngLastHeartbeatAt = now;
+  const now = rngMonotonicMs(); rngAppSessionStartedAt = now; rngAppAccountedAt = now; rngLastPersistAt = now; rngLastBoostBroadcastAt = now; rngAppSessionBaselineSeconds = rngGame.totalAppSeconds; rngLastHeartbeatAt = now;
   rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0;
   if (rngClock) clearInterval(rngClock);
   rngClock = setInterval(() => {
@@ -243,8 +376,17 @@ function startRngClock() {
       const currentWindow = utc === null ? null : eventSchedule(utc, 0).find(window => window.startUtc <= utc && utc < window.endUtc)?.id || null;
       if (currentWindow !== rngLastEventWindowId) { rngLastEventWindowId = currentWindow; sendRngState(); }
     }
+    if ((rngGame.activeBoost?.type === 'time' || rngGame.parallelBoost?.type === 'time') && tick - rngLastBoostBroadcastAt >= 1000) { accountRngTime(tick); rngLastBoostBroadcastAt = tick; sendRngState(); }
     if (rngAutoRollStartedAt && tick >= rngNextAutoRollAt) { rngNextAutoRollAt = tick + 1000; performRngRoll(); }
-    if (tick - rngLastPersistAt >= 5000) { accountRngTime(tick); persistRngGame(); }
+    if (tick - rngLastPersistAt >= 5000) {
+      const manualSecondsBeforeAccounting = Math.max(0, rngGame.totalAppSeconds - rngGame.totalAutoRollSeconds);
+      const autoSecondsBeforeAccounting = rngGame.totalAutoRollSeconds;
+      accountRngTime(tick);
+      const manualSecretJustUnlocked = manualSecondsBeforeAccounting < RNG_MANUAL_TIME_ACHIEVEMENT_SECONDS && Math.max(0, rngGame.totalAppSeconds - rngGame.totalAutoRollSeconds) >= RNG_MANUAL_TIME_ACHIEVEMENT_SECONDS;
+      const autoSecretJustUnlocked = autoSecondsBeforeAccounting < RNG_AUTO_TIME_ACHIEVEMENT_SECONDS && rngGame.totalAutoRollSeconds >= RNG_AUTO_TIME_ACHIEVEMENT_SECONDS;
+      persistRngGame();
+      if (manualSecretJustUnlocked || autoSecretJustUnlocked) sendRngState();
+    }
   }, 200);
 }
 function startRngAutoRoll() {
@@ -473,15 +615,119 @@ async function inspectMedia(file) {
   const audio = (data.streams || []).find(stream => stream.codec_type === 'audio');
   const cover = (data.streams || []).find(stream => stream.codec_type === 'video' && stream.disposition?.attached_pic);
   if (!audio) throw new Error('Este arquivo não possui uma faixa de áudio.');
-  const tags = data.format?.tags || {};
+  const tags = { ...(audio.tags || {}), ...(data.format?.tags || {}) };
+  const readTag = (...names) => {
+    for (const name of names) {
+      const entry = Object.entries(tags).find(([key]) => key.toLocaleLowerCase('en-US') === name.toLocaleLowerCase('en-US'));
+      if (entry?.[1]) return String(entry[1]);
+    }
+    return '';
+  };
   const duration = Number(data.format?.duration || audio.duration || 0);
   return {
     path: file, name: path.basename(file), baseName: path.basename(file, path.extname(file)), duration: Number.isFinite(duration) ? duration : 0,
     durationLabel: Number.isFinite(duration) && duration > 0 ? new Date(duration * 1000).toISOString().slice(11, 19) : '—',
     type: videoExtensions.includes(path.extname(file).toLowerCase()) ? 'Vídeo' : 'Áudio', format: data.format?.format_name || path.extname(file).slice(1),
     coverStreamIndex: Number.isInteger(cover?.index) ? cover.index : null,
-    metadata: { title: tags.title || '', artist: tags.artist || tags.album_artist || '', album: tags.album || '', year: tags.date || tags.year || '', genre: tags.genre || '' }
+    metadata: { title: readTag('title'), artist: readTag('artist', 'album_artist'), album: readTag('album'), year: readTag('date', 'year'), genre: readTag('genre') }
   };
+}
+function resolveAllowedMusicTrack(filePath) {
+  if (typeof filePath !== 'string' || !filePath.trim() || !audioExtensions.includes(path.extname(filePath).toLowerCase())) throw new Error('Arquivo de áudio inválido.');
+  let realFile;
+  try { realFile = fs.realpathSync(path.resolve(filePath)); } catch { throw new Error('Arquivo de áudio não encontrado.'); }
+  if (!fs.statSync(realFile).isFile()) throw new Error('O caminho não é um arquivo de áudio.');
+  if (readRemovedMusicFiles().some(file => musicPathKey(file) === musicPathKey(realFile))) throw new Error('Esta faixa foi removida da biblioteca. Adicione o arquivo novamente para restaurá-la.');
+  const insideFolder = readMusicFolders().some(folder => {
+    try {
+      const realFolder = fs.realpathSync(folder);
+      const relative = path.relative(realFolder, realFile);
+      return Boolean(relative) && !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`);
+    } catch { return false; }
+  });
+  const individuallyAdded = readMusicFiles().some(file => {
+    try { return fs.realpathSync(file) === realFile; } catch { return false; }
+  });
+  if (!insideFolder && !individuallyAdded) throw new Error('A faixa não pertence à biblioteca selecionada.');
+  return realFile;
+}
+async function fetchMusicMetadataUrl(url, options = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try { return await fetch(url, { ...options, signal: controller.signal }); }
+  finally { clearTimeout(timeout); }
+}
+function musicBrainzRequest(url) {
+  const request = musicBrainzQueue.then(async () => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const elapsed = Number(process.hrtime.bigint() / 1_000_000n) - musicBrainzLastRequestAt;
+      if (elapsed < 1000) await new Promise(resolve => setTimeout(resolve, 1000 - elapsed));
+      musicBrainzLastRequestAt = Number(process.hrtime.bigint() / 1_000_000n);
+      let response;
+      try { response = await fetchMusicMetadataUrl(url, { headers: { Accept: 'application/json', 'User-Agent': `NTC Utilities/${app.getVersion()} (https://github.com/inflzzz/ntc-utilities)` } }); }
+      catch { throw new Error('Não foi possível conectar ao serviço de músicas. Verifique a internet e tente novamente.'); }
+      if (response.ok) return response.json();
+      if (![429, 502, 503, 504].includes(response.status)) throw new Error('O serviço de músicas não conseguiu responder a esta busca. Tente novamente mais tarde.');
+      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1500 * (attempt + 1)));
+    }
+    throw new Error('O serviço de músicas está temporariamente ocupado. Tente buscar a capa novamente em alguns instantes.');
+  });
+  musicBrainzQueue = request.catch(() => {});
+  return request;
+}
+function lucenePhrase(value) {
+  const escaped = String(value).trim().slice(0, 180).replace(/[+\-!(){}\[\]^"~*?:\\/|&]/g, character => `\\${character}`);
+  return `"${escaped}"`;
+}
+async function getMusicTrackMetadata(filePath) {
+  const file = resolveAllowedMusicTrack(filePath);
+  const media = await inspectMedia(file);
+  let coverDataUrl = null;
+  if (media.coverStreamIndex !== null) {
+    try {
+      const image = await runBuffer('ffmpeg', ['-v', 'error', '-i', file, '-map', `0:${media.coverStreamIndex}`, '-frames:v', '1', '-vf', 'scale=600:600:force_original_aspect_ratio=decrease', '-c:v', 'mjpeg', '-q:v', '5', '-f', 'image2pipe', 'pipe:1']);
+      if (image.length > 0 && image.length <= 4 * 1024 * 1024) coverDataUrl = `data:image/jpeg;base64,${image.toString('base64')}`;
+    } catch { /* Keep the player usable when a file has malformed embedded artwork. */ }
+  }
+  return { metadata: media.metadata, coverDataUrl };
+}
+async function getMusicTrackTags(filePath) {
+  const file = resolveAllowedMusicTrack(filePath);
+  const media = await inspectMedia(file);
+  return { metadata: media.metadata };
+}
+async function searchOnlineMusicMetadata(filePath, artistOverride = '') {
+  const file = resolveAllowedMusicTrack(filePath);
+  const media = await inspectMedia(file);
+  const baseName = path.basename(file, path.extname(file)).trim();
+  const { title: searchTitle, artist } = deriveMusicSearchTerms(media.metadata, baseName, artistOverride);
+  if (!searchTitle) throw new Error('Não encontrei um título para pesquisar nesta faixa.');
+  const query = `recording:${lucenePhrase(searchTitle)}${artist ? ` AND artist:${lucenePhrase(artist)}` : ''}`;
+  const cacheKey = query.toLocaleLowerCase('pt-BR');
+  const cached = musicOnlineSearchCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.results;
+  const searchUrl = new URL('https://musicbrainz.org/ws/2/recording/');
+  searchUrl.searchParams.set('query', query); searchUrl.searchParams.set('fmt', 'json'); searchUrl.searchParams.set('limit', '5');
+  const data = await musicBrainzRequest(searchUrl.href);
+  const candidates = findMusicReleaseCandidates(data.recordings, searchTitle, artist);
+  const results = await Promise.all(candidates.slice(0, 5).map(async item => {
+    let coverDataUrl = null;
+    if (item.releaseId) {
+      const coverUrl = `https://coverartarchive.org/release/${item.releaseId}/front-250`;
+      try {
+        const response = await fetchMusicMetadataUrl(coverUrl, { headers: { Accept: 'image/jpeg,image/*;q=0.8' } });
+        const contentType = (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+        if (response.ok && contentType.startsWith('image/')) {
+          const image = Buffer.from(await response.arrayBuffer());
+          if (image.length > 0 && image.length <= 2 * 1024 * 1024) coverDataUrl = `data:${contentType};base64,${image.toString('base64')}`;
+        }
+      } catch { /* Release details remain useful even when no cover is available. */ }
+    }
+    return { id: item.releaseId || item.trackTitle, title: item.title, album: item.album, trackTitle: item.trackTitle, artist: item.artist, year: item.year, coverDataUrl, source: 'Cover Art Archive / MusicBrainz' };
+  }));
+  const available = results.filter(Boolean).slice(0, 5);
+  musicOnlineSearchCache.set(cacheKey, { results: available, expiresAt: Date.now() + 30 * 60 * 1000 });
+  return available;
 }
 async function inspectVideo(file) {
   if (!file || !fs.existsSync(file)) throw new Error('Vídeo não encontrado.');
@@ -570,17 +816,59 @@ app.whenReady().then(() => {
   app.setAppUserModelId('com.ntccorporation.utilities');
   initializeLoginAtStartup();
   loadRngGame(); startRngClock();
+  autoClickerService = initializeAutoClicker({ app, ipcMain, BrowserWindow, screen });
+  colorPickerService = initializeColorPicker({ ipcMain, BrowserWindow, screen, desktopCapturer, getMainWindow: () => mainWindow });
   void rngTrustedClock.sync().then(sendRngState);
-  powerMonitor.on('suspend', () => { accountRngTime(); rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0; rngTrustedClock.invalidate(); persistRngGame(); sendRngState(); updateTrayStatus(); });
+  powerMonitor.on('suspend', () => { autoClickerService?.suspend(); accountRngTime(); rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0; rngTrustedClock.invalidate(); persistRngGame(); sendRngState(); updateTrayStatus(); });
   powerMonitor.on('resume', () => { rngTrustedClock.invalidate(); rngAppAccountedAt = rngMonotonicMs(); rngLastHeartbeatAt = rngMonotonicMs(); rngLastTimeSync = rngMonotonicMs(); void rngTrustedClock.sync().then(sendRngState); });
   ipcMain.handle('get-app-version', () => app.getVersion());
   ipcMain.on('shortcut-recorder-focus', (event, focused) => {
     if (mainWindow && event.sender === mainWindow.webContents) shortcutRecorderFocused = Boolean(focused);
+    autoClickerService?.setShortcutRecorderFocused(Boolean(focused));
   });
   ipcMain.handle('get-launch-at-login', () => ({ enabled: launchAtLoginEnabled, supported: process.platform === 'win32' }));
   ipcMain.handle('set-launch-at-login', (_event, enabled) => setLoginAtStartup(enabled));
   ipcMain.handle('is-development-build', () => !app.isPackaged);
   ipcMain.handle('get-rng-state', () => rngSnapshot());
+  ipcMain.handle('purchase-rng-upgrade', event => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: false, reason: 'invalid-sender' };
+    accountRngTime();
+    const result = purchasePermanentUpgrade(rngGame);
+    if (result.ok) { rngGame = result.state; persistRngGame(); sendRngState(); }
+    return { ...result, state: rngSnapshot() };
+  });
+  ipcMain.handle('purchase-rng-consumable', (event, type) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: false, reason: 'invalid-sender' };
+    accountRngTime();
+    const result = purchaseConsumable(rngGame, type);
+    if (result.ok) { rngGame = result.state; persistRngGame(); sendRngState(); }
+    return { ...result, state: rngSnapshot() };
+  });
+  ipcMain.handle('activate-rng-consumable', (event, type) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: false, reason: 'invalid-sender' };
+    accountRngTime();
+    const result = activateConsumable(rngGame, type);
+    if (result.ok) { rngGame = result.state; persistRngGame(); sendRngState(); }
+    return { ...result, state: rngSnapshot() };
+  });
+  ipcMain.handle('purchase-rng-relic', (event, relicId) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: false, reason: 'invalid-sender' };
+    const result = purchaseRelic(rngGame, relicId);
+    if (result.ok) { rngGame = result.state; persistRngGame(); sendRngState(); }
+    return { ...result, state: rngSnapshot() };
+  });
+  ipcMain.handle('equip-rng-relic', (event, relicId) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: false, reason: 'invalid-sender' };
+    const result = equipRelic(rngGame, relicId);
+    if (result.ok) { rngGame = result.state; persistRngGame(); sendRngState(); }
+    return { ...result, state: rngSnapshot() };
+  });
+  ipcMain.handle('unequip-rng-relic', (event, relicId) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: false, reason: 'invalid-sender' };
+    const result = unequipRelic(rngGame, relicId);
+    if (result.ok) { rngGame = result.state; persistRngGame(); sendRngState(); }
+    return { ...result, state: rngSnapshot() };
+  });
   ipcMain.handle('join-rng-event', (_event, eventId) => { const joined = joinEvent(rngTrustedClock.now(), eventId); if (rngGame.participation !== joined) rngGame.eventsParticipated++; rngGame.participation = joined; persistRngGame(); sendRngState(); return rngSnapshot(); });
   ipcMain.handle('app-entered', event => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return false;
@@ -643,13 +931,55 @@ app.whenReady().then(() => {
     });
   }
   ipcMain.handle('get-default-download-folder', () => app.getPath('downloads'));
+  ipcMain.handle('music-library-get-folders', () => readMusicFolders());
+  ipcMain.handle('music-library-add-folders', async () => {
+    const result = await dialog.showOpenDialog({ title: 'Adicione pastas com músicas', properties: ['openDirectory', 'multiSelections'] });
+    if (result.canceled) return readMusicFolders();
+    return saveMusicFolders([...readMusicFolders(), ...result.filePaths]);
+  });
+  ipcMain.handle('music-library-choose-files', async () => {
+    const result = await dialog.showOpenDialog({ title: 'Adicione arquivos de áudio', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Arquivos de áudio', extensions: [...AUDIO_EXTENSIONS].map(extension => extension.slice(1)) }] });
+    return result.canceled ? [] : addMusicFiles(result.filePaths);
+  });
+  ipcMain.handle('music-library-add-files', (_event, files) => addMusicFiles(files));
+  ipcMain.handle('music-library-remove-track', (_event, filePath) => removeMusicTrack(filePath));
+  ipcMain.handle('music-playlist-choose-cover', async () => {
+    const result = await dialog.showOpenDialog({ title: 'Escolha a capa da playlist', properties: ['openFile'], filters: [{ name: 'Imagens', extensions: ['jpg', 'jpeg', 'png', 'webp'] }] });
+    if (result.canceled || !result.filePaths[0]) return null;
+    try {
+      const image = await sharp(result.filePaths[0]).rotate().resize(512, 512, { fit: 'cover', position: sharp.strategy.attention }).jpeg({ quality: 80 }).toBuffer();
+      return `data:image/jpeg;base64,${image.toString('base64')}`;
+    } catch { throw new Error('O arquivo escolhido não é uma imagem compatível.'); }
+  });
+  ipcMain.handle('music-library-remove-folder', (_event, folder) => {
+    if (typeof folder !== 'string') return readMusicFolders();
+    const key = path.resolve(folder).toLocaleLowerCase('en-US');
+    return saveMusicFolders(readMusicFolders().filter(item => path.resolve(item).toLocaleLowerCase('en-US') !== key));
+  });
+  ipcMain.handle('music-library-scan', async () => {
+    const folders = readMusicFolders();
+    const folderTracks = await scanMusicFolders(folders);
+    const individualTracks = await scanMusicFiles(readMusicFiles());
+    const removed = new Set(readRemovedMusicFiles().map(musicPathKey));
+    const keys = new Set();
+    const tracks = [...folderTracks, ...individualTracks].filter(track => {
+      if (removed.has(musicPathKey(track.path))) return false;
+      const key = process.platform === 'win32' ? track.id.toLocaleLowerCase('en-US') : track.id;
+      if (keys.has(key)) return false;
+      keys.add(key);
+      return true;
+    });
+    return tracks.map(track => ({ ...track, src: pathToFileURL(track.path).href }));
+  });
+  ipcMain.handle('music-track-tags', (_event, filePath) => getMusicTrackTags(filePath));
+  ipcMain.handle('music-track-metadata', (_event, filePath) => getMusicTrackMetadata(filePath));
+  ipcMain.handle('music-search-online-metadata', (_event, filePath, artistOverride) => searchOnlineMusicMetadata(filePath, artistOverride));
   ipcMain.handle('get-free-space', (_event, folder) => { try { const stat = fs.statfsSync(folder || app.getPath('downloads')); return Number(stat.bavail) * Number(stat.bsize); } catch { return null; } });
   ipcMain.handle('window-minimize', event => { const window = BrowserWindow.fromWebContents(event.sender); if (!window) return false; window.minimize(); return true; });
   ipcMain.handle('window-toggle-maximize', event => { const window = BrowserWindow.fromWebContents(event.sender); if (!window) return false; if (window.isMaximized()) window.unmaximize(); else window.maximize(); return window.isMaximized(); });
   ipcMain.handle('window-close', event => BrowserWindow.fromWebContents(event.sender)?.close());
   ipcMain.handle('window-force-close', event => { forceClose = true; BrowserWindow.fromWebContents(event.sender)?.close(); });
   ipcMain.handle('window-is-maximized', event => BrowserWindow.fromWebContents(event.sender)?.isMaximized() || false);
-  ipcMain.handle('window-is-minimized-or-hidden', event => { const window = BrowserWindow.fromWebContents(event.sender); return Boolean(window && window === mainWindow && (window.isMinimized() || !window.isVisible())); });
   ipcMain.handle('choose-download-folder', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha a pasta de destino', properties: ['openDirectory', 'createDirectory'] }); return result.canceled ? null : result.filePaths[0]; });
   ipcMain.handle('choose-media-files', async () => {
     const result = await dialog.showOpenDialog({ title: 'Escolha arquivos de áudio ou vídeo', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Mídia', extensions: [...audioExtensions, ...videoExtensions].map(extension => extension.slice(1)) }] });
@@ -856,6 +1186,8 @@ app.whenReady().then(() => {
   configureUpdater(); createWindow(); if (app.isPackaged) setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 2500); app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
 app.on('before-quit', () => {
+  autoClickerService?.dispose();
+  colorPickerService?.dispose();
   if (rngShutdownSaved) return;
   rngShutdownSaved = true;
   const now = rngMonotonicMs(); accountRngTime(now);

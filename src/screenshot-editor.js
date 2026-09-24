@@ -406,26 +406,31 @@
   document.querySelector('#screenshotRedo').addEventListener('click', redo);
   document.querySelector('#closeScreenshotEditor').addEventListener('click', closeEditor);
   document.querySelector('#discardScreenshotEdits').addEventListener('click', closeEditor);
-  async function copyScreenshot(closeAfterCopy = false) {
+  async function copyScreenshot() {
     let copied = false;
-    try { setSaving(true); setStatus('Copiando para a área de transferência…'); await callbacks.onCopy?.(await canvasBlob()); setStatus('Imagem copiada.'); copied = true; }
+    try { setSaving(true); setStatus('Copiando para a área de transferência…'); await callbacks.onCopy?.(await canvasBlob()); copied = true; setStatus('Imagem copiada.'); }
     catch (error) { setStatus(error.message || 'Não foi possível copiar a imagem.'); }
-    finally { setSaving(false); }
-    if (copied && closeAfterCopy) closeEditor();
+    finally { setSaving(false); if (copied) closeEditor(); }
   }
-  document.querySelector('#copyScreenshot').addEventListener('click', () => copyScreenshot(false));
+  document.querySelector('#copyScreenshot').addEventListener('click', () => copyScreenshot());
   document.querySelector('#saveScreenshotEdits').addEventListener('click', async () => {
     try { setSaving(true); setStatus('Salvando a captura anotada…'); await callbacks.onSave?.(await canvasBlob()); setStatus('Imagem salva.'); dialog.classList.add('hidden'); callbacks.onClose?.(); callbacks = {}; image = null; }
     catch (error) { setStatus(error.message || 'Não foi possível salvar a imagem.'); }
     finally { setSaving(false); }
   });
-  dialog.addEventListener('keydown', event => {
-    if (event.key === 'Escape') { event.preventDefault(); closeEditor(); }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); event.shiftKey ? redo() : undo(); }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); document.querySelector('#saveScreenshotEdits').click(); }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') { event.preventDefault(); copyScreenshot(true); }
-  });
+  document.addEventListener('keydown', event => {
+    if (dialog.classList.contains('hidden')) return;
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeEditor(); return; }
+    if (!(event.ctrlKey || event.metaKey)) return;
+    const key = event.key.toLowerCase();
+    if (!['z', 'y', 's', 'c'].includes(key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (key === 'z') { event.shiftKey ? redo() : undo(); return; }
+    if (key === 'y') { redo(); return; }
+    if (key === 's') { document.querySelector('#saveScreenshotEdits').click(); return; }
+    if (key === 'c') void copyScreenshot();
+  }, true);
   new ResizeObserver(fitCanvas).observe(viewport);
   window.NTC_ScreenshotEditor = {
     open(options) {
@@ -434,7 +439,7 @@
       const initialTool = tools.some(button => button.dataset.shotTool === requestedTool) ? requestedTool : 'pen';
       dialog.classList.remove('hidden'); setTool(initialTool); setSaving(false); updateHistoryButtons();
       image = new Image();
-      image.onload = () => { stage.width = image.naturalWidth; stage.height = image.naturalHeight; crop = { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight }; render(); setStatus(`${image.naturalWidth} × ${image.naturalHeight} px · Ctrl+C copia · Esc descarta sem salvar.`); };
+      image.onload = () => { stage.width = image.naturalWidth; stage.height = image.naturalHeight; crop = { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight }; render(); setStatus(`${image.naturalWidth} × ${image.naturalHeight} px · Ctrl+C copia · Esc fecha sem salvar.`); };
       image.onerror = () => setStatus('A captura não pôde ser aberta no editor.');
       image.src = options?.dataUrl || '';
       document.querySelector('#closeScreenshotEditor').focus();

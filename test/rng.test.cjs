@@ -14,6 +14,8 @@ const {
   basePoolWeight,
   equalHourBonusAt,
   normalizeState,
+  migrateDroughtRelicProgress,
+  RNG_RELIC_DROUGHT_PROGRESS_VERSION,
   achievementLuckRewardBps,
   luckForState,
   currentWeights,
@@ -26,8 +28,34 @@ const {
   debugReadyBonusRoll,
   debugGrantTitle,
   debugRemoveTitle,
-  debugClearTitles
+  debugClearTitles,
+  RNG_FRAGMENT_REWARDS,
+  LIMITED_TITLE_FRAGMENT_REWARD,
+  purchasePermanentUpgrade,
+  purchaseConsumable,
+  activateConsumable,
+  advanceTimedBoost,
+  RELICS,
+  RELIC_SETS,
+  RNG_RELIC_COST,
+  RNG_DUPLICATE_RELIC_REWARD,
+  purchaseRelic,
+  equipRelic,
+  unequipRelic,
+  relicEffects,
+  rollsPerAction,
+  publicRelicState
 } = require('../src/rng.cjs');
+
+function randomValueForTitle(state, titleId, options = {}) {
+  const weights = currentWeights(state, options);
+  let cursor = 0n;
+  for (const title of TITLES) {
+    if (title.id === titleId) return cursor;
+    cursor += weights.get(title.id);
+  }
+  throw new Error(`Unknown test title: ${titleId}`);
+}
 
 test('the catalog starts with 200 distinct titles, 20 in each tier', () => {
   assert.equal(TITLES.length, 200);
@@ -81,23 +109,29 @@ test('rare odds show the exact base denominator and collection luck raises rare 
   assert.ok(currentWeights(state).get(target.id) > currentWeights({}).get(target.id));
 });
 
-test('every rarity achievement gives a permanent additive 1% luck bonus', () => {
+test('first-title rarity achievements scale from 1% to 500% permanent luck', () => {
   const nonBasicTiers = TIERS.filter(tier => tier.id !== 'basic');
+  const expectedBonuses = [100, 200, 500, 1_000, 2_000, 4_000, 7_500, 15_000, 50_000];
   const rarityState = normalizeState({ collectedIds: nonBasicTiers.map(tier => `${tier.id}-01`) });
   const rarityLuck = luckForState(rarityState);
 
-  for (const tier of nonBasicTiers) {
+  for (const [index, tier] of nonBasicTiers.entries()) {
     const oneRarity = normalizeState({ collectedIds: [`${tier.id}-01`] });
     const oneBasic = normalizeState({ collectedIds: ['basic-01'] });
-    assert.equal(achievementLuckRewardBps(`tier-${tier.id}`), 100, `${tier.id} awards exactly 1%`);
-    assert.equal(luckForState(oneRarity).totalBps - luckForState(oneBasic).totalBps, 100, `${tier.id} stacks +1% over the same collection luck`);
+    assert.equal(achievementLuckRewardBps(`tier-${tier.id}`), expectedBonuses[index], `${tier.id} has the configured tier reward`);
+    assert.equal(luckForState(oneRarity).totalBps - luckForState(oneBasic).totalBps, expectedBonuses[index], `${tier.id} stacks its bonus over the same collection luck`);
   }
   assert.equal(achievementLuckRewardBps('tier-basic'), 0);
-  assert.equal(rarityLuck.achievementBonusBps, nonBasicTiers.length * 100);
-  assert.equal(rarityLuck.totalBps, 10_000 + rarityLuck.passiveBps + nonBasicTiers.length * 100);
+  const totalRarityBonus = expectedBonuses.reduce((sum, bonus) => sum + bonus, 0);
+  assert.equal(rarityLuck.achievementBonusBps, totalRarityBonus);
+  assert.equal(rarityLuck.totalBps, 10_000 + rarityLuck.passiveBps + totalRarityBonus);
+  assert.equal(achievementLuckRewardBps('tier-ntc'), 50_000, 'the first Além do NTC title grants a massive +500% permanent luck');
   const epicId = TITLES.find(title => title.tier === 'epic').id;
   assert.ok(currentWeights({ collectedIds: ['epic-01'] }).get(epicId) > currentWeights({ collectedIds: ['basic-01'] }).get(epicId));
   assert.equal(luckForState({}).achievementBonusBps, 0, 'unearned rarity achievements do not grant luck');
+  const extremeWeights = currentWeights({ collectedIds: TITLES.map(title => title.id) });
+  assert.equal([...extremeWeights.values()].reduce((sum, weight) => sum + weight, 0n), POOL);
+  assert.ok([...extremeWeights.values()].every(weight => weight > 0n), 'every title remains possible even with the 500% NTC achievement bonus');
 });
 
 test('difficult achievement luck rewards stack and old save evidence grants only proven milestones', () => {
@@ -107,15 +141,68 @@ test('difficult achievement luck rewards stack and old save evidence grants only
     totalRolls: 100_000,
     manualRolls: 1_000_000,
     longestSameTitleStreak: 7,
-    longestSingularDrought: 1_000,
+    longestSingularDrought: 10_000,
     maxMultiplier: 100,
     eventsParticipated: 10,
     limitedTitles: ['limited-first-rain']
   });
-  assert.equal(earned.achievementBonusBps, 1_500);
+  assert.equal(earned.achievementBonusBps, 80_900);
   assert.equal(earned.passiveBps, 10_000);
-  assert.equal(earned.totalBps, 21_500, 'achievement bonuses add to collection luck without replacing it');
+  assert.equal(earned.totalBps, 100_900, 'large rarity achievement bonuses add to collection luck without replacing it');
   assert.equal(luckForState({ totalRolls: 99_999, manualRolls: 999_999 }).achievementBonusBps, 0);
+});
+
+test('total-roll achievement bonuses unlock cumulatively at 100K, 1M, 5M, and 10M', () => {
+  assert.equal(achievementLuckRewardBps('rolls-100000'), 100);
+  assert.equal(achievementLuckRewardBps('rolls-1000000'), 100);
+  assert.equal(achievementLuckRewardBps('rolls-5000000'), 150);
+  assert.equal(achievementLuckRewardBps('rolls-10000000'), 200);
+  assert.equal(luckForState({ totalRolls: 99_999 }).achievementBonusBps, 0);
+  assert.equal(luckForState({ totalRolls: 100_000 }).achievementBonusBps, 100);
+  assert.equal(luckForState({ totalRolls: 1_000_000 }).achievementBonusBps, 200);
+  assert.equal(luckForState({ totalRolls: 5_000_000 }).achievementBonusBps, 350);
+  assert.equal(luckForState({ totalRolls: 10_000_000 }).achievementBonusBps, 550);
+});
+
+test('secret hour achievements reward only app-open time outside Auto-roll and cumulative Auto-roll time', () => {
+  const hundredHours = 100 * 60 * 60;
+  const thousandAutoHours = 1_000 * 60 * 60;
+  assert.equal(achievementLuckRewardBps('time-manual-100h'), 500);
+  assert.equal(achievementLuckRewardBps('time-auto-1000h'), 2_500);
+  assert.equal(luckForState({ totalAppSeconds: hundredHours - 1 }).achievementBonusBps, 0);
+  assert.equal(luckForState({ totalAppSeconds: hundredHours }).achievementBonusBps, 500);
+  assert.equal(luckForState({ totalAppSeconds: hundredHours, totalAutoRollSeconds: 3_600 }).achievementBonusBps, 0, 'Auto-roll hours are subtracted from the no-Auto-roll requirement');
+  assert.equal(luckForState({ totalAppSeconds: thousandAutoHours, totalAutoRollSeconds: thousandAutoHours }).achievementBonusBps, 2_500);
+  assert.equal(luckForState({ totalAppSeconds: thousandAutoHours + hundredHours, totalAutoRollSeconds: thousandAutoHours }).achievementBonusBps, 3_000, 'the two permanent rewards stack');
+});
+
+test('the Singular+ drought tracker advances from legacy unknown state and rewards 10,000 rolls', () => {
+  const first = rollTitle({ sinceSingular: null }, 0n);
+  const second = rollTitle(first.state, 0n);
+  assert.equal(first.state.sinceSingular, 1);
+  assert.equal(second.state.sinceSingular, 2);
+  assert.equal(second.state.longestSingularDrought, 2);
+
+  const before = { totalRolls: 9_999, sinceSingular: 9_999, longestSingularDrought: 9_999 };
+  assert.equal(luckForState(before).achievementBonusBps, 0);
+  const milestone = rollTitle(before, 0n);
+  assert.equal(milestone.state.sinceSingular, 10_000);
+  assert.equal(milestone.state.longestSingularDrought, 10_000);
+  assert.equal(luckForState(milestone.state).achievementBonusBps, 50);
+  assert.equal(achievementLuckRewardBps('drought-10000'), 50);
+});
+
+test('Eco de Sete grants +1% permanent luck when its secret is discovered', () => {
+  let state = {};
+  let finalRoll;
+  for (let index = 0; index < 7; index++) {
+    finalRoll = rollTitle(state, 0n);
+    state = finalRoll.state;
+  }
+  assert.ok(state.unlockedSecrets.includes('secret-seven'));
+  assert.equal(finalRoll.specialUnlocks.find(item => item.id === 'secret-seven')?.luckBonusBps, 100);
+  assert.equal(luckForState(state).secretBonusBps, 100);
+  assert.equal(luckForState(state).achievementBonusBps, 50, 'the separate seven-repeat achievement also stacks');
 });
 
 test('equal-hour clock bonus is active for the whole local matching minute and stacks with the tenth-roll bonus', () => {
@@ -281,11 +368,15 @@ test('the 100% distribution remains exact and individual odds remain distinct as
   }
 });
 
-test('saved game data is JSON-safe and obsolete workshop data is ignored', () => {
+test('saved game data is JSON-safe, old saves start with zero Fragmentos, and unrelated workshop data is ignored', () => {
   const original = normalizeState({ collectedIds: ['basic-01', 'epic-01'], bonusRollCounter: 8, totalRolls: 42, totalAppSeconds: 1234, totalAutoRollSeconds: 987, lastAutoRollSessionSeconds: 65, lastTitleId: 'epic-01' });
   const restored = normalizeState(JSON.parse(JSON.stringify(original)));
   assert.deepEqual(restored, original);
-  assert.equal(Object.hasOwn(normalizeState({ fragments: 999, equippedRelicId: 'anything', focusTier: 'epic' }), 'fragments'), false);
+  const legacy = normalizeState({ fragments: 999, equippedRelicId: 'anything', focusTier: 'epic' });
+  assert.equal(legacy.fragmentBalance, '0', 'obsolete workshop currency does not become new store balance');
+  assert.equal(Object.hasOwn(legacy, 'fragments'), false);
+  assert.equal(Object.hasOwn(legacy, 'equippedRelicId'), false);
+  assert.equal(Object.hasOwn(legacy, 'focusTier'), false);
 });
 
 test('each roll grants exactly one title and duplicates do not grant collection luck', () => {
@@ -318,7 +409,7 @@ test('title history records exact rolls and bonus details while recent discoveri
   };
 
   let state = rollTitle({}, 0n, { rolledAt: ordinaryTime }).state;
-  assert.deepEqual(state.recentDiscoveries, [{ titleId: 'basic-01', roll: 1, currentOdds: '1 em 2', isBonusRoll: false, rollBonusMultiplier: 1, isEqualHourBonus: false, equalHourMultiplier: 1, equalHourTime: '', isThousandRollBonus: false, thousandRollMultiplier: 1, isTenThousandRollBonus: false, tenThousandRollMultiplier: 1, rolledAt: ordinaryTime, eventName: '', eventMultiplier: 1, eventFocusTierLabel: '', eventFocusMultiplier: 1 }]);
+  assert.deepEqual(state.recentDiscoveries, [{ titleId: 'basic-01', roll: 1, currentOdds: '1 em 2', isBonusRoll: false, rollBonusMultiplier: 1, isEqualHourBonus: false, equalHourMultiplier: 1, equalHourTime: '', isThousandRollBonus: false, thousandRollMultiplier: 1, isTenThousandRollBonus: false, tenThousandRollMultiplier: 1, consumableMultiplier: 1, consumableBoostTypes: [], rolledAt: ordinaryTime, eventName: '', eventMultiplier: 1, eventFocusTierLabel: '', eventFocusMultiplier: 1 }]);
   state = rollTitle(state, 0n, { rolledAt: ordinaryTime }).state;
   assert.equal(state.recentDiscoveries.length, 1, 'a duplicate must not create a discovery record');
   state = rollSpecificTitle(state, 'basic-02').state;
@@ -381,7 +472,278 @@ test('roll boundaries move to the next title without overlaps or missing outcome
   assert.equal(rollTitle({}, POOL - 1n, { rolledAt: ordinaryTime }).title.id, TITLES.at(-1).id);
 });
 
-test('the game is reachable from Home and its controls use the isolated main-process API', () => {
+test('Fragmentos reward new and repeated titles by rarity and first-time event titles', () => {
+  for (const tier of TIERS) {
+    const title = TITLES.find(item => item.tier === tier.id);
+    const first = rollTitle({}, randomValueForTitle({}, title.id));
+    const base = BigInt(RNG_FRAGMENT_REWARDS[tier.id]);
+    assert.equal(first.title.id, title.id);
+    assert.equal(first.fragmentReward, (base * 2n).toString(), `${tier.id} first discovery doubles its reward`);
+    assert.equal(first.state.fragmentBalance, first.fragmentReward);
+
+    const duplicateState = normalizeState({ collectedIds: [title.id] });
+    const repeated = rollTitle(duplicateState, randomValueForTitle(duplicateState, title.id));
+    assert.equal(repeated.isNew, false);
+    assert.equal(repeated.fragmentReward, base.toString(), `${tier.id} duplicate still pays its base reward`);
+  }
+
+  const event = { eventId: 'rain', id: 'rain:2026-10-01', reward: { titleId: 'limited-first-rain', odds: 1 } };
+  const firstLimited = rollTitle({}, 0n, { event, limitedRewardValue: 0n });
+  assert.ok(firstLimited.state.limitedTitles.includes('limited-first-rain'));
+  assert.equal(firstLimited.fragmentReward, '1002', 'a new Basic plus its first limited event title pays 2 + 1,000');
+  const repeatedLimited = rollTitle(firstLimited.state, 0n, { event, limitedRewardValue: 0n });
+  assert.equal(repeatedLimited.fragmentReward, '1', 'an already-owned event title does not pay the one-time bonus again');
+});
+
+test('Fragmentos store purchases use exact balances, doubling upgrade costs, and permanent luck', () => {
+  const broke = purchasePermanentUpgrade({});
+  assert.equal(broke.ok, false);
+  assert.equal(broke.reason, 'insufficient-fragments');
+  assert.equal(broke.state.fragmentBalance, '0');
+
+  let state = normalizeState({ fragmentBalance: '900719925474099312345' });
+  const initialLuck = luckForState(state).totalBps;
+  const first = purchasePermanentUpgrade(state);
+  assert.equal(first.ok, true);
+  assert.equal(first.cost, '50000');
+  assert.equal(first.state.fragmentBalance, '900719925474099262345');
+  assert.equal(first.state.nextPermanentUpgradeCost, '100000');
+  assert.equal(luckForState(first.state).totalBps, initialLuck + 500);
+  const second = purchasePermanentUpgrade(first.state);
+  assert.equal(second.cost, '100000');
+  assert.equal(second.state.nextPermanentUpgradeCost, '200000');
+  assert.equal(luckForState(second.state).totalBps, initialLuck + 1_000);
+  assert.deepEqual(normalizeState(JSON.parse(JSON.stringify(second.state))), second.state, 'the wallet, level, and next exact price survive an app restart');
+  assert.equal([...currentWeights(second.state).values()].reduce((sum, weight) => sum + weight, 0n), POOL);
+});
+
+test('different Fortune consumables overlap as ×4 while repeats of one type queue', () => {
+  const rollPurchase = purchaseConsumable({ fragmentBalance: '10000' }, 'rolls');
+  assert.equal(rollPurchase.ok, true);
+  assert.equal(rollPurchase.state.fragmentBalance, '5000');
+  assert.equal(rollPurchase.state.consumableInventory.rolls, 1);
+  const timePurchase = purchaseConsumable(rollPurchase.state, 'time');
+  assert.equal(timePurchase.ok, true);
+  assert.equal(timePurchase.state.fragmentBalance, '0');
+  assert.equal(timePurchase.state.consumableInventory.time, 1);
+  assert.equal(purchaseConsumable(timePurchase.state, 'rolls').ok, false);
+  assert.equal(purchaseConsumable({ fragmentBalance: '99999' }, 'invalid').reason, 'invalid-consumable');
+
+  const active = activateConsumable(timePurchase.state, 'rolls');
+  const queued = activateConsumable(active.state, 'time');
+  assert.equal(active.queued, false);
+  assert.equal(queued.queued, false, 'the other consumable type starts immediately');
+  assert.deepEqual(queued.state.activeBoost, { type: 'rolls', remaining: 600 });
+  assert.deepEqual(queued.state.parallelBoost, { type: 'time', remaining: 600 });
+  assert.deepEqual(queued.state.boostQueue, []);
+  const twiceBoostedOdds = currentWeights(queued.state, { consumableMultiplier: 2 }).get('epic-01');
+  const boostedOdds = currentWeights(queued.state, { consumableMultiplier: 4 }).get('epic-01');
+  const ordinaryOdds = currentWeights(queued.state).get('epic-01');
+  assert.ok(twiceBoostedOdds > ordinaryOdds && boostedOdds > twiceBoostedOdds, 'each active Fortune doubles the rare weights while preserving the pool');
+  const outcome = rollTitle(queued.state, 0n);
+  assert.equal(outcome.consumableBoostType, 'rolls+time');
+  assert.deepEqual(outcome.consumableBoostTypes, ['rolls', 'time']);
+  assert.equal(outcome.consumableMultiplier, 4);
+  assert.deepEqual(outcome.state.activeBoost, { type: 'rolls', remaining: 599 });
+  assert.deepEqual(outcome.state.parallelBoost, { type: 'time', remaining: 600 }, 'the roll counter does not burn the timed consumable');
+  assert.equal([...currentWeights(outcome.state).values()].reduce((sum, weight) => sum + weight, 0n), POOL);
+
+  const repeatedRoll = activateConsumable(activateConsumable({ consumableInventory: { rolls: 2 } }, 'rolls').state, 'rolls');
+  assert.equal(repeatedRoll.queued, true, 'a repeat of the same consumable waits for its current duration');
+  const withBothTypes = activateConsumable({ ...repeatedRoll.state, consumableInventory: { rolls: 0, time: 1 } }, 'time');
+  assert.equal(withBothTypes.queued, false, 'a different type can still start alongside it');
+  assert.deepEqual(withBothTypes.state.boostQueue, [{ type: 'rolls', remaining: 600 }]);
+  const finalRollOfFirstBoost = rollTitle({ ...withBothTypes.state, activeBoost: { type: 'rolls', remaining: 1 } }, 0n);
+  assert.deepEqual(finalRollOfFirstBoost.state.activeBoost, { type: 'rolls', remaining: 600 }, 'the queued repeat activates after the first roll-count effect ends');
+  assert.deepEqual(finalRollOfFirstBoost.state.parallelBoost, { type: 'time', remaining: 600 }, 'the time-based effect is measured by app runtime, not rolls');
+});
+
+test('timed consumables pause while closed and only reduce active time-based effects', () => {
+  const saved = normalizeState({ activeBoost: { type: 'time', remaining: 400 }, boostQueue: [{ type: 'time', remaining: 600 }] });
+  const afterClosedTime = normalizeState(JSON.parse(JSON.stringify(saved)));
+  assert.deepEqual(afterClosedTime.activeBoost, { type: 'time', remaining: 400 }, 'loading a save does not subtract time while the app was closed');
+  const afterAppTime = advanceTimedBoost(afterClosedTime, 450);
+  assert.deepEqual(afterAppTime.activeBoost, { type: 'time', remaining: 550 }, 'only 400 seconds end the current item; the remaining 50 seconds reduce the queued repeat');
+  const queuedRoll = normalizeState({ activeBoost: { type: 'time', remaining: 3 }, boostQueue: [{ type: 'rolls', remaining: 600 }, { type: 'time', remaining: 600 }] });
+  const afterCrossingRoll = advanceTimedBoost(queuedRoll, 30);
+  assert.deepEqual(afterCrossingRoll.activeBoost, { type: 'time', remaining: 573 }, 'a queued different type is migrated to active and the next time boost continues for the remaining runtime');
+  assert.deepEqual(afterCrossingRoll.parallelBoost, { type: 'rolls', remaining: 600 }, 'wall-clock time does not burn a roll-count boost');
+  assert.deepEqual(afterCrossingRoll.boostQueue, []);
+});
+
+test('relic catalog has three distinct three-piece sets and six equipment slots', () => {
+  assert.equal(RELICS.length, 17);
+  assert.equal(RELIC_SETS.length, 3);
+  assert.equal(new Set(RELICS.map(relic => relic.id)).size, 17);
+  for (const set of RELIC_SETS) assert.equal(RELICS.filter(relic => relic.setId === set.id).length, 3);
+  const publicState = publicRelicState({});
+  assert.equal(publicState.slots.length, 6);
+  assert.equal(publicState.catalog.length, 17);
+  assert.equal(Object.hasOwn(publicState, 'randomRelicTarget'), false);
+  assert.equal(Object.hasOwn(publicState, 'randomRelicProgress'), false);
+  assert.equal(publicState.catalog.find(relic => relic.id === 'twin-core').purchasable, false);
+  assert.equal(publicState.catalog.find(relic => relic.id === 'echo-spring').price, '100000');
+  assert.equal(RELICS.find(relic => relic.id === 'twin-core').source, 'random-drop');
+  assert.equal(RELICS.filter(relic => relic.source === 'event').length, 3);
+  assert.equal(RELICS.filter(relic => relic.source === 'achievement').length, 2);
+});
+
+test('relic purchases, six unique equipment slots, and unequipping are validated', () => {
+  assert.equal(purchaseRelic({}, 'solar-clock').reason, 'insufficient-fragments');
+  assert.equal(purchaseRelic({ fragmentBalance: RNG_RELIC_COST.toString() }, 'misfortune-mark').reason, 'invalid-relic');
+  assert.equal(purchaseRelic({ fragmentBalance: '999999999' }, 'twin-core').reason, 'invalid-relic');
+  let state = normalizeState({ fragmentBalance: '300000', ownedRelicIds: ['twin-core'] });
+  state = equipRelic(state, 'twin-core').state;
+  for (const relic of RELICS.filter(item => item.source === 'shop')) {
+    const purchase = purchaseRelic(state, relic.id);
+    assert.equal(purchase.ok, true);
+    state = purchase.state;
+    const equipped = equipRelic(state, relic.id);
+    assert.equal(equipped.ok, true);
+    state = equipped.state;
+  }
+  assert.equal(state.equippedRelicIds.length, 6);
+  assert.equal(equipRelic(state, 'misfortune-mark').reason, 'not-owned');
+  assert.equal(purchaseRelic(state, 'solar-clock').reason, 'already-owned');
+  const removed = unequipRelic(state, 'solar-clock');
+  assert.equal(removed.ok, true);
+  assert.equal(removed.state.equippedRelicIds.length, 5);
+  assert.deepEqual(normalizeState(JSON.parse(JSON.stringify(removed.state))), removed.state);
+});
+
+test('Solar and Lunar follow local PC hours while the complete celestial set keeps both active', () => {
+  const solar = { ownedRelicIds: ['solar-clock'], equippedRelicIds: ['solar-clock'] };
+  assert.equal(relicEffects(solar, { localHour: 12 }).luckMultiplierBps, 11_200n);
+  assert.equal(relicEffects(solar, { localHour: 23 }).luckMultiplierBps, 10_000n);
+  const lunar = { ownedRelicIds: ['lunar-clock'], equippedRelicIds: ['lunar-clock'] };
+  assert.equal(relicEffects(lunar, { localHour: 23 }).luckMultiplierBps, 11_200n);
+  assert.equal(relicEffects(lunar, { localHour: 12 }).luckMultiplierBps, 10_000n);
+  const complete = { ownedRelicIds: ['solar-clock', 'lunar-clock', 'astrolabe'], equippedRelicIds: ['solar-clock', 'lunar-clock', 'astrolabe'] };
+  assert.equal(relicEffects(complete, { localHour: 12 }).luckMultiplierBps, 13_798n);
+  assert.equal(relicEffects(complete, { localHour: 23 }).luckMultiplierBps, 13_798n);
+  assert.deepEqual(relicEffects(complete, { localHour: 12 }).completeSetIds, ['celestial']);
+});
+
+test('echo and misfortune relic effects stack into extreme luck, extra results, and Fragmentos', () => {
+  const allEchoes = ['twin-core', 'echo-spring', 'fragment-pouch'];
+  const echoState = normalizeState({ ownedRelicIds: allEchoes, equippedRelicIds: allEchoes, totalRolls: 99 });
+  assert.equal(rollsPerAction(echoState), 5, 'twin core and set double 1 into 4, then the spring crosses roll 100');
+  assert.equal(relicEffects(echoState).fragmentMultiplierBps, 12_500);
+
+  const misfortune = ['misfortune-mark', 'cracked-die', 'drought-heart'];
+  const dryState = normalizeState({ ownedRelicIds: misfortune, equippedRelicIds: misfortune, sinceSingular: 10_000, droughtRelicStage: 3 });
+  assert.equal(relicEffects(dryState).luckMultiplierBps, 12_800_000n, '×1.25 and ten drought doublings stack');
+  assert.equal(relicEffects(dryState).fragmentMultiplierBps, 12_500);
+  assert.equal(rollsPerAction(dryState), 4, 'one base, cracked die, and two drought results');
+  const weights = currentWeights({ ...dryState, sinceSingular: 100_000 }, { localHour: 12 });
+  assert.equal([...weights.values()].reduce((sum, weight) => sum + weight, 0n), POOL);
+  assert.ok([...weights.values()].every(weight => weight > 0n), 'every one of the 200 titles keeps a nonzero chance under extreme luck');
+});
+
+test('the misfortune triad drops sequentially at 15k, 25k, and 40k dry rolls and resets each stage', () => {
+  const legacy = normalizeState({ sinceSingular: 14_999, droughtRelicStage: 0, droughtRelicProgress: 14_999 });
+  assert.equal(legacy.droughtRelicProgress, 0, 'pre-update drought progress does not advance the new relic track');
+  assert.equal(legacy.droughtRelicProgressVersion, RNG_RELIC_DROUGHT_PROGRESS_VERSION);
+  const priorSave = {
+    totalRolls: 73_105,
+    sinceSingular: 27_047,
+    fragmentBalance: '123456',
+    ownedRelicIds: ['misfortune-mark', 'solar-clock'],
+    equippedRelicIds: ['misfortune-mark', 'solar-clock'],
+    droughtRelicStage: 1,
+    droughtRelicProgress: 14_999,
+    droughtRelicProgressVersion: RNG_RELIC_DROUGHT_PROGRESS_VERSION - 1
+  };
+  const migratedSave = migrateDroughtRelicProgress(priorSave);
+  assert.deepEqual(migratedSave.ownedRelicIds, ['solar-clock'], 'a relic granted by the old roll counter is revoked, but other relics remain');
+  assert.deepEqual(migratedSave.equippedRelicIds, ['solar-clock']);
+  assert.equal(migratedSave.droughtRelicStage, 0);
+  assert.equal(migratedSave.droughtRelicProgress, 0);
+  assert.equal(migratedSave.droughtRelicProgressVersion, RNG_RELIC_DROUGHT_PROGRESS_VERSION);
+  assert.equal(migratedSave.totalRolls, priorSave.totalRolls);
+  assert.equal(migratedSave.sinceSingular, priorSave.sinceSingular);
+  assert.equal(migratedSave.fragmentBalance, priorSave.fragmentBalance);
+  assert.equal(migrateDroughtRelicProgress(migratedSave), migratedSave, 'migration is idempotent after the new version is saved');
+  let first = rollTitle({ ...legacy, droughtRelicProgress: 14_999 }, 0n, { randomRelicTargetValue: 0n });
+  assert.ok(first.state.ownedRelicIds.includes('misfortune-mark'));
+  assert.equal(first.state.droughtRelicStage, 1);
+  assert.equal(first.state.droughtRelicProgress, 0);
+
+  const singularId = TITLES.find(title => title.tier === 'unique').id;
+  const interruptedState = normalizeState({ ...first.state, droughtRelicProgressVersion: RNG_RELIC_DROUGHT_PROGRESS_VERSION, droughtRelicProgress: 2_000 });
+  const singular = rollTitle(interruptedState, randomValueForTitle(interruptedState, singularId), { randomRelicTargetValue: 0n });
+  assert.equal(singular.state.droughtRelicProgress, 0);
+  assert.equal(singular.state.droughtRelicStage, 1);
+
+  const secondStart = normalizeState({ ...singular.state, droughtRelicProgressVersion: RNG_RELIC_DROUGHT_PROGRESS_VERSION, sinceSingular: 24_999, droughtRelicProgress: 24_999 });
+  const second = rollTitle(secondStart, 0n, { randomRelicTargetValue: 0n });
+  assert.ok(second.state.ownedRelicIds.includes('cracked-die'));
+  assert.equal(second.state.droughtRelicStage, 2);
+  assert.equal(second.state.droughtRelicProgress, 0);
+
+  const thirdStart = normalizeState({ ...second.state, droughtRelicProgressVersion: RNG_RELIC_DROUGHT_PROGRESS_VERSION, sinceSingular: 39_999, droughtRelicProgress: 39_999 });
+  const third = rollTitle(thirdStart, 0n, { randomRelicTargetValue: 0n });
+  assert.ok(third.state.ownedRelicIds.includes('drought-heart'));
+  assert.equal(third.state.droughtRelicStage, 3);
+  assert.equal(third.state.droughtRelicProgress, 0);
+});
+
+test('hidden random drops use 8k-12k targets, reset only themselves, and convert duplicates', () => {
+  const before = normalizeState({ collectedIds: ['basic-01'], randomRelicTarget: 8_000, randomRelicProgress: 7_999, fragmentBalance: '0' });
+  const drop = rollTitle(before, 0n, { randomRelicTargetValue: 4_000n, randomRelicChoiceValue: 0n });
+  assert.ok(drop.state.ownedRelicIds.includes('lucky-feather'));
+  assert.equal(drop.state.randomRelicProgress, 0);
+  assert.equal(drop.state.randomRelicTarget, 12_000);
+  assert.equal(drop.specialUnlocks.at(-1).source, 'random-drop');
+
+  const duplicateStart = normalizeState({ ...drop.state, randomRelicTarget: 8_000, randomRelicProgress: 7_999, fragmentBalance: '0' });
+  const duplicate = rollTitle(duplicateStart, 0n, { randomRelicTargetValue: 0n, randomRelicChoiceValue: 0n });
+  assert.equal(duplicate.specialUnlocks.at(-1).duplicate, true);
+  assert.equal(duplicate.fragmentReward, (RNG_DUPLICATE_RELIC_REWARD + 1n).toString());
+  assert.equal(duplicate.state.randomRelicTarget, 8_000);
+  assert.equal(normalizeState(JSON.parse(JSON.stringify(drop.state))).randomRelicTarget, 12_000, 'the hidden target survives restart');
+
+  const rareStart = normalizeState({ randomRelicTarget: 8_000, randomRelicProgress: 7_999 });
+  const rareDrop = rollTitle(rareStart, 0n, { randomRelicTargetValue: 0n, randomRelicChoiceValue: 999n });
+  assert.ok(rareDrop.state.ownedRelicIds.includes('twin-core'), 'the special draw selects the shop and event exclusive relic only from the rare random-drop path');
+});
+
+test('events grant their own exclusive relics without resetting random-drop progress', () => {
+  const event = { id: 'fragments:2026-09-27', eventId: 'fragments', reward: { titleId: 'limited-fragment-2026-09', rollGoal: 1_000 } };
+  const state = normalizeState({ eventRollProgress: { windowId: event.id, rolls: 999 }, randomRelicTarget: 9_000, randomRelicProgress: 123 });
+  const reward = rollTitle(state, 0n, { event, eventRelicChoiceValue: 1n });
+  assert.ok(reward.state.ownedRelicIds.includes('new-moon-seal'));
+  assert.equal(reward.state.randomRelicProgress, 124);
+  assert.ok(reward.state.eventRelicRewardedWindows.includes(event.id));
+  const repeated = rollTitle(reward.state, 0n, { event, eventRelicChoiceValue: 2n });
+  assert.equal(repeated.specialUnlocks.some(item => item.source === 'event'), false, 'the same event window cannot pay a second relic');
+
+  const eclipse = { id: 'eclipse:2026-10-03', eventId: 'eclipse' };
+  const eclipseReward = rollTitle(normalizeState({}), 0n, { event: eclipse });
+  assert.ok(eclipseReward.state.ownedRelicIds.includes('eclipse-prism'));
+
+  const duplicateEvent = { ...event, id: 'fragments:2026-10-04', reward: { titleId: 'limited-fragment-2026-10', rollGoal: 1_000 } };
+  const duplicateState = normalizeState({ ...reward.state, collectedIds: ['basic-01'], fragmentBalance: '0', eventRollProgress: { windowId: duplicateEvent.id, rolls: 999 } });
+  const duplicate = rollTitle(duplicateState, 0n, { event: duplicateEvent, eventRelicChoiceValue: 1n });
+  assert.equal(duplicate.specialUnlocks.at(-1).duplicate, true);
+  assert.equal(duplicate.fragmentReward, (RNG_DUPLICATE_RELIC_REWARD + LIMITED_TITLE_FRAGMENT_REWARD + 1n).toString());
+});
+
+test('collection achievements grant their exclusive relics once', () => {
+  const at49 = TITLES.slice(0, 49).map(title => title.id);
+  const title50 = TITLES.find(title => !at49.includes(title.id));
+  const medal = rollTitle({ collectedIds: at49 }, randomValueForTitle({ collectedIds: at49 }, title50.id));
+  assert.ok(medal.state.ownedRelicIds.includes('cartographers-medal'));
+  assert.ok(medal.specialUnlocks.some(item => item.relicId === 'cartographers-medal'));
+
+  const at199 = TITLES.slice(0, 199).map(title => title.id);
+  const title200 = TITLES.find(title => !at199.includes(title.id));
+  const atlas = rollTitle({ collectedIds: at199 }, randomValueForTitle({ collectedIds: at199 }, title200.id));
+  assert.ok(atlas.state.ownedRelicIds.includes('atlas-of-possibilities'));
+  assert.ok(atlas.specialUnlocks.some(item => item.relicId === 'atlas-of-possibilities'));
+});
+
+test('the game is reachable from Home, exposes the Fragmentos shop, and uses isolated main-process transactions', () => {
   const root = path.join(__dirname, '..');
   const html = fs.readFileSync(path.join(root, 'src', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(root, 'src', 'app.js'), 'utf8');
@@ -400,11 +762,37 @@ test('the game is reachable from Home and its controls use the isolated main-pro
   assert.doesNotMatch(html, /Descobertas recentes|rngDiscoveryLog/);
   assert.match(html, /id="rngUnlockNotice"/);
   assert.match(html, /id="rngTitleUnlockSound" src="\.\/assets\/rng-title-deep\.mp3"/);
-  assert.doesNotMatch(html, /rngNextLuck|rngWorkshop|rngRelic|rngCatalyst|rngFocus|rngCategoryProgress|Fragmentos|Oficina/);
-  assert.doesNotMatch(app, /rngNextLuck|rngWorkshop|rngRelic|rngCatalyst|rngFocus|rngCategoryProgress|fragments|relics|catalysts|craftRngItem/);
+  assert.match(html, /data-rng-section="shop"/);
+  assert.match(html, /data-rng-section="shop"[\s\S]*data-rng-section="inventory"/);
+  assert.match(html, /data-rng-section="patch-notes">Atualizações/);
+  assert.match(html, /data-rng-panel="patch-notes"[\s\S]*id="rngPatchNotes"/);
+  assert.match(html, /rng-changelog\.js/);
+  const rngChangelog = fs.readFileSync(path.join(root, 'src', 'rng-changelog.js'), 'utf8');
+  const utilitiesChangelog = fs.readFileSync(path.join(root, 'src', 'changelog.js'), 'utf8');
+  assert.match(rngChangelog, /window\.NTC_RNG_CHANGELOG/);
+  assert.match(rngChangelog, /bônus permanentes por primeira descoberta de raridade escalam de \+1% em Épico a \+500% em Além do NTC/);
+  assert.doesNotMatch(utilitiesChangelog, /NTC RNG|Fragmentos|relíquias/i, 'the general app changelog stays separate from game patch notes');
+  assert.match(html, /data-rng-panel="inventory"/);
+  assert.match(html, /id="rngFragmentsBalance"/);
+  assert.match(html, /id="rngBuyUpgrade"/);
+  assert.match(html, /id="rngActivateRollBoost"/);
+  assert.match(html, /id="rngActivateTimeBoost"/);
+  assert.match(app, /function renderRngInventory\(state\)/);
+  assert.doesNotMatch(html, /rngNextLuck|rngWorkshop|rngCatalyst|rngFocus|rngCategoryProgress|Oficina/);
+  assert.doesNotMatch(app, /rngNextLuck|rngWorkshop|rngCatalyst|rngFocus|rngCategoryProgress|catalysts|craftRngItem/);
+  assert.match(html, /id="rngRelicShop"/);
+  assert.match(html, /id="rngRelicSlots"/);
+  assert.match(html, /id="rngRelicInventory"/);
+  assert.doesNotMatch(app, /resultCount.*resultados por ação/);
+  assert.match(preload, /purchaseRngRelic/);
+  assert.match(preload, /equipRngRelic/);
+  assert.match(main, /purchase-rng-relic/);
+  assert.match(main, /equip-rng-relic/);
   assert.match(html, /id="rngDebugClearAll"/);
   assert.match(html, /id="rngDebugSoundTest"/);
   assert.match(styles, /\.rng-profile-panel\s*\{\s*align-self:\s*start;/);
+  assert.match(styles, /\.rng-shop-card\s*\{[^}]*flex-direction:\s*column/);
+  assert.match(styles, /\.rng-shop-card > button, \.rng-shop-actions\s*\{\s*margin-top:\s*auto;/);
   assert.match(app, /window\.ntc\.onRngState\(renderRngState\)/);
   assert.match(app, /rng-discovery-detail/);
   assert.match(app, /state.titleHistory/);
@@ -433,17 +821,34 @@ test('the game is reachable from Home and its controls use the isolated main-pro
   assert.match(app, /isDevelopmentBuild\(\)/);
   assert.match(app, /rngDebugEnabled = await window\.ntc\.isDevelopmentBuild\(\);\s*if \(!rngDebugEnabled\) return;\s*\$\('#rngDebugTrigger'\)\.classList\.remove\('hidden'\)/);
   assert.match(preload, /getRngState:.*get-rng-state/);
+  assert.match(preload, /purchaseRngUpgrade:.*purchase-rng-upgrade/);
+  assert.match(preload, /purchaseRngConsumable:.*purchase-rng-consumable/);
+  assert.match(preload, /activateRngConsumable:.*activate-rng-consumable/);
+  assert.match(main, /purchasePermanentUpgrade\(rngGame\)/);
+  assert.match(main, /purchaseConsumable\(rngGame, type\)/);
+  assert.match(main, /activateConsumable\(rngGame, type\)/);
+  assert.match(main, /advanceTimedBoost\(rngGame, elapsed\)/);
+  assert.match(main, /activeBoost\?\.type === 'time'/);
   assert.match(preload, /setRngAutoRoll:.*set-rng-auto-roll/);
   assert.match(main, /ipcMain\.handle\('set-rng-auto-roll'/);
   assert.match(main, /ipcMain\.handle\('is-development-build', \(\) => !app\.isPackaged\)/);
   assert.match(main, /setInterval\(\(\) => \{[\s\S]*performRngRoll\(\)/);
   assert.match(main, /recentDiscoveries:\s*rngGame\.recentDiscoveries/);
+  assert.match(main, /makeRngAchievement\('rolls-10000000'[\s\S]*?10_000_000\)/);
+  assert.match(main, /makeRngAchievement\('time-manual-100h'[\s\S]*?100\)/);
+  assert.match(main, /makeRngAchievement\('time-auto-1000h'[\s\S]*?1_000\)/);
+  assert.match(main, /\.filter\(achievement => achievement\.unlocked\)/);
+  assert.match(main, /achievement-count-40/);
+  assert.match(main, /unique-50'[\s\S]*?Desbloqueia 2 rolagens por clique/);
+  assert.match(main, /unique-100'[\s\S]*?Desbloqueia 3 rolagens por clique/);
+  assert.match(app, /item\.rewardText/);
+  assert.match(app, /rngSecretLuck/);
   assert.match(main, /titleHistory:\s*rngGame\.titleHistory/);
   assert.match(main, /isEqualHourBonus:\s*result\.isEqualHourBonus/);
   assert.match(main, /isThousandRollBonus:\s*result\.isThousandRollBonus/);
   assert.match(main, /isTenThousandRollBonus:\s*result\.isTenThousandRollBonus/);
-  assert.match(preload, /isWindowMinimizedOrHidden:.*window-is-minimized-or-hidden/);
-  assert.match(main, /window-is-minimized-or-hidden[\s\S]*isMinimized\(\)[\s\S]*isVisible\(\)/);
+  assert.doesNotMatch(preload, /isWindowMinimizedOrHidden/);
+  assert.doesNotMatch(main, /window-is-minimized-or-hidden/);
   assert.match(app, /audio\.volume = 0\.65[\s\S]*audio\.play\(\)/);
   assert.match(app, /\$\('#rngDebugSoundTest'\)\.onclick = previewRngTitleSound/);
   assert.match(app, /async function previewRngTitleSound\(\)[\s\S]*if \(!rngDebugEnabled\) return;[\s\S]*playRngTitleSound\(null, \{ preview: true \}\)/);
@@ -464,16 +869,34 @@ test('the game is reachable from Home and its controls use the isolated main-pro
   assert.match(main, /ntc-rng-state\.json/);
 });
 
-test('deep title sound is silent below Singular and only plays for new titles while minimized or in tray', () => {
+test('deep title sound plays for new Singular+ titles in either window state', () => {
   const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
-  const functionSource = app.match(/function shouldPlayRngTitleSound\(result, isHidden\)\s*\{[\s\S]*?\n\}/)?.[0];
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.cjs'), 'utf8');
+  const functionSource = app.match(/function shouldPlayRngTitleSound\(result\)\s*\{[\s\S]*?\n\}/)?.[0];
   assert.ok(functionSource, 'the sound gate should be testable independently of the UI');
   const shouldPlay = vm.runInNewContext(`(${functionSource})`);
   const result = tier => ({ isNew: true, title: { tier } });
-  assert.equal(shouldPlay(result('basic'), true), false);
-  assert.equal(shouldPlay(result('epic'), true), false);
-  for (const tier of ['unique', 'legendary', 'mythic', 'exalted', 'glorious', 'transcendent', 'dimensional', 'ntc']) assert.equal(shouldPlay(result(tier), true), true, `${tier} should play the sound`);
-  assert.equal(shouldPlay(result('unique'), false), false, 'keep the app quiet while visible');
-  assert.equal(shouldPlay({ ...result('unique'), isNew: false }, true), false, 'duplicates stay silent');
-  assert.equal(shouldPlay({ ...result('unique'), simulation: true }, true), false, 'debug previews stay silent');
+  assert.equal(shouldPlay(result('basic')), false);
+  assert.equal(shouldPlay(result('epic')), false);
+  for (const tier of ['unique', 'legendary', 'mythic', 'exalted', 'glorious', 'transcendent', 'dimensional', 'ntc']) assert.equal(shouldPlay(result(tier)), true, `${tier} should play the sound`);
+  assert.equal(shouldPlay({ ...result('unique'), isNew: false }), false, 'duplicates stay silent');
+  assert.equal(shouldPlay({ ...result('unique'), simulation: true }), false, 'debug previews stay silent');
+  assert.match(app, /audio\.pause\(\); audio\.currentTime = 0; await audio\.play\(\)/);
+  assert.match(app, /catch \(error\) \{ console\.warn\('Não foi possível reproduzir o som de título do RNG:'/);
+  assert.match(main, /appendSwitch\('autoplay-policy', 'no-user-gesture-required'\)/);
+  assert.doesNotMatch(app, /isWindowMinimizedOrHidden/);
+  assert.doesNotMatch(main, /window-is-minimized-or-hidden/);
+});
+
+test('neutral relic luck is shown as zero contribution instead of implying an equipped relic', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
+  const multiplierSource = app.match(/function formatRngRelicMultiplier\(value\)\s*\{[\s\S]*?\n\}/)?.[0];
+  const luckSource = app.match(/function formatRngRelicLuck\(value\)\s*\{[\s\S]*?\n\}/)?.[0];
+  assert.ok(multiplierSource && luckSource, 'relic luck formatting should be independently testable');
+  const formatRngRelicMultiplier = vm.runInNewContext(`(${multiplierSource})`);
+  const formatLuck = vm.runInNewContext(`(${luckSource})`, { formatRngRelicMultiplier });
+  assert.equal(formatLuck('10000'), '+0% relíquias', 'no relic luck bonus is active by default');
+  assert.equal(formatLuck(undefined), '+0% relíquias', 'missing legacy state is treated as neutral');
+  assert.equal(formatLuck('11200'), '×1,12 relíquias', 'an active luck relic still shows its multiplier');
+  assert.match(app, /\$\('#rngRelicLuck'\)\.textContent = formatRngRelicLuck\(state\.relicLuckMultiplierBps\)/);
 });

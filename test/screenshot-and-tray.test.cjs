@@ -55,12 +55,13 @@ test('screenshot capture has a separate shortcut, destination and annotation edi
   assert.match(main, /ipcMain\.handle\('screen-capture-save'/);
   assert.match(main, /ipcMain\.handle\('screen-capture-copy'/);
   assert.match(editor, /event\.key === 'Escape'[\s\S]*closeEditor\(\)/);
-  assert.match(editor, /event\.key\.toLowerCase\(\) === 'c'[\s\S]*copyScreenshot/);
+  assert.match(editor, /event\.stopPropagation\(\)[\s\S]*key === 'c'[\s\S]*copyScreenshot\(\)/);
   assert.match(editor, /function arrowCap\(/);
   assert.match(editor, /function drawArrowHead\(/);
   assert.match(editor, /target\.lineCap = 'butt'[\s\S]*target\.lineTo\(x2 - cap\.ux \* cap\.shaftInset/);
-  assert.match(editor, /copyScreenshot\(true\)/);
-  assert.match(editor, /if \(copied && closeAfterCopy\) closeEditor\(\)/);
+  assert.match(editor, /async function copyScreenshot\(\)/);
+  assert.match(editor, /finally \{ setSaving\(false\); if \(copied\) closeEditor\(\); \}/);
+  assert.match(editor, /document\.addEventListener\('keydown', event => \{\s*if \(dialog\.classList\.contains\('hidden'\)\) return;/);
   assert.match(editor, /beginHandleDrag\(event, point, 'image-move'/);
   assert.match(editor, /command\.x1 = drag\.originalX \+ point\.x - drag\.startX/);
   assert.match(html, /title="Remover elemento"/);
@@ -118,13 +119,17 @@ test('maximized windows use available width across tools', () => {
 test('existing users see the full release changelog once after upgrading', () => {
   const app = read('src/app.js');
   const changelog = read('src/changelog.js');
+  const rngChangelog = read('src/rng-changelog.js');
   assert.match(app, /hadExistingAppData = \[[^\]]*'ntc-folder'[^\]]*\]/);
   assert.match(app, /function showChangelogAfterUpgrade\(version\)/);
   assert.match(app, /ntc-last-seen-changelog-version/);
   assert.match(app, /window\.setTimeout\(\(\) => \{ localStorage\.setItem\(key, version\); openChangelog\(\); \}, 2500\)/);
   assert.match(app, /showChangelogAfterUpgrade\(version\)/);
+  assert.match(changelog, /version: '0\.8\.0'/);
   assert.match(changelog, /version: '0\.6\.1'/);
-  assert.match(changelog, /espera o fim da tela de carregamento/);
+  assert.match(changelog, /Agora não e Baixar atualização/);
+  assert.doesNotMatch(changelog, /Auto-roll|NTC RNG/);
+  assert.match(rngChangelog, /aviso sonoro de novos títulos/);
   assert.match(changelog, /version: '0\.6\.0'/);
 });
 
@@ -140,5 +145,6 @@ test('RNG progress is saved outside the installation with a recoverable local ba
   assert.match(main, /ntc-rng-state\.backup\.json/);
   assert.match(main, /JSON\.parse\(fs\.readFileSync\(rngBackupPath\(\), 'utf8'\)\)/);
   assert.match(main, /fs\.copyFileSync\(rngBackupPath\(\), rngStatePath\(\)\)/);
+  assert.match(main, /migrateDroughtRelicProgress\(savedState\)/);
   assert.match(main, /persistRngGame\(\);[\s\S]*globalShortcut\.unregisterAll\(\)/);
 });

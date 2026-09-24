@@ -1,11 +1,13 @@
 window.NTC_CHANGELOG = [
   {
-    version: '0.7.1',
-    date: '23 set. 2026',
+    version: '0.8.0',
+    date: '24 set. 2026',
     changes: [
-      'Conquistas difíceis agora concedem bônus permanentes e acumuláveis de sorte; cada conquista de raridade dá exatamente +1%.',
-      'A sorte total mostra separadamente os bônus da coleção e das conquistas, e cada conquista exibe sua recompensa antes de ser concluída.',
-      'A notificação de conquista também informa o bônus permanente recebido. Os saves existentes continuam preservados e só recebem bônus quando os dados comprovam a conquista.'
+      'Player de música: importação de arquivos individuais, edição de nome e descrição das playlists, capas personalizadas e reordenação de faixas.',
+      'Biblioteca de música: dados, capas e playlists permanecem salvos entre sessões; remover uma faixa do NTC Utilities não apaga o arquivo original do computador.',
+      'Adicionados o Auto-clicker e o Seletor de cor, com controles dedicados para interação com a tela.',
+      'Captura de tela: Ctrl+C volta a copiar o recorte e fechar o editor; os controles de ação foram alinhados.',
+      'Ajustes de estabilidade e apresentação nas ferramentas. Controles internos de desenvolvimento não são exibidos na versão de produção.'
     ]
   },
   {
@@ -13,10 +15,6 @@ window.NTC_CHANGELOG = [
     date: '23 set. 2026',
     changes: [
       'Novo Renomear arquivos em lote: arraste arquivos ou uma pasta, configure prefixo, busca/substituição e numeração, confira a prévia e aplique sem sobrescrever outros arquivos.',
-      'O NTC RNG ganhou páginas de Conquistas, Estatísticas e Eventos, histórico mais completo, recordes pessoais e títulos secretos que só aparecem após serem descobertos.',
-      'Conquistas agora notificam quando são atingidas. Há marcos para rolagens totais, 1.000/10.000/100.000/1.000.000 cliques manuais (separados do Auto-roll), coleção e raridades.',
-      'Eventos programados usam horário UTC verificado independentemente do relógio do PC: raridade semanal em foco, Chuva de Sorte, Eclipse e Chuva de Fragmentos com título garantido após 1.000 rolagens participantes.',
-      'Horas iguais e bônus acumulados ficam registrados junto às novas descobertas; títulos raros podem tocar um aviso sonoro discreto.',
       'Atalhos de captura aceitam Print Screen e o editor abre pronto para selecionar a área; refinamentos nas setas e nas interações das imagens inseridas.'
     ]
   },
@@ -24,7 +22,6 @@ window.NTC_CHANGELOG = [
     version: '0.6.1',
     date: '23 set. 2026',
     changes: [
-      'O Auto-roll agora espera o fim da tela de carregamento e começa somente quando a interface principal aparece; a primeira rolagem acontece um segundo depois.',
       'Os botões Agora não e Baixar atualização agora ficam alinhados e centralizados na mesma altura.'
     ]
   },
@@ -32,10 +29,8 @@ window.NTC_CHANGELOG = [
     version: '0.6.0',
     date: '23 set. 2026',
     changes: [
-      'Novo NTC RNG com 200 títulos em português, chances explícitas, histórico de descobertas e coleção com backup. Lucky Lad é Lendário (1 em 278.000.000) e Luckiest Lad é Lendário (exatamente 1 em 777.777.777).',
-      'Bônus de sorte e ciclos extras de rolagem evoluem automaticamente com a coleção. O Auto-roll começa ao abrir o app, continua na bandeja e pode iniciar junto com o Windows.',
       'Minimizar ou fechar pelo X mantém o NTC Utilities na bandeja; use o menu do ícone para reabrir o app ou sair de verdade.',
-      'Coleção, preferências e arquivos pessoais ficam fora da pasta de instalação e são preservados nas atualizações. Usuários existentes veem este changelog uma vez após atualizar.',
+      'Preferências e arquivos pessoais ficam fora da pasta de instalação e são preservados nas atualizações. Usuários existentes veem este changelog uma vez após atualizar.',
       'Nova aba Captura de tela, com atalhos configuráveis para abrir o editor ou salvar capturas rápidas diretamente na pasta escolhida.',
       'Editor de capturas em tela cheia: caneta, formas, setas retas e curvas editáveis, texto, destaque, desfoque, pixelização, recorte, números e imagens movíveis/redimensionáveis.',
       'Branco como cor inicial das anotações; Ctrl+C copia a imagem e fecha o editor, enquanto Esc descarta. Limite da captura, setas e controles do editor foram refinados.',

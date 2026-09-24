@@ -30,11 +30,14 @@
           <button class="nav-item" data-view="converter">
             <span class="nav-icon">♫</span> Editor de áudio
           </button>
+          <button class="nav-item" data-view="musicPlayer"><span class="nav-icon">♪</span> Player de música</button>
           <button class="nav-item" data-view="video"><span class="nav-icon">▸</span> Conversor de vídeo</button>
           <button class="nav-item" data-view="videoEditor"><span class="nav-icon">✂</span> Editor de vídeo</button>
           <button class="nav-item" data-view="image"><span class="nav-icon">▧</span> Conversor de imagens</button>
+          <button class="nav-item" data-view="autoclicker"><span class="nav-icon">⦿</span> Auto-clicker</button>
           <button class="nav-item" data-view="recorder"><span class="nav-icon">●</span> Gravador de tela</button>
           <button class="nav-item" data-view="screenshot"><span class="nav-icon">▣</span> Captura de tela</button>
+          <button class="nav-item" data-view="colorPicker"><span class="nav-icon">◉</span> Seletor de cor</button>
           <button class="nav-item" data-view="compressor"><span class="nav-icon">⇣</span> Compressor</button>
           <button class="nav-item" data-view="renamer"><span class="nav-icon">↔</span> Renomear arquivos</button>
           <button class="nav-item" data-view="qrGenerator"><span class="nav-icon">▦</span> Gerador de QR Code</button>
@@ -60,20 +63,87 @@
         <div class="content-scroll">
 
         <section class="view home-view active" id="homeView">
-          <div class="hero compact"><div class="eyebrow">CENTRAL</div><h1>Utilidades</h1></div>
+          <div class="hero compact"><div class="eyebrow">CENTRAL</div><h1>Utilidades</h1><p>Encontre ferramentas para seus arquivos, mídia e tarefas do dia a dia.</p></div>
           <div class="tools-grid">
-            <button class="tool-card available" data-open-tool="downloader"><span class="tool-icon">↓</span><span><strong>Downloader</strong></span></button>
-            <button class="tool-card available" data-open-tool="converter"><span class="tool-icon">♫</span><span><strong>Editor de áudio</strong></span></button>
-            <button class="tool-card available" data-open-tool="video"><span class="tool-icon">▸</span><span><strong>Conversor de vídeo</strong></span></button>
-            <button class="tool-card available" data-open-tool="videoEditor"><span class="tool-icon">✂</span><span><strong>Editor de vídeo</strong></span></button>
-            <button class="tool-card available" data-open-tool="image"><span class="tool-icon">▧</span><span><strong>Conversor de imagens</strong></span></button>
-            <button class="tool-card available" data-open-tool="recorder"><span class="tool-icon record-tool-icon">●</span><span><strong>Gravador de tela</strong></span></button>
-            <button class="tool-card available" data-open-tool="screenshot"><span class="tool-icon">▣</span><span><strong>Captura de tela</strong></span></button>
-            <button class="tool-card available" data-open-tool="compressor"><span class="tool-icon">⇣</span><span><strong>Compressor</strong></span></button>
-            <button class="tool-card available" data-open-tool="renamer"><span class="tool-icon">↔</span><span><strong>Renomear arquivos</strong></span></button>
-            <button class="tool-card available" data-open-tool="qrGenerator"><span class="tool-icon">▦</span><span><strong>Gerador de QR Code</strong></span></button>
+            <button class="tool-card available" data-open-tool="downloader"><span class="tool-icon">↓</span><span><strong>Downloader</strong><small>Baixe vídeos, áudios e capas por link.</small></span></button>
+            <button class="tool-card available" data-open-tool="converter"><span class="tool-icon">♫</span><span><strong>Editor de áudio</strong><small>Corte, edite informações e converta áudios.</small></span></button>
+            <button class="tool-card available" data-open-tool="musicPlayer"><span class="tool-icon">♪</span><span><strong>Player de música</strong><small>Sua biblioteca, offline</small></span></button>
+            <button class="tool-card available" data-open-tool="video"><span class="tool-icon">▸</span><span><strong>Conversor de vídeo</strong><small>Converta formatos, codecs e resoluções.</small></span></button>
+            <button class="tool-card available" data-open-tool="videoEditor"><span class="tool-icon">✂</span><span><strong>Editor de vídeo</strong><small>Corte trechos e combine áudio e vídeo.</small></span></button>
+            <button class="tool-card available" data-open-tool="image"><span class="tool-icon">▧</span><span><strong>Conversor de imagens</strong><small>Altere formato, qualidade e dimensões.</small></span></button>
+            <button class="tool-card available" data-open-tool="autoclicker"><span class="tool-icon">⦿</span><span><strong>Auto-clicker</strong><small>Automatize cliques, atalhos e posições.</small></span></button>
+            <button class="tool-card available" data-open-tool="recorder"><span class="tool-icon record-tool-icon">●</span><span><strong>Gravador de tela</strong><small>Grave a tela com áudio do sistema ou microfone.</small></span></button>
+            <button class="tool-card available" data-open-tool="screenshot"><span class="tool-icon">▣</span><span><strong>Captura de tela</strong><small>Capture, recorte, anote e salve a tela.</small></span></button>
+            <button class="tool-card available" data-open-tool="colorPicker"><span class="tool-icon">◉</span><span><strong>Seletor de cor</strong><small>Escolha uma cor na tela e copie o código.</small></span></button>
+            <button class="tool-card available" data-open-tool="compressor"><span class="tool-icon">⇣</span><span><strong>Compressor</strong><small>Reduza o tamanho de vídeos e áudios.</small></span></button>
+            <button class="tool-card available" data-open-tool="renamer"><span class="tool-icon">↔</span><span><strong>Renomear arquivos</strong><small>Renomeie vários arquivos com uma prévia.</small></span></button>
+            <button class="tool-card available" data-open-tool="qrGenerator"><span class="tool-icon">▦</span><span><strong>Gerador de QR Code</strong><small>Crie QR Codes de links em PNG ou SVG.</small></span></button>
             <button class="tool-card available" data-open-tool="rng"><span class="tool-icon rng-tool-icon">✧</span><span><strong>NTC RNG</strong></span></button>
           </div>
+        </section>
+
+        <section class="view media-tool-view music-player-view" id="musicPlayerView">
+          <header class="music-page-heading">
+            <div class="hero compact"><div class="eyebrow">MÚSICA LOCAL</div><h1>Seu player offline</h1><p>Escolha pastas do PC e ouça sua biblioteca sem streaming.</p></div>
+          </header>
+          <div class="music-player-layout">
+            <section class="music-now-card" aria-label="Reprodução atual">
+              <div class="music-cover" aria-hidden="true"><img id="musicCoverImage" class="music-cover-image hidden" alt=""><span>♫</span><i></i><b></b></div>
+              <div class="music-now-copy"><span class="eyebrow">TOCANDO AGORA</span><h2 id="musicNowTitle">Escolha uma música</h2><p id="musicNowSubtitle">Sua coleção fica neste computador.</p></div>
+              <input class="music-seek" id="musicSeek" type="range" min="0" max="1000" value="0" aria-label="Posição da música">
+              <div class="music-time-row"><span id="musicCurrentTime">0:00</span><span id="musicDuration">0:00</span></div>
+              <div class="music-transport">
+                <button class="music-icon-button" id="musicShuffle" type="button" aria-label="Ativar reprodução aleatória" aria-pressed="false" title="Aleatório"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m18 14 4 4-4 4"/><path d="m18 2 4 4-4 4"/><path d="M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22"/><path d="M2 6h1.972a4 4 0 0 1 3.6 2.2"/><path d="M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45"/></svg></button>
+                <button class="music-icon-button" id="musicPrevious" type="button" aria-label="Faixa anterior" title="Anterior"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M17.971 4.285A2 2 0 0 1 21 6v12a2 2 0 0 1-3.029 1.715l-9.997-5.998a2 2 0 0 1-.003-3.432z"/><path d="M3 20V4"/></svg></button>
+                <button class="music-play-button" id="musicPlayPause" type="button" aria-label="Reproduzir"><svg class="music-play-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></svg><svg class="music-pause-icon hidden" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></svg></button>
+                <button class="music-icon-button" id="musicNext" type="button" aria-label="Próxima faixa" title="Próxima"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></svg></button>
+                <button class="music-icon-button" id="musicRepeat" type="button" aria-label="Repetição desativada" aria-pressed="false" title="Repetir"><svg class="music-repeat-all-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg><svg class="music-repeat-one-icon hidden" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/><path d="M11 10h1v4"/></svg></button>
+              </div>
+              <label class="music-volume-row" for="musicVolume"><span>Volume</span><input id="musicVolume" type="range" min="0" max="100" value="80"><span id="musicVolumeValue">80%</span></label>
+            </section>
+            <section class="music-library-card" aria-label="Biblioteca de músicas">
+              <header class="music-library-heading"><div><span class="eyebrow">SUA COLEÇÃO</span><h2>Biblioteca e fila</h2></div><div class="music-library-actions"><span id="musicTrackCount">0 faixas</span><button class="ghost-button" id="musicRescan" type="button">↻ Atualizar</button></div></header>
+              <div class="music-audio-dropzone" id="musicAudioDropzone"><span><strong>Arraste áudios individuais para a biblioteca</strong></span><button class="ghost-button" id="musicChooseAudioFiles" type="button">Selecionar áudios</button></div>
+              <div class="music-library-toolbar"><label class="music-search-wrap"><span aria-hidden="true">⌕</span><input class="text-input" id="musicSearch" type="search" placeholder="Buscar música ou pasta" aria-label="Buscar músicas"></label><label class="music-sort-wrap"><span>Organizar</span><select id="musicOrganization" aria-label="Organizar músicas"><option value="queue">Fila</option><option value="title">Título</option><option value="artist">Artista</option><option value="album">Álbum</option><option value="genre">Gênero</option></select></label><div class="music-library-tabs" role="group" aria-label="Filtrar músicas"><button class="active" type="button" data-music-filter="all">Todas</button><button type="button" data-music-filter="liked">Curtidas <span id="musicLikedCount">0</span></button><button class="hidden" id="musicPlaylistFilter" type="button" data-music-filter="playlist">Playlist</button></div></div>
+              <div class="music-playlist-toolbar"><label class="music-playlist-select-wrap"><span>Playlist</span><select id="musicPlaylistSelect" aria-label="Selecionar playlist"><option value="">Nenhuma selecionada</option></select></label><button class="ghost-button" id="musicNewPlaylist" type="button">＋ Nova playlist</button><button class="ghost-button hidden" id="musicEditPlaylist" type="button" aria-pressed="false">Editar faixas</button><button class="ghost-button hidden" id="musicDeletePlaylist" type="button">Excluir</button></div>
+              <form class="music-playlist-create hidden" id="musicPlaylistCreate"><input class="text-input" id="musicPlaylistName" type="text" maxlength="48" placeholder="Nome da playlist" aria-label="Nome da playlist" required><button class="outline-button" type="submit">Criar</button><button class="ghost-button" id="musicCancelPlaylist" type="button">Cancelar</button></form>
+              <div class="music-playlist-summary hidden" id="musicPlaylistSummary"><div class="music-playlist-cover"><img class="hidden" id="musicPlaylistCoverImage" alt=""><span id="musicPlaylistCoverPlaceholder" aria-hidden="true">♫</span></div><div class="music-playlist-summary-copy"><span class="eyebrow">PLAYLIST</span><h3 id="musicPlaylistTitle"></h3><p id="musicPlaylistDescription"></p></div><button class="ghost-button" id="musicEditPlaylistInfo" type="button">Editar detalhes</button></div>
+              <form class="music-playlist-info-form hidden" id="musicPlaylistInfoForm"><div class="music-playlist-cover-editor"><div class="music-playlist-cover"><img class="hidden" id="musicPlaylistCoverDraftImage" alt="Prévia da capa"><span id="musicPlaylistCoverDraftPlaceholder" aria-hidden="true">♫</span></div><div class="music-playlist-cover-actions"><button class="outline-button" id="musicChoosePlaylistCover" type="button">Escolher capa</button><button class="ghost-button hidden" id="musicRemovePlaylistCover" type="button">Remover capa</button></div></div><label class="music-playlist-name-field" for="musicPlaylistNameInput"><span class="field-label">Nome da playlist</span><input class="text-input" id="musicPlaylistNameInput" type="text" maxlength="48" required></label><label class="music-playlist-description-field" for="musicPlaylistDescriptionInput"><span class="field-label">Descrição</span><textarea class="text-input" id="musicPlaylistDescriptionInput" maxlength="300" rows="3" placeholder="Conte sobre esta playlist"></textarea></label><div class="music-playlist-info-actions"><button class="outline-button" type="submit">Salvar detalhes</button><button class="ghost-button" id="musicCancelPlaylistInfo" type="button">Cancelar</button></div></form>
+              <div class="music-track-list" id="musicTracks" role="list" aria-live="polite"></div>
+              <p class="music-library-hint" id="musicLibraryHint">Adicione uma pasta ou arraste áudios individuais. Os arquivos ficam no local original.</p>
+            </section>
+          </div>
+          <div class="music-settings-toolbar"><div><strong>Configurações da música</strong><span>Transição, capa e dados da faixa</span></div><button class="music-settings-toggle" id="musicSettingsToggle" type="button" aria-label="Abrir configurações da música" aria-expanded="false" aria-controls="musicSettingsPanel" title="Configurações da música"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+          <section class="music-settings-panel hidden" id="musicSettingsPanel" aria-label="Configurações do player">
+            <div class="music-setting-section">
+              <div class="music-setting-heading"><h3>Transição entre músicas</h3><p>Faça uma faixa entrar enquanto a outra termina.</p></div>
+              <label class="music-crossfade-control"><input id="musicCrossfade" type="range" min="0" max="12" value="10"><output id="musicCrossfadeValue">10 s</output></label>
+              <div class="music-equalizer-control">
+                <div class="music-setting-heading"><h3>Equalizador</h3><p>Modele graves, médios, agudos e ganho, ou use um preset.</p></div>
+                <div class="music-eq-preset-row"><label class="sr-only" for="musicEqualizer">Preset do equalizador</label><select id="musicEqualizer" aria-label="Preset do equalizador"></select><button class="ghost-button" id="musicSaveEqualizerPreset" type="button">Salvar preset</button></div>
+                <div class="music-eq-bands">
+                  <label class="music-eq-band"><span>Ganho <output id="musicEqGainValue">0 dB</output></span><input id="musicEqGain" type="range" min="-12" max="12" step="0.5" value="0" aria-label="Ganho geral em decibéis"></label>
+                  <label class="music-eq-band"><span>Graves <output id="musicEqBassValue">0 dB</output></span><input id="musicEqBass" type="range" min="-12" max="12" step="0.5" value="0" aria-label="Graves em decibéis"></label>
+                  <label class="music-eq-band"><span>Médios <output id="musicEqMidValue">0 dB</output></span><input id="musicEqMid" type="range" min="-12" max="12" step="0.5" value="0" aria-label="Médios em decibéis"></label>
+                  <label class="music-eq-band"><span>Agudos <output id="musicEqTrebleValue">0 dB</output></span><input id="musicEqTreble" type="range" min="-12" max="12" step="0.5" value="0" aria-label="Agudos em decibéis"></label>
+                </div>
+              </div>
+              <p class="music-equalizer-hint hidden" id="musicEqualizerHint" role="status"></p>
+            </div>
+            <div class="music-setting-section music-lookup-section">
+              <div class="music-setting-heading"><h3>Capa e metadados</h3><p>Busque informações online para a faixa atual.</p></div>
+              <p class="music-lookup-hint" id="musicLookupHint">Selecione uma faixa para buscar capa e metadados.</p>
+              <div class="music-lookup-actions"><button class="outline-button music-online-search hidden" id="musicOnlineSearch" type="button">Buscar capa e dados online</button><button class="ghost-button music-artist-toggle hidden" id="musicArtistToggle" type="button" aria-expanded="false">Informar outro artista</button></div>
+              <div class="music-artist-override hidden" id="musicArtistOverride"><input class="text-input" id="musicArtistName" type="text" maxlength="120" placeholder="Nome do artista para pesquisar" aria-label="Artista para pesquisar"><button class="ghost-button" id="musicSearchWithArtist" type="button">Buscar</button></div>
+              <div class="music-online-results hidden" id="musicOnlineResults" aria-live="polite"></div>
+            </div>
+            <div class="music-setting-section music-folder-section">
+              <div class="music-folder-heading-row"><div class="music-setting-heading"><h3>Pastas da biblioteca</h3><p>Gerencie as pastas que aparecem na sua coleção.</p></div><button class="outline-button" id="musicAddFolders" type="button">＋ Adicionar pastas</button></div>
+              <div class="music-folder-list" id="musicFolders" aria-label="Pastas da biblioteca"></div>
+              <p class="music-folder-empty hidden" id="musicFoldersEmpty">Nenhuma pasta adicionada.</p>
+            </div>
+          </section>
+          <audio id="musicDeckA" preload="auto" aria-hidden="true"></audio><audio id="musicDeckB" preload="auto" aria-hidden="true"></audio>
         </section>
 
         <section class="view rng-view" id="rngView">
@@ -82,7 +152,7 @@
             <section class="rng-roll-panel">
               <div class="rng-roll-heading"><div><span class="eyebrow">TÍTULOS ENCONTRADOS</span><strong id="rngCollectionCount">0 / 200</strong></div><div class="rng-rolls-total"><span>Rolagens</span><strong id="rngRollCount">0</strong></div></div>
               <div class="rng-progress-track" role="progressbar" aria-label="Progresso da coleção" aria-valuemin="0" aria-valuemax="200" aria-valuenow="0"><span id="rngProgressBar"></span></div>
-              <div class="rng-luck-line"><span>Sorte total</span><strong id="rngLuckValue">+0%</strong><span class="rng-luck-breakdown"><span id="rngCollectionLuck">+0% coleção</span><span id="rngAchievementLuck">+0% conquistas</span></span></div>
+              <div class="rng-luck-line"><span>Sorte total</span><strong id="rngLuckValue">+0%</strong><span class="rng-luck-breakdown"><span id="rngCollectionLuck">+0% coleção</span><span id="rngAchievementLuck">+0% conquistas</span><span id="rngSecretLuck">+0% segredos</span><span id="rngUpgradeLuck">+0% loja</span><span id="rngRelicLuck">×1 relíquias</span></span></div>
               <div class="rng-roll-actions"><button class="primary-button rng-roll-button" id="rngRollButton" type="button">Rolar</button><button class="outline-button rng-auto-button" id="rngAutoButton" type="button">Iniciar Auto-roll</button></div>
               <div class="rng-roll-info"><span id="rngRollBatchInfo">1 rolagem por ciclo</span><span id="rngBonusRollInfo">Rolagem bônus ×2 em 10 rolagens</span><span id="rngThousandBonusInfo">Mega bônus ×4 a cada 1.000 rolagens</span><span id="rngTenThousandBonusInfo">Bônus supremo ×10 a cada 10.000 rolagens</span></div>
               <div class="rng-clock-status" id="rngClockStatus" data-active="false" aria-live="off"><span class="rng-clock-indicator" aria-hidden="true"></span><span class="rng-clock-copy"><strong id="rngClockTitle">Bônus de horas iguais</strong><small id="rngClockDetail">Chance de títulos raros ×2 em horas e minutos iguais.</small></span><b>×2</b></div>
@@ -98,7 +168,7 @@
               </div>
             </section>
           </div>
-          <nav class="rng-section-tabs" aria-label="Áreas do NTC RNG"><button type="button" class="active" data-rng-section="history">Histórico</button><button type="button" data-rng-section="collection">Coleção</button><button type="button" data-rng-section="achievements">Conquistas</button><button type="button" data-rng-section="statistics">Estatísticas</button><button type="button" data-rng-section="events">Eventos</button></nav>
+          <nav class="rng-section-tabs" aria-label="Áreas do NTC RNG"><button type="button" class="active" data-rng-section="history">Histórico</button><button type="button" data-rng-section="collection">Coleção</button><button type="button" data-rng-section="achievements">Conquistas</button><button type="button" data-rng-section="statistics">Estatísticas</button><button type="button" data-rng-section="events">Eventos</button><button type="button" data-rng-section="shop">Loja</button><button type="button" data-rng-section="inventory">Inventário</button><button type="button" data-rng-section="patch-notes">Atualizações</button></nav>
           <section class="rng-title-history-section" data-rng-panel="history">
             <div class="section-heading"><h2>Histórico de títulos</h2><span id="rngTitleHistoryCount">0 títulos obtidos</span></div>
             <div class="rng-title-history-tools">
@@ -115,10 +185,38 @@
           <section class="rng-extra-section hidden" data-rng-panel="achievements"><div class="section-heading"><h2>Conquistas</h2></div><div class="rng-achievement-groups" id="rngAchievements"></div><div class="section-heading rng-subheading"><h2>Segredos descobertos</h2></div><div class="rng-extra-grid" id="rngSecrets"></div></section>
           <section class="rng-extra-section hidden" data-rng-panel="statistics"><div class="section-heading"><h2>Estatísticas e recordes</h2></div><div class="rng-extra-grid" id="rngStatistics"></div><div class="section-heading rng-subheading"><h2>Tempo de uso</h2></div><div class="rng-profile-grid rng-time-grid"><div><span>Nesta sessão do app</span><strong id="rngAppSessionTime">00:00:00</strong></div><div><span>Tempo total no app</span><strong id="rngAppTotalTime">00:00:00</strong></div><div><span>Auto-roll nesta sessão</span><strong id="rngAutoSessionTime">00:00:00</strong></div><div><span>Auto-roll total</span><strong id="rngAutoTotalTime">00:00:00</strong></div></div></section>
           <section class="rng-extra-section hidden" data-rng-panel="events"><div class="section-heading"><h2>Eventos</h2></div><p class="rng-event-status" id="rngEventStatus">Verificando a conexão…</p><div class="rng-extra-grid" id="rngEventSchedule"></div><div class="section-heading rng-subheading"><h2>Títulos limitados obtidos</h2></div><div class="rng-extra-grid" id="rngLimitedTitles"></div></section>
+          <section class="rng-extra-section rng-shop-section hidden" data-rng-panel="shop">
+            <div class="section-heading"><div><h2>Loja de Fragmentos</h2><span>Ganhe fragmentos em cada rolagem e troque por sorte permanente ou bônus.</span></div><strong class="rng-wallet" id="rngFragmentsBalance">0 Fragmentos</strong></div>
+            <div class="rng-shop-grid">
+              <article class="rng-shop-card rng-upgrade-card"><span class="rng-shop-kicker">MELHORIA PERMANENTE</span><h3>Sorte aprimorada</h3><p>Aumenta sua sorte em 5% por nível. O custo dobra a cada compra, sem limite de níveis.</p><div class="rng-shop-facts"><span>Nível <strong id="rngPermanentLevel">0</strong></span><span>Bônus <strong id="rngPermanentBonus">+0%</strong></span></div><button class="primary-button" id="rngBuyUpgrade" type="button">Comprar por 50.000</button></article>
+              <article class="rng-shop-card"><span class="rng-shop-kicker">CONSUMÍVEL · ROLAGENS</span><h3>Fortuna ×2</h3><p>Dobra a sorte nas próximas 600 rolagens. Pode se acumular com a Fortuna por tempo; ativações repetidas entram na fila.</p><div class="rng-shop-facts"><span>Duração <strong>600 rolagens</strong></span><span>Preço <strong>5.000</strong></span></div><button class="outline-button" id="rngBuyRollBoost" type="button">Comprar</button></article>
+              <article class="rng-shop-card"><span class="rng-shop-kicker">CONSUMÍVEL · TEMPO</span><h3>Fortuna ×2 por 10 min</h3><p>Dobra a sorte por 10 minutos de uso do app. Pode se acumular com a Fortuna por rolagens; o tempo pausa quando o app está fechado.</p><div class="rng-shop-facts"><span>Duração <strong>10 minutos</strong></span><span>Preço <strong>5.000</strong></span></div><button class="outline-button" id="rngBuyTimeBoost" type="button">Comprar</button></article>
+            </div>
+            <div class="section-heading rng-subheading"><div><h2>Relíquias</h2><span>Peças permanentes com efeitos que se combinam quando equipadas.</span></div></div>
+            <div class="rng-relic-grid" id="rngRelicShop"></div>
+          </section>
+          <section class="rng-extra-section rng-shop-section hidden" data-rng-panel="inventory">
+            <div class="section-heading"><div><h2>Inventário</h2><span>Fortunas por rolagens e por tempo podem ficar ativas juntas e multiplicar a sorte. Repetições do mesmo tipo entram na fila.</span></div></div>
+            <article class="rng-boost-status"><div><span class="rng-shop-kicker">BÔNUS EM ANDAMENTO</span><strong id="rngActiveBoostLabel">Nenhum bônus ativo</strong></div><span id="rngBoostQueueLabel">Fila vazia</span></article>
+            <div class="rng-shop-grid rng-inventory-grid">
+              <article class="rng-shop-card"><span class="rng-shop-kicker">CONSUMÍVEL · ROLAGENS</span><h3>Fortuna ×2</h3><p>Aplica o dobro de sorte nas próximas 600 rolagens.</p><div class="rng-shop-facts"><span>Disponíveis <strong id="rngRollBoostCount">0</strong></span></div><button class="outline-button" id="rngActivateRollBoost" type="button">Ativar</button></article>
+              <article class="rng-shop-card"><span class="rng-shop-kicker">CONSUMÍVEL · TEMPO</span><h3>Fortuna ×2 por 10 min</h3><p>O tempo conta enquanto o NTC está aberto e pausa quando ele é fechado.</p><div class="rng-shop-facts"><span>Disponíveis <strong id="rngTimeBoostCount">0</strong></span></div><button class="outline-button" id="rngActivateTimeBoost" type="button">Ativar</button></article>
+            </div>
+            <div class="section-heading rng-subheading"><div><h2>Relíquias equipadas</h2><span>Seis espaços para misturar peças e completar até dois sets.</span></div><strong class="rng-relic-count" id="rngRelicCount">0 / 9</strong></div>
+            <div class="rng-relic-slots" id="rngRelicSlots"></div>
+            <article class="rng-relic-effects"><span class="rng-shop-kicker">EFEITOS ATIVOS</span><div id="rngRelicEffects"></div></article>
+            <div class="rng-set-grid" id="rngRelicSets"></div>
+            <div class="section-heading rng-subheading"><div><h2>Coleção de relíquias</h2><span>Equipe uma peça livre ou retire uma peça já em uso.</span></div></div>
+            <div class="rng-relic-grid" id="rngRelicInventory"></div>
+          </section>
+          <section class="rng-extra-section hidden" data-rng-panel="patch-notes">
+            <div class="section-heading"><div><h2>Notas de atualização do NTC RNG</h2><span>Histórico do jogo, separado das novidades do NTC Utilities.</span></div></div>
+            <div class="rng-patch-note-list" id="rngPatchNotes"></div>
+          </section>
         </section>
 
         <section class="view media-tool-view" id="compressorView">
-          <div class="hero"><div class="eyebrow">COMPACTAR</div><h1>Compressor</h1></div>
+          <div class="hero"><div class="eyebrow">COMPACTAR</div><h1>Compressor</h1><p>Reduza o tamanho de vídeos e áudios ajustando qualidade e formato.</p></div>
           <section class="converter-import"><button class="primary-button" id="chooseCompression" type="button">Selecionar arquivos</button><div class="media-dropzone" id="compressionDropzone" tabindex="0"><strong>Arraste arquivos aqui</strong><span>Vídeos e áudios</span></div></section>
           <section class="tool-options"><label class="hidden"><span class="field-label">Preset</span><select id="compressionPreset"><option value="manual">Manual</option></select></label><label class="compression-video-option"><span class="field-label">Resolução vídeo</span><select id="compressionResolution"><option value="original">Original</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option><option value="144">144p</option></select></label><label class="compression-video-option"><span class="field-label">FPS</span><input class="text-input" id="compressionFps" type="number" min="1" value="24" /></label><label class="compression-video-option"><span class="field-label">CRF vídeo</span><input class="text-input" id="compressionCrf" type="number" min="0" value="30" /></label><label><span class="field-label">Bitrate áudio (kbps)</span><input class="text-input" id="compressionBitrate" type="number" min="8" value="64" /></label><label class="compression-audio-option"><span class="field-label">Formato</span><select id="compressionAudioFormat"><option value="mp3">MP3</option><option value="opus">Opus</option></select></label><label class="compression-audio-option"><span class="field-label">Taxa de amostragem</span><select id="compressionSampleRate"><option value="44100">44.1 kHz</option><option value="22050">22.05 kHz</option><option value="11025">11.025 kHz</option><option value="8000">8 kHz</option></select></label><label class="compression-audio-option normalize-control"><input id="compressionMono" type="checkbox" /><span>Converter para mono</span></label></section>
           <div class="hidden" aria-hidden="true"><input id="compressionImageQuality" value="60" /><input id="compressionImageScale" value="60" /><div id="compressionPreviewCard"><img id="compressionPreviewOriginal" /><img id="compressionPreviewResult" /><strong id="compressionPreviewTitle"></strong><small id="compressionPreviewMeta"></small></div></div>
@@ -174,7 +272,7 @@
         </section>
 
         <section class="view qr-tool-view" id="qrGeneratorView">
-          <div class="hero compact"><div class="eyebrow">LINKS</div><h1>Gerador de QR Code</h1></div>
+          <div class="hero compact"><div class="eyebrow">LINKS</div><h1>Gerador de QR Code</h1><p>Transforme links em QR Codes e salve nos formatos PNG ou SVG.</p></div>
           <section class="download-card qr-input-card">
             <label class="field-label" for="qrLinks">Links</label>
             <textarea class="text-input qr-links-input" id="qrLinks" rows="4" placeholder="Cole um link por linha" spellcheck="false"></textarea>
@@ -201,7 +299,7 @@
         </section>
 
         <section class="view recorder-view" id="recorderView">
-          <div class="hero compact"><div class="eyebrow">CAPTURA</div><h1>Gravador de tela</h1></div>
+          <div class="hero compact"><div class="eyebrow">CAPTURA</div><h1>Gravador de tela</h1><p>Grave a tela com áudio do sistema ou microfone e salve no computador.</p></div>
           <section class="recorder-card">
             <div class="recorder-status" id="recorderStatus" aria-live="polite"><span class="record-dot" id="recordDot"></span><div><strong id="recorderState">Pronto para gravar</strong><small id="recorderTimer">00:00:00</small></div></div>
             <button class="primary-button recorder-button" id="toggleRecording" type="button">Iniciar gravação</button>
@@ -214,7 +312,7 @@
         </section>
 
         <section class="view screenshot-view" id="screenshotView">
-          <div class="hero compact"><div class="eyebrow">CAPTURA</div><h1>Captura de tela</h1></div>
+          <div class="hero compact"><div class="eyebrow">CAPTURA</div><h1>Captura de tela</h1><p>Faça capturas, anote, recorte e copie ou salve a imagem.</p></div>
           <section class="recorder-card screenshot-capture-card">
             <label class="screenshot-shortcut-row"><span class="field-label">Atalho para captura e edição</span><input class="text-input shortcut-input" id="screenshotShortcut" value="" placeholder="Clique e pressione uma tecla" autocomplete="off" aria-label="Atalho para captura e edição" /><small>Uma tecla ou combinação, por exemplo Ctrl + Print Screen.</small></label>
             <label class="screenshot-quick-shortcut-row"><span class="field-label">Atalho para captura rápida</span><input class="text-input shortcut-input" id="quickScreenshotShortcut" value="" placeholder="Clique e pressione uma tecla" autocomplete="off" aria-label="Atalho para captura rápida" /><small>Combinação opcional. Salva direto na pasta, sem abrir o editor.</small></label>
@@ -222,10 +320,26 @@
           </section>
         </section>
 
-        <section class="view" id="downloaderView">
-          <div class="hero">
-            <h1>Downloader</h1>
+        <section class="view color-picker-view" id="colorPickerView">
+          <div class="hero compact"><div class="eyebrow">CORES</div><h1>Seletor de cor</h1><p>Escolha uma cor visível na tela e copie seu código.</p></div>
+          <div class="color-picker-layout">
+            <section class="color-picker-panel">
+              <div class="color-picker-panel-heading"><span class="color-picker-icon">◉</span><div><h2>Capturar uma cor</h2><p>O NTC será minimizado para não aparecer na amostra. Passe o cursor para ampliar e clique no pixel desejado.</p></div></div>
+              <button class="primary-button" id="colorPickerStart" type="button">Selecionar cor na tela</button>
+              <small class="color-picker-hint" id="colorPickerStatus" aria-live="polite">Pressione Esc para cancelar a seleção.</small>
+              <div class="color-picker-sample"><span class="color-picker-swatch" id="colorPickerSwatch"></span><div><small>Cor selecionada</small><strong id="colorPickerHexHeadline">—</strong></div></div>
+            </section>
+            <section class="color-picker-values" aria-label="Códigos da cor selecionada">
+              <div class="color-picker-value-row"><div><span>HEX</span><strong id="colorPickerHex">—</strong></div><button class="outline-button" type="button" data-copy-color="hex" disabled>Copiar</button></div>
+              <div class="color-picker-value-row"><div><span>RGB</span><strong id="colorPickerRgb">—</strong></div><button class="outline-button" type="button" data-copy-color="rgb" disabled>Copiar</button></div>
+              <div class="color-picker-value-row"><div><span>HSL</span><strong id="colorPickerHsl">—</strong></div><button class="outline-button" type="button" data-copy-color="hsl" disabled>Copiar</button></div>
+              <section class="color-picker-history" aria-labelledby="colorPickerHistoryTitle"><div class="color-picker-history-heading"><h2 id="colorPickerHistoryTitle">Cores recentes</h2></div><div class="color-picker-history-list" id="colorPickerHistory"><p class="color-picker-history-empty">As cores que você selecionar aparecerão aqui.</p></div></section>
+            </section>
           </div>
+        </section>
+
+        <section class="view" id="downloaderView">
+          <div class="hero"><div class="eyebrow">DOWNLOAD</div><h1>Downloader</h1><p>Baixe vídeos, áudios e miniaturas a partir de links compatíveis.</p></div>
 
           <form class="download-card" id="downloadForm">
             <label class="field-label" for="videoUrl">Link do vídeo</label>
@@ -293,6 +407,7 @@
           <div class="hero">
             <div class="eyebrow">ÁUDIO</div>
             <h1>Editor de áudio</h1>
+            <p>Corte, ajuste metadados e converta arquivos de áudio e vídeo.</p>
           </div>
 
           <section class="converter-import">
@@ -348,7 +463,7 @@
         </section>
 
         <section class="view media-tool-view" id="videoView">
-          <div class="hero"><div class="eyebrow">VÍDEO</div><h1>Conversor de vídeo</h1></div>
+          <div class="hero"><div class="eyebrow">VÍDEO</div><h1>Conversor de vídeo</h1><p>Converta vídeos entre formatos, codecs e resoluções.</p></div>
           <section class="converter-import"><button class="primary-button" id="chooseVideo" type="button">Selecionar vídeos</button><div class="media-dropzone" id="videoDropzone" tabindex="0"><strong>Arraste vídeos aqui</strong><span>MP4, MKV, MOV, AVI, WebM e mais</span></div></section>
           <section class="tool-options"><label><span class="field-label">Formato</span><select id="videoFormat"><option value="mp4">MP4</option><option value="mkv">MKV</option><option value="webm">WebM</option></select></label><label><span class="field-label">Codec</span><select id="videoCodec"><option value="h264">H.264</option><option value="h265">H.265</option><option value="vp9">VP9</option></select></label><label><span class="field-label">Resolução</span><select id="videoResolution"><option value="original">Original</option><option value="2160">2160p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label><label><span class="field-label">Qualidade</span><select id="videoQuality"><option value="alta">Alta</option><option value="equilibrada" selected>Equilibrada</option><option value="economica">Econômica</option></select></label><label><span class="field-label">Áudio</span><select id="videoAudio"><option value="keep">Preservar</option><option value="mute">Remover</option></select></label></section>
           <label class="tool-destination"><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="videoFolderPath">Downloads</span><button type="button" id="chooseVideoFolder">Alterar</button></div></label>
@@ -356,7 +471,7 @@
         </section>
 
         <section class="view video-editor-view" id="videoEditorView">
-          <div class="hero"><div class="eyebrow">EDIÇÃO</div><h1>Editor de vídeo</h1></div>
+          <div class="hero"><div class="eyebrow">EDIÇÃO</div><h1>Editor de vídeo</h1><p>Corte trechos, misture áudios e exporte um novo vídeo.</p></div>
           <section class="converter-import" id="videoEditorImport"><button class="primary-button" id="chooseVideoEditor" type="button">Selecionar vídeo</button><div class="media-dropzone" id="videoEditorDropzone" tabindex="0"><strong>Arraste um vídeo aqui</strong><span>MP4, MKV, MOV, AVI e WebM</span></div></section>
           <section class="video-editor-workspace hidden" id="videoEditorWorkspace">
             <div class="video-preview-shell"><video id="videoEditorPlayer" controls preload="metadata"></video><div class="video-preview-meta"><strong id="videoEditorName">—</strong><span id="videoEditorTime">00:00:00 / 00:00:00</span></div></div>
@@ -375,12 +490,93 @@
         </section>
 
         <section class="view media-tool-view" id="imageView">
-          <div class="hero"><div class="eyebrow">IMAGENS</div><h1>Conversor de imagens</h1></div>
+          <div class="hero"><div class="eyebrow">IMAGENS</div><h1>Conversor de imagens</h1><p>Altere o formato, a qualidade e as dimensões das imagens.</p></div>
           <section class="converter-import"><button class="primary-button" id="chooseImages" type="button">Selecionar imagens</button><div class="media-dropzone" id="imageDropzone" tabindex="0"><strong>Arraste imagens aqui</strong><span>JPG, PNG, WebP, BMP e TIFF</span></div></section>
           <section class="tool-options image-options"><label><span class="field-label">Formato</span><select id="imageFormat"><option value="jpg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option></select></label><label><span class="field-label">Qualidade (1–100%)</span><input class="text-input" id="imageQuality" type="number" min="1" max="100" value="100" /></label><label><span class="field-label">Escala (%)</span><input class="text-input" id="imageScale" type="number" min="1" value="100" placeholder="100" /></label><label><span class="field-label">Largura</span><input class="text-input" id="imageWidth" type="number" min="1" placeholder="Original" /></label><label><span class="field-label">Altura</span><input class="text-input" id="imageHeight" type="number" min="1" placeholder="Original" /></label><label class="normalize-control"><input id="imageKeepRatio" type="checkbox" checked /><span>Manter proporção</span></label></section>
           <section class="image-preview-card hidden" id="imagePreviewCard"><div class="image-preview-comparison"><figure><img id="imagePreviewOriginal" alt="Imagem original" /><figcaption>Original</figcaption></figure><figure><img id="imagePreview" alt="Resultado com os ajustes selecionados" /><figcaption>Resultado</figcaption></figure></div><div><span class="field-label">Comparação de resultado</span><strong id="imagePreviewTitle">Imagem selecionada</strong><small id="imagePreviewMeta">Ajuste qualidade e tamanho para atualizar.</small></div></section>
           <label class="tool-destination"><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="imageFolderPath">Downloads</span><button type="button" id="chooseImageFolder">Alterar</button></div></label>
           <section class="queue-section"><div class="section-heading"><h2>Fila de imagens</h2><span id="imageQueueCount">0 itens</span></div><div class="queue-list" id="imageQueueList"><div class="empty-state"><p>Adicione imagens para converter.</p></div></div><button class="primary-button" id="startImages" type="button">Iniciar conversões</button></section><section class="progress-card hidden" id="imageProgress"><div class="progress-topline"><span class="status-pill" id="imageStatus">CONVERTENDO</span><span id="imagePercent">0%</span></div><div class="media-info"><div class="media-thumbnail"><span>▧</span></div><div class="media-copy"><strong id="imageTitle">Preparando imagem…</strong><small id="imageMeta">Processando localmente</small></div><button class="ghost-button" id="cancelImage" type="button">Cancelar</button></div><div class="progress-track"><span id="imageProgressBar"></span></div></section>
+        </section>
+
+        <section class="view autoclicker-view" id="autoclickerView">
+          <div class="hero compact"><div class="eyebrow">AUTOMAÇÃO</div><h1>Auto-clicker</h1><p>Controle a frequência, o atalho e onde os cliques acontecem.</p></div>
+          <section class="autoclicker-status-card" aria-live="polite">
+            <span class="autoclicker-status-dot" id="autoclickerStatusDot" aria-hidden="true"></span>
+            <div class="autoclicker-status-copy"><strong id="autoclickerStatus">Pronto</strong><span id="autoclickerStatusDetail">Atalho F6 · pressione para iniciar ou parar</span></div>
+            <div class="autoclicker-count"><span>Cliques nesta execução</span><strong id="autoclickerRunCount">0</strong></div>
+            <div class="autoclicker-count autoclicker-lifetime-count"><span>Cliques em todo tempo</span><strong id="autoclickerTotalCount">0</strong><small>Salvo neste dispositivo</small></div>
+          </section>
+
+          <div class="autoclicker-grid">
+            <section class="autoclicker-card autoclicker-main-card">
+              <div class="autoclicker-card-heading"><div><span class="eyebrow">CONFIGURAÇÃO RÁPIDA</span><h2>Como clicar</h2></div><label class="autoclicker-toggle-line"><input id="autoclickerAdvanced" type="checkbox" /><span>Modo avançado</span></label></div>
+              <div class="autoclicker-fields autoclicker-fields-core">
+                <label><span class="field-label">Atalho para iniciar/parar</span><input class="text-input shortcut-input" id="autoclickerHotkey" value="F6" placeholder="Clique e pressione uma combinação" autocomplete="off" aria-label="Atalho do auto-clicker" /><small>Funciona mesmo com o NTC minimizado.</small></label>
+                <label><span class="field-label">Ativação</span><select id="autoclickerMode"><option value="Toggle">Alternar: aperte para iniciar e parar</option><option value="Hold">Segurar: clique enquanto mantém pressionado</option></select></label>
+                <label><span class="field-label">Tipo de entrada</span><select id="autoclickerInputType"><option value="mouse">Mouse</option><option value="keyboard">Tecla do teclado</option></select></label>
+                <label id="autoclickerMouseField"><span class="field-label">Botão do mouse</span><select id="autoclickerMouseButton"><option value="Left">Esquerdo</option><option value="Right">Direito</option><option value="Middle">Meio</option></select></label>
+                <label class="hidden" id="autoclickerKeyField"><span class="field-label">Tecla a pressionar</span><input class="text-input" id="autoclickerKey" value="A" maxlength="20" aria-label="Tecla a pressionar" /></label>
+                <label class="autoclicker-case hidden" id="autoclickerCaseField"><span class="field-label">Maiúsculas</span><span class="autoclicker-checkbox"><input id="autoclickerUppercase" type="checkbox" /><span>Pressionar com Shift</span></span></label>
+                <label><span class="field-label">Ritmo</span><span class="autoclicker-inline-fields"><input class="text-input" id="autoclickerSpeed" type="number" min="1" max="500" value="10" /><select id="autoclickerInterval"><option value="s">por segundo</option><option value="m">por minuto</option><option value="h">por hora</option><option value="d">por dia</option></select></span><small>Acima de ~500 CPS, o Windows pode perder precisão; limite para manter a taxa confiável.</small></label>
+              </div>
+              <div class="autoclicker-advanced hidden" id="autoclickerAdvancedOptions">
+                <div class="autoclicker-subheading"><h3>Velocidade e duração</h3><span>Máximo: 500 CPS</span></div>
+                <div class="autoclicker-fields-advanced">
+                  <div class="autoclicker-option-row"><label class="autoclicker-checkbox"><input id="autoclickerRandomize" type="checkbox" /><span>Variar a velocidade</span></label><label class="autoclicker-option-value"><span class="field-label">Variação</span><span class="autoclicker-suffix"><input class="text-input" id="autoclickerVariation" type="number" min="0" max="200" value="35" /><span>%</span></span></label></div>
+                  <div class="autoclicker-option-row"><label class="autoclicker-checkbox"><input id="autoclickerDutyEnabled" type="checkbox" checked /><span>Ajustar duração de cada clique</span></label><label class="autoclicker-option-value"><span class="field-label">Duração do clique</span><span class="autoclicker-suffix"><input class="text-input" id="autoclickerDuty" type="number" min="0" max="100" value="45" /><span>% do intervalo</span></span></label></div>
+                  <div class="autoclicker-option-row"><label class="autoclicker-checkbox"><input id="autoclickerDoubleClick" type="checkbox" /><span>Duplo clique</span></label><label class="autoclicker-option-value"><span class="field-label">Intervalo do duplo clique</span><span class="autoclicker-suffix"><input class="text-input" id="autoclickerDoubleGap" type="number" min="20" max="500" value="45" /><span>ms</span></span></label></div>
+                </div>
+                <div class="autoclicker-subheading"><h3>Parada automática</h3><span>Opcional</span></div>
+                <div class="autoclicker-fields-advanced">
+                  <div class="autoclicker-option-row"><label class="autoclicker-checkbox"><input id="autoclickerClickLimitEnabled" type="checkbox" /><span>Parar após uma quantidade</span></label><label class="autoclicker-option-value"><span class="field-label">Quantidade máxima</span><input class="text-input" id="autoclickerClickLimit" type="number" min="1" value="1000" /></label></div>
+                  <div class="autoclicker-option-row"><label class="autoclicker-checkbox"><input id="autoclickerTimeLimitEnabled" type="checkbox" /><span>Parar após um tempo</span></label><label class="autoclicker-option-value"><span class="field-label">Tempo máximo</span><span class="autoclicker-inline-fields"><input class="text-input" id="autoclickerTimeLimit" type="number" min="1" value="60" /><select id="autoclickerTimeUnit"><option value="s">segundos</option><option value="m">minutos</option><option value="h">horas</option></select></span></label></div>
+                </div>
+                <div class="autoclicker-subheading"><h3>Segurança do cursor</h3><span>Para evitar cliques indesejados</span></div>
+                <div class="autoclicker-fields-advanced">
+                  <div class="autoclicker-option-row"><label class="autoclicker-checkbox"><input id="autoclickerEdgeStop" type="checkbox" checked /><span>Parar perto das bordas</span></label><label class="autoclicker-option-value"><span class="field-label">Margem de segurança</span><span class="autoclicker-suffix"><input class="text-input" id="autoclickerEdgeMargin" type="number" min="0" max="10000" value="40" /><span>px</span></span></label></div>
+                  <div class="autoclicker-option-row"><label class="autoclicker-checkbox"><input id="autoclickerCornerStop" type="checkbox" checked /><span>Parar nos cantos</span></label><label class="autoclicker-option-value"><span class="field-label">Área dos cantos</span><span class="autoclicker-suffix"><input class="text-input" id="autoclickerCornerMargin" type="number" min="0" max="10000" value="50" /><span>px</span></span></label></div>
+                  <div class="autoclicker-option-row"><label class="autoclicker-checkbox"><input id="autoclickerTaskSwitcherStop" type="checkbox" checked /><span>Parar ao abrir a visão de tarefas</span></label></div>
+                  <div class="autoclicker-cursor-values">
+                    <label><span class="field-label">Deslocamento aleatório</span><span class="autoclicker-suffix"><input class="text-input" id="autoclickerOffset" type="number" min="0" max="10000" value="0" /><span>px de raio</span></span></label>
+                    <label><span class="field-label">Chance de deslocamento</span><span class="autoclicker-suffix"><input class="text-input" id="autoclickerOffsetChance" type="number" min="0" max="100" value="100" /><span>%</span></span></label>
+                    <label><span class="field-label">Suavidade do movimento</span><span class="autoclicker-suffix"><input class="text-input" id="autoclickerSmoothing" type="number" min="0" max="100" value="0" /><span>%</span></span></label>
+                  </div>
+                </div>
+              </div>
+              <div class="autoclicker-actions"><button class="primary-button" id="autoclickerStart" type="button">Iniciar cliques</button><button class="outline-button" id="autoclickerStop" type="button" disabled>Parar</button></div>
+            </section>
+
+            <aside class="autoclicker-side-column">
+              <section class="autoclicker-card autoclicker-points-card">
+                <div class="autoclicker-card-heading"><div><span class="eyebrow">POSIÇÕES FIXAS</span><h2>Pontos de clique</h2></div><label class="switch"><input id="autoclickerPointsEnabled" type="checkbox" /><span></span></label></div>
+                <p class="autoclicker-card-note">Escolha posições da tela e quantos cliques fazer em cada uma.</p>
+                <div id="autoclickerPointsList" class="autoclicker-item-list"><div class="autoclicker-empty">Nenhum ponto adicionado.</div></div>
+                <button class="outline-button" id="autoclickerAddPoint" type="button">＋ Adicionar ponto na tela</button>
+                <label class="autoclicker-checkbox autoclicker-stop-complete"><input id="autoclickerStopWhenComplete" type="checkbox" /><span>Parar depois de completar todos os pontos</span></label>
+              </section>
+
+              <section class="autoclicker-card autoclicker-zones-card">
+                <div class="autoclicker-card-heading"><div><span class="eyebrow">PROTEÇÃO</span><h2>Zonas de segurança</h2></div><label class="switch"><input id="autoclickerZonesEnabled" type="checkbox" /><span></span></label></div>
+                <p class="autoclicker-card-note">Configure áreas que param, pausam ou retomam os cliques.</p>
+                <div id="autoclickerZonesList" class="autoclicker-item-list"><div class="autoclicker-empty">Nenhuma zona configurada.</div></div>
+                <div class="autoclicker-zone-actions"><select id="autoclickerZoneAction" aria-label="Ação da zona"><option value="stop">Parar</option><option value="pause">Pausar</option><option value="start">Retomar</option></select><button class="outline-button" id="autoclickerAddZone" type="button">＋ Desenhar zona</button></div>
+              </section>
+
+              <section class="autoclicker-card autoclicker-process-card">
+                <div class="autoclicker-card-heading"><div><span class="eyebrow">APLICATIVOS</span><h2>Filtro por processo</h2></div><label class="switch"><input id="autoclickerProcessEnabled" type="checkbox" /><span></span></label></div>
+                <p class="autoclicker-card-note">Escolha quais aplicativos podem receber cliques.</p>
+                <details class="autoclicker-process-dropdown">
+                  <summary><span>Processos</span><span class="autoclicker-process-summary" id="autoclickerProcessSummary">Ver aplicativos</span></summary>
+                  <div class="autoclicker-process-dropdown-content">
+                    <div class="autoclicker-process-tools"><select id="autoclickerProcessMode"><option value="whitelist">Permitir apenas</option><option value="blacklist">Bloquear</option></select><button class="outline-button" id="autoclickerRefreshProcesses" type="button">↻ Atualizar</button></div>
+                    <input class="text-input autoclicker-process-search" id="autoclickerProcessSearch" placeholder="Filtrar aplicativos abertos" aria-label="Filtrar aplicativos abertos" />
+                    <div id="autoclickerProcessList" class="autoclicker-item-list autoclicker-process-list"><div class="autoclicker-empty">Carregando aplicativos abertos…</div></div>
+                  </div>
+                </details>
+              </section>
+            </aside>
+          </div>
+          <div class="autoclicker-footer" id="autoclickerFooter" aria-live="polite"></div>
         </section>
 
         <section class="view playlist-view" id="playlistView">
@@ -495,9 +691,15 @@
       <section class="changelog-card"><div class="changelog-heading"><div><span class="eyebrow">NTC UTILITIES</span><h2 id="changelogTitle">O que mudou</h2></div><button class="suggestion-close" id="closeChangelog" type="button" aria-label="Fechar changelog">×</button></div><div class="changelog-list" id="changelogList"></div></section>
     </div>
     <script src="./changelog.js"></script>
+    <script src="./rng-changelog.js"></script>
     <script src="./screenshot-editor.js"></script>
     <script src="./renamer.js"></script>
     <script src="./renamer-ui.js"></script>
+    <script src="./autoclicker-ui.js"></script>
+    <script src="./color-picker-ui.js"></script>
+    <script src="./music-queue.js"></script>
+    <script src="./music-playlists.js"></script>
+    <script src="./music-player.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

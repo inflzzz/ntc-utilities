@@ -33,6 +33,14 @@ function qrFailureMessage(error) { const message = String(error?.message || erro
 function formatRecordingTime(milliseconds) { const seconds = Math.floor(Math.max(0, milliseconds) / 1000); const hours = String(Math.floor(seconds / 3600)).padStart(2, '0'); const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0'); return `${hours}:${minutes}:${String(seconds % 60).padStart(2, '0')}`; }
 function formatRngDuration(seconds) { const total = Math.max(0, Math.floor(Number(seconds) || 0)); const hours = Math.floor(total / 3600); const minutes = Math.floor((total % 3600) / 60); return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`; }
 function formatRngPercent(basisPoints) { return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format((Number(basisPoints) || 0) / 100)}%`; }
+function formatRngExactPercent(basisPoints) {
+  try {
+    const value = BigInt(basisPoints || 0);
+    const whole = value / 100n;
+    const decimal = String(value % 100n).padStart(2, '0').replace(/0+$/, '');
+    return `${new Intl.NumberFormat('pt-BR').format(whole)}${decimal ? `,${decimal}` : ''}%`;
+  } catch { return '0%'; }
+}
 const rngBrazilClock = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 function trustedRngUtc() {
   if (!rngState?.timeVerification?.verified || !Number.isFinite(rngState.timeVerification.utcMs)) return null;
@@ -63,14 +71,17 @@ function rngRollBoostLabels(result, includeCombined = true) {
   const equalHourMultiplier = result.isEqualHourBonus ? 2 : 1;
   const thousandRollMultiplier = result.isThousandRollBonus ? Math.max(1, Number(result.thousandRollMultiplier) || 4) : 1;
   const tenThousandRollMultiplier = result.isTenThousandRollBonus ? Math.max(1, Number(result.tenThousandRollMultiplier) || 10) : 1;
+  const requestedConsumableMultiplier = Number(result.consumableMultiplier || result.consumableBoostMultiplier || 1);
+  const consumableMultiplier = [2, 4].includes(requestedConsumableMultiplier) ? requestedConsumableMultiplier : 1;
   if (result.isBonusRoll) labels.push(`Rolagem bônus ×${sequenceMultiplier}`);
   if (result.isEqualHourBonus) labels.push(`Horas iguais ×2${result.equalHourTime ? ` · ${safeText(result.equalHourTime)}` : ''}`);
   if (result.isThousandRollBonus) labels.push('Marco de 1.000 rolagens ×4');
   if (result.isTenThousandRollBonus) labels.push('Marco de 10.000 rolagens ×10');
+  if (consumableMultiplier > 1) labels.push(`Fortuna acumulada ×${consumableMultiplier}`);
   if (result.eventMultiplier > 1) labels.push(`${safeText(result.eventName || 'Evento')} ×${result.eventMultiplier}`);
   const focusMultiplier = Math.max(1, Number(result.eventFocusMultiplier) || 1);
   if (result.eventFocusTierLabel) labels.push(`${safeText(result.eventName || 'Evento')} · ${safeText(result.eventFocusTierLabel)} em foco${focusMultiplier > 1 ? ` ×${focusMultiplier}` : ''}`);
-  const combinedMultiplier = sequenceMultiplier * equalHourMultiplier * thousandRollMultiplier * tenThousandRollMultiplier * (result.eventMultiplier || 1) * focusMultiplier;
+  const combinedMultiplier = sequenceMultiplier * equalHourMultiplier * thousandRollMultiplier * tenThousandRollMultiplier * consumableMultiplier * (result.eventMultiplier || 1) * focusMultiplier;
   if (includeCombined && combinedMultiplier > 1 && labels.length > 1) labels.push(`Bônus acumulados ×${combinedMultiplier}`);
   return labels;
 }
@@ -79,9 +90,10 @@ function showRngUnlock(result) {
   const notice = $('#rngUnlockNotice');
   notice.dataset.tier = result.title.tier || '';
   $('#rngUnlockTitle').textContent = result.title.name || 'Título novo';
-  $('#rngUnlockDetails').textContent = result.simulation
+  const details = result.simulation
     ? `${result.title.tierLabel || ''} · ${result.currentOdds || ''} · Simulação visual, sem rolagem`
     : `${result.title.tierLabel || ''} · ${result.currentOdds || ''} · Rolagem #${new Intl.NumberFormat('pt-BR').format(result.roll || 0)}`;
+  $('#rngUnlockDetails').textContent = `${details}${result.luckBonusBps ? ` · +${formatRngPercent(result.luckBonusBps)} de sorte permanente` : ''}`;
   notice.setAttribute('aria-hidden', 'false');
   notice.classList.add('show');
   clearTimeout(rngUnlockTimer);
@@ -115,22 +127,17 @@ function queueRngAchievementNotices(achievements) {
   }
   showNextRngAchievementNotice();
 }
-function shouldPlayRngTitleSound(result, isHidden) {
+function shouldPlayRngTitleSound(result) {
   const soundTiers = ['unique', 'legendary', 'mythic', 'exalted', 'glorious', 'transcendent', 'dimensional', 'ntc'];
-  return Boolean(isHidden && result?.isNew === true && !result?.simulation && soundTiers.includes(result.title?.tier));
+  return Boolean(result?.isNew === true && !result?.simulation && soundTiers.includes(result.title?.tier));
 }
 async function playRngTitleSound(result, { preview = false } = {}) {
-  if (!preview && !shouldPlayRngTitleSound(result, true)) return false;
-  if (!preview) {
-    let isHidden = false;
-    try { isHidden = await window.ntc.isWindowMinimizedOrHidden(); } catch { return false; }
-    if (!shouldPlayRngTitleSound(result, isHidden)) return false;
-  }
+  if (!preview && !shouldPlayRngTitleSound(result)) return false;
   const audio = $('#rngTitleUnlockSound');
   if (!audio) return false;
   audio.volume = 0.65;
-  audio.currentTime = 0;
-  try { await audio.play(); return true; } catch { return false; }
+  try { audio.pause(); audio.currentTime = 0; await audio.play(); return true; }
+  catch (error) { console.warn('Não foi possível reproduzir o som de título do RNG:', error); return false; }
 }
 async function previewRngTitleSound() {
   if (!rngDebugEnabled) return;
@@ -293,15 +300,17 @@ function renderRngTitleHistory(state) {
 }
 function rngBigOdds(value) { try { return BigInt(value || 0) > 0n ? `1 em ${new Intl.NumberFormat('pt-BR').format(BigInt(value))}` : '—'; } catch { return '—'; } }
 function renderRngExpansion(state) {
+  const patchNotes = window.NTC_RNG_CHANGELOG || [];
+  $('#rngPatchNotes').innerHTML = patchNotes.map(note => `<article class="rng-patch-note"><header><div><span class="rng-shop-kicker">ATUALIZAÇÃO DO NTC RNG</span><h3>${safeText(note.title)}</h3></div><time>${safeText(note.date)}</time></header><ul>${(note.changes || []).map(change => `<li>${safeText(change)}</li>`).join('')}</ul></article>`).join('');
   const number = value => new Intl.NumberFormat('pt-BR').format(value || 0);
   const achievementGroups = new Map();
   for (const item of state.achievements || []) achievementGroups.set(item.category, [...(achievementGroups.get(item.category) || []), item]);
-  $('#rngAchievements').innerHTML = [...achievementGroups].map(([category, achievements]) => `<section class="rng-achievement-group"><h3>${safeText(category)}</h3><div class="rng-extra-grid">${achievements.map(item => `<article class="rng-info-card${item.unlocked ? ' unlocked' : ''}"><span class="rng-info-icon">${item.unlocked ? '✦' : '◇'}</span><div><strong>${safeText(item.name)}</strong><p>${safeText(item.description)}</p>${item.luckBonusBps ? `<small class="rng-achievement-reward">Bônus permanente de sorte · +${formatRngPercent(item.luckBonusBps)}</small>` : ''}<small>${item.unlocked ? 'Concluída' : `${number(item.progress)} / ${number(item.goal)}`}</small></div></article>`).join('')}</div></section>`).join('');
-  $('#rngSecrets').innerHTML = (state.secrets || []).map(item => `<article class="rng-info-card unlocked"><span class="rng-info-icon">✧</span><div><strong>${safeText(item.name)}</strong><p>${safeText(item.hint)}</p></div></article>`).join('') || '<p class="rng-section-empty">Nenhum segredo descoberto. Os segredos ocultos não aparecem na coleção.</p>';
+  $('#rngAchievements').innerHTML = [...achievementGroups].map(([category, achievements]) => `<section class="rng-achievement-group"><h3>${safeText(category)}</h3><div class="rng-extra-grid">${achievements.map(item => `<article class="rng-info-card${item.unlocked ? ' unlocked' : ''}"><span class="rng-info-icon">${item.unlocked ? '✦' : '◇'}</span><div><strong>${safeText(item.name)}</strong><p>${safeText(item.description)}</p>${item.rewardText ? `<small class="rng-achievement-reward">Recompensa · ${safeText(item.rewardText)}</small>` : ''}${item.luckBonusBps ? `<small class="rng-achievement-reward">Bônus permanente de sorte · +${formatRngPercent(item.luckBonusBps)}</small>` : ''}<small>${item.unlocked ? 'Concluída' : `${number(item.progress)} / ${number(item.goal)}`}</small></div></article>`).join('')}</div></section>`).join('');
+  $('#rngSecrets').innerHTML = (state.secrets || []).map(item => `<article class="rng-info-card unlocked"><span class="rng-info-icon">✧</span><div><strong>${safeText(item.name)}</strong><p>${safeText(item.hint)}</p>${item.luckBonusBps ? `<small class="rng-achievement-reward">Bônus permanente de sorte · +${formatRngPercent(item.luckBonusBps)}</small>` : ''}</div></article>`).join('') || '<p class="rng-section-empty">Nenhum segredo descoberto. Os segredos ocultos não aparecem na coleção.</p>';
   const stats = state.statistics || {};
   const rows = [
     ['Rolagens medidas', number(stats.measuredRolls)], ['Títulos únicos', number(stats.uniqueTitles)], ['Repetidos medidos', number(stats.duplicates)],
-    ['Sorte permanente das conquistas', `+${formatRngPercent(state.achievementLuckBps)}`],
+    ['Sorte permanente das conquistas', `+${formatRngPercent(state.achievementLuckBps)}`], ['Sorte permanente dos segredos', `+${formatRngPercent(state.secretLuckBps)}`],
     ['Sorte média nas rolagens medidas', stats.averageLuck === null ? 'Ainda não medida' : `×${Number(stats.averageLuck || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`],
     ['Maior multiplicador', `×${number(stats.maxMultiplier || 1)}`], ['Título mais raro', stats.rarestTitle ? `${stats.rarestTitle} · ${rngBigOdds(stats.rarestOdds)}` : 'Ainda não medido'],
     ['Roll mais sortudo', stats.luckiestRoll ? `#${number(stats.luckiestRoll)} · ${rngBigOdds(stats.luckiestOdds)}` : 'Ainda não medido'],
@@ -327,10 +336,110 @@ function renderRngExpansion(state) {
     const boostLabel = window.focusTierLabel ? `${window.focusTierLabel} em foco ×${window.focusMultiplier}` : `×${window.multiplier}`;
     const goal = window.reward?.rollGoal || 0;
     const progress = state.eventRollProgress?.windowId === window.id ? state.eventRollProgress.rolls || 0 : 0;
-    const rewardDetails = goal ? `<small class="rng-event-reward">${number(goal)} rolagens na participação · título garantido: ${safeText(window.reward.name)}</small>${joined ? `<small class="rng-event-progress">Progresso desta edição · ${number(progress)} / ${number(goal)}</small>` : ''}` : window.reward ? '<small class="rng-event-reward">Edição com título limitado</small>' : '';
+    const rewardDetails = goal ? `<small class="rng-event-reward">${number(goal)} rolagens na participação · título garantido: ${safeText(window.reward.name)} · relíquia exclusiva aleatória</small>${joined ? `<small class="rng-event-progress">Progresso desta edição · ${number(progress)} / ${number(goal)}</small>` : ''}` : window.reward ? '<small class="rng-event-reward">Edição com título limitado</small>' : '';
     return `<article class="rng-event-card${window.open ? ' is-open' : ''}"><div class="rng-event-main"><span class="rng-event-kicker">${safeText(window.description)} · ${safeText(boostLabel)} · ${window.durationMinutes || Math.round((window.endUtc - window.startUtc) / 60_000)} min</span><strong>${safeText(window.name)}</strong><span class="rng-event-time"><small>${momentLabel}</small><b>${localTime(window.startUtc)}</b></span>${rewardDetails}</div>${window.open ? `<button type="button" class="outline-button" data-join-rng-event="${safeText(window.id)}" ${joined ? 'disabled' : ''}>${joined ? 'Participando' : 'Participar'}</button>` : ''}</article>`;
   }).join('') || '<p class="rng-section-empty">A agenda aparece após verificar a conexão.</p>';
   $('#rngLimitedTitles').innerHTML = (state.limitedTitles || []).map(reward => `<article class="rng-info-card unlocked"><span class="rng-info-icon">✦</span><div><strong>${safeText(reward.name)}</strong><p>Edição ${safeText(reward.edition)}</p></div></article>`).join('') || '<p class="rng-section-empty">Nenhum título limitado obtido.</p>';
+}
+function formatRngFragments(value) {
+  try { return new Intl.NumberFormat('pt-BR').format(BigInt(value || 0)); } catch { return '0'; }
+}
+function renderRngShop(state) {
+  const fragments = BigInt(state.fragments || 0);
+  const price = BigInt(state.nextPermanentUpgradeCost || 50_000);
+  $('#rngFragmentsBalance').textContent = `${formatRngFragments(fragments)} Fragmentos`;
+  $('#rngPermanentLevel').textContent = new Intl.NumberFormat('pt-BR').format(state.permanentUpgradeLevels || 0);
+  $('#rngPermanentBonus').textContent = `+${formatRngPercent(state.permanentLuckBps || 0)}`;
+  $('#rngBuyUpgrade').textContent = `Comprar por ${formatRngFragments(price)}`;
+  $('#rngBuyUpgrade').disabled = fragments < price || rngRequestRunning;
+  for (const id of ['rngBuyRollBoost', 'rngBuyTimeBoost']) {
+    $(`#${id}`).disabled = fragments < 5_000n || rngRequestRunning;
+  }
+}
+function renderRngInventory(state) {
+  const inventory = state.consumableInventory || { rolls: 0, time: 0 };
+  $('#rngRollBoostCount').textContent = new Intl.NumberFormat('pt-BR').format(inventory.rolls || 0);
+  $('#rngTimeBoostCount').textContent = new Intl.NumberFormat('pt-BR').format(inventory.time || 0);
+  $('#rngActivateRollBoost').disabled = !(inventory.rolls > 0) || rngRequestRunning;
+  $('#rngActivateTimeBoost').disabled = !(inventory.time > 0) || rngRequestRunning;
+  const active = [state.activeBoost, state.parallelBoost].filter(Boolean);
+  const activeLabel = !active.length ? 'Nenhum bônus ativo' : `Sorte ×${2 ** active.length} · ${active.map(boost => boost.type === 'rolls'
+    ? `${new Intl.NumberFormat('pt-BR').format(boost.remaining)} rolagens`
+    : formatRngDuration(boost.remaining)).join(' + ')}`;
+  $('#rngActiveBoostLabel').textContent = activeLabel;
+  const queue = state.boostQueue || [];
+  $('#rngBoostQueueLabel').textContent = queue.length ? `Próximos: ${queue.map(boost => boost.type === 'rolls' ? 'Fortuna por rolagens' : 'Fortuna por tempo').join(' → ')}` : 'Nenhuma ativação na fila';
+}
+function formatRngRelicMultiplier(value) {
+  try {
+    const bps = BigInt(value || 10_000);
+    const whole = bps / 10_000n;
+    const decimals = String(bps % 10_000n).padStart(4, '0').replace(/0+$/, '').slice(0, 2);
+    return `×${new Intl.NumberFormat('pt-BR').format(whole)}${decimals ? `,${decimals}` : ''}`;
+  } catch { return '×1'; }
+}
+function formatRngRelicLuck(value) {
+  try {
+    const bps = BigInt(value ?? 10_000);
+    return bps > 10_000n ? `${formatRngRelicMultiplier(bps)} relíquias` : '+0% relíquias';
+  } catch { return '+0% relíquias'; }
+}
+function renderRngRelics(state) {
+  const relicState = state.relics || { catalog: [], slots: [], sets: [], activeEffects: [] };
+  const fragments = BigInt(state.fragments || 0);
+  const sourceLabel = relic => relic.source === 'drought'
+    ? `Conquista de azar · ${new Intl.NumberFormat('pt-BR').format(relic.droughtGoal || 0)} rolls sem Singular+ na etapa`
+    : relic.source === 'random-drop' ? relic.rare ? 'Drop aleatório raríssimo' : 'Drop aleatório'
+      : relic.source === 'event' ? `Exclusiva de evento · ${relic.eventId === 'eclipse' ? 'Eclipse' : 'Chuva de Fragmentos'}`
+        : relic.source === 'achievement' ? `Conquista · descubra ${new Intl.NumberFormat('pt-BR').format(relic.achievementGoal || 0)} títulos`
+          : 'Exclusiva da loja';
+  const categoryLabel = relic => relic.setId === 'celestial' ? 'RELÓGIOS CELESTES'
+    : relic.setId === 'echoes' ? 'ECOS'
+      : relic.setId === 'misfortune' ? 'TRÍADE DO AZAR'
+        : relic.source === 'random-drop' ? 'DROP ALEATÓRIO'
+          : relic.source === 'event' ? 'RELÍQUIA DE EVENTO'
+            : relic.source === 'achievement' ? 'RELÍQUIA DE CONQUISTA'
+              : 'RELÍQUIA AVULSA';
+  const card = (relic, mode) => {
+    const disabled = rngRequestRunning || (mode === 'shop' ? relic.owned || fragments < BigInt(relic.price || 0) : !relic.owned);
+    const equipmentFull = (relicState.slots || []).filter(Boolean).length >= 6;
+    const button = mode === 'shop'
+      ? `<button class="outline-button" type="button" data-buy-rng-relic="${safeText(relic.id)}" ${disabled ? 'disabled' : ''}>${relic.owned ? 'Adquirida' : `Comprar por ${formatRngFragments(relic.price)}`}</button>`
+      : relic.owned
+        ? `<button class="outline-button" type="button" data-${relic.equipped ? 'unequip' : 'equip'}-rng-relic="${safeText(relic.id)}" ${rngRequestRunning || (!relic.equipped && equipmentFull) ? 'disabled' : ''}>${relic.equipped ? 'Desequipar' : equipmentFull ? 'Sem espaço livre' : 'Equipar'}</button>`
+        : '<button class="outline-button" type="button" disabled>Não encontrada</button>';
+    return `<article class="rng-relic-card${relic.owned ? ' is-owned' : ' is-locked'}${relic.equipped ? ' is-equipped' : ''}"><span class="rng-relic-icon" aria-hidden="true">${safeText(relic.icon)}</span><div class="rng-relic-copy"><span class="rng-shop-kicker">${safeText(categoryLabel(relic))}</span><h3>${safeText(relic.name)}</h3><p>${safeText(relic.effect)}</p><small>${safeText(sourceLabel(relic))}</small></div>${button}</article>`;
+  };
+  $('#rngRelicShop').innerHTML = relicState.catalog.filter(relic => relic.purchasable).map(relic => card(relic, 'shop')).join('');
+  $('#rngRelicInventory').innerHTML = relicState.catalog.map(relic => card(relic, 'inventory')).join('');
+  $('#rngRelicCount').textContent = `${relicState.ownedCount || 0} / ${relicState.catalog.length || 9}`;
+  const byId = new Map(relicState.catalog.map(relic => [relic.id, relic]));
+  $('#rngRelicSlots').innerHTML = Array.from({ length: 6 }, (_, index) => {
+    const relic = byId.get(relicState.slots?.[index]);
+    return relic
+      ? `<button type="button" class="rng-relic-slot is-filled" data-unequip-rng-relic="${safeText(relic.id)}"><span>${safeText(relic.icon)}</span><strong>${safeText(relic.name)}</strong><small>Retirar</small></button>`
+      : `<div class="rng-relic-slot"><span>◇</span><strong>Espaço ${index + 1}</strong><small>Livre</small></div>`;
+  }).join('');
+  const effectLabels = [...(relicState.activeEffects || [])];
+  if ((relicState.fragmentMultiplierBps || 10_000) > 10_000) effectLabels.push(`Fragmentos ×${((relicState.fragmentMultiplierBps || 10_000) / 10_000).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}`);
+  $('.rng-relic-effects').style.display = effectLabels.length ? 'grid' : 'none';
+  $('#rngRelicEffects').innerHTML = effectLabels.map(label => `<span>${safeText(label)}</span>`).join('');
+  $('#rngRelicSets').innerHTML = (relicState.sets || []).map(set => `<article class="rng-set-card${set.complete ? ' is-complete' : ''}"><div><span class="rng-shop-kicker">SET ${set.equippedCount} / ${set.pieceIds.length}</span><strong>${safeText(set.name)}</strong></div><p>${safeText(set.effect)}</p><small>${set.complete ? 'Bônus do set ativo' : 'Equipe as três peças para ativar'}</small></article>`).join('');
+}
+async function performRngShopAction(action, argument, successMessage) {
+  if (rngRequestRunning) return;
+  rngRequestRunning = true;
+  if (rngState) renderRngState(rngState);
+  try {
+    const result = await window.ntc[action](...(argument === undefined ? [] : [argument]));
+    if (result?.state) renderRngState(result.state);
+    if (!result?.ok) {
+      const messages = { 'insufficient-fragments': 'Você ainda não tem Fragmentos suficientes.', 'already-owned': 'Essa relíquia já faz parte da sua coleção.', 'already-equipped': 'Essa relíquia já está equipada.', 'no-free-slot': 'Os seis espaços estão ocupados. Retire uma relíquia primeiro.', 'not-owned': 'Essa relíquia ainda não foi encontrada.', 'not-equipped': 'Essa relíquia não está equipada.' };
+      showToast(messages[result?.reason] || 'Não foi possível concluir essa ação.');
+    }
+    else showToast(successMessage(result));
+  } catch (error) { showToast(cleanError(error)); }
+  finally { rngRequestRunning = false; if (rngState) renderRngState(rngState); }
 }
 function renderRngState(state) {
   if (!state?.catalog?.length) return;
@@ -351,9 +460,13 @@ function renderRngState(state) {
   $('#rngProgressBar').style.width = `${Math.min(100, totalCollected / state.totalTitles * 100)}%`;
   $('#rngProgressBar').parentElement.setAttribute('aria-valuenow', String(totalCollected));
   $('#rngProgressBar').parentElement.setAttribute('aria-valuemax', String(state.totalTitles));
-  $('#rngLuckValue').textContent = `+${formatRngPercent(state.totalLuckBps - 10_000)}`;
+  const exactLuckBonus = (() => { try { return (BigInt(state.totalLuckBpsExact || state.totalLuckBps || 10_000) - 10_000n).toString(); } catch { return '0'; } })();
+  $('#rngLuckValue').textContent = `+${formatRngExactPercent(exactLuckBonus)}`;
   $('#rngCollectionLuck').textContent = `+${formatRngPercent(state.passiveLuckBps)} coleção`;
   $('#rngAchievementLuck').textContent = `+${formatRngPercent(state.achievementLuckBps)} conquistas`;
+  $('#rngSecretLuck').textContent = `+${formatRngPercent(state.secretLuckBps)} segredos`;
+  $('#rngUpgradeLuck').textContent = `+${formatRngPercent(state.permanentLuckBps)} loja`;
+  $('#rngRelicLuck').textContent = formatRngRelicLuck(state.relicLuckMultiplierBps);
   $('#rngAutoButton').textContent = state.autoRollActive ? 'Pausar Auto-roll' : 'Iniciar Auto-roll';
   $('#rngAutoButton').classList.toggle('is-active', state.autoRollActive);
   $('#rngRollButton').disabled = Boolean(state.autoRollActive || rngRequestRunning);
@@ -374,21 +487,22 @@ function renderRngState(state) {
   $('#rngResultCaption').textContent = latest ? `${latest.isNew ? 'NOVO TÍTULO' : 'REPETIDO'} · ${safeText(latest.title.tierLabel || '')}` : 'ÚLTIMO RESULTADO';
   $('#rngResultTitle').textContent = latest?.title?.name || 'Ainda sem rolagens';
   const latestBoosts = latest ? rngRollBoostLabels(latest).join(' · ') : '';
-  $('#rngResultOdds').textContent = latest ? `Chance na rolagem · ${latest.currentOdds}${latestBoosts ? ` · ${latestBoosts}` : ''} · #${new Intl.NumberFormat('pt-BR').format(latest.roll)}` : 'O título e a chance aparecem aqui.';
+  $('#rngResultOdds').textContent = latest ? `Chance na rolagem · ${latest.currentOdds}${latestBoosts ? ` · ${latestBoosts}` : ''} · +${formatRngFragments(latest.fragmentReward)} Fragmentos · #${new Intl.NumberFormat('pt-BR').format(latest.roll)}` : 'O título e a chance aparecem aqui.';
   const results = Array.isArray(state.latestResults) ? state.latestResults : [];
-  const newUnlocks = results.filter(result => result.roll > (previousRoll ?? 0) && result.isNew);
+  const unlockResults = Array.isArray(state.latestUnlocks) ? state.latestUnlocks : results;
+  const newUnlocks = unlockResults.filter(result => result.roll > (previousRoll ?? 0) && result.isNew);
   const newlyUnlocked = newUnlocks.at(-1);
   if (previousRoll !== null && newlyUnlocked) {
     showRngUnlock(newlyUnlocked);
-    const audibleUnlock = newUnlocks.filter(result => shouldPlayRngTitleSound(result, true)).at(-1);
+    const audibleUnlock = newUnlocks.filter(shouldPlayRngTitleSound).at(-1);
     if (audibleUnlock) void playRngTitleSound(audibleUnlock);
   }
-  const specialUnlock = results.filter(result => result.roll > (previousRoll ?? 0)).flatMap(result => result.specialUnlocks || []).at(-1);
-  if (previousRoll !== null && specialUnlock) showRngUnlock({ title: { name: specialUnlock.name, tierLabel: specialUnlock.tierLabel, tier: 'ntc' }, roll: state.totalRolls, currentOdds: specialUnlock.tierLabel });
+  const specialUnlock = unlockResults.filter(result => result.roll > (previousRoll ?? 0)).flatMap(result => result.specialUnlocks || []).at(-1);
+  if (previousRoll !== null && specialUnlock) showRngUnlock({ title: { name: specialUnlock.name, tierLabel: specialUnlock.tierLabel, tier: 'ntc' }, roll: state.totalRolls, currentOdds: specialUnlock.tierLabel, luckBonusBps: specialUnlock.luckBonusBps });
   if (newlyUnlockedAchievements.length) queueRngAchievementNotices(newlyUnlockedAchievements);
   const batchResults = $('#rngBatchResults');
   batchResults.classList.toggle('hidden', results.length < 2);
-  batchResults.innerHTML = results.length < 2 ? '' : results.map(result => { const boosts = rngRollBoostLabels(result); return `<article class="rng-batch-result${result.isNew ? ' is-new' : ''}" data-tier="${safeText(result.title?.tier || '')}"><span>${result.isNew ? 'NOVO TÍTULO' : 'REPETIDO'} · #${new Intl.NumberFormat('pt-BR').format(result.roll)}${boosts.length ? ` · ${safeText(boosts.join(' · '))}` : ''}</span><strong>${safeText(result.title?.name || '')}</strong><span>${safeText(result.title?.tierLabel || '')} · ${safeText(result.currentOdds || '')}</span></article>`; }).join('');
+  batchResults.innerHTML = results.length < 2 ? '' : `${state.latestBatchSize > results.length ? `<div class="rng-batch-summary">Mostrando os ${results.length} resultados mais recentes de ${new Intl.NumberFormat('pt-BR').format(state.latestBatchSize)}.</div>` : ''}${results.map(result => { const boosts = rngRollBoostLabels(result); return `<article class="rng-batch-result${result.isNew ? ' is-new' : ''}" data-tier="${safeText(result.title?.tier || '')}"><span>${result.isNew ? 'NOVO TÍTULO' : 'REPETIDO'} · #${new Intl.NumberFormat('pt-BR').format(result.roll)}${boosts.length ? ` · ${safeText(boosts.join(' · '))}` : ''}</span><strong>${safeText(result.title?.name || '')}</strong><span>${safeText(result.title?.tierLabel || '')} · ${safeText(result.currentOdds || '')} · +${formatRngFragments(result.fragmentReward)} Fragmentos</span></article>`; }).join('')}`;
 
   renderRngTitleHistory(state);
 
@@ -404,6 +518,9 @@ function renderRngState(state) {
   $('#rngTierCount').textContent = `${visible.filter(title => title.collected).length} / ${visible.length} · ${safeText(selectedTier?.label || '')}`;
   $('#rngCatalog').innerHTML = visible.map(title => `<article class="rng-title-row${title.collected ? ' collected' : ' locked'}"><span class="rng-title-mark">${title.collected ? '✧' : '·'}</span><div class="rng-title-info"><strong>${safeText(title.name)}</strong><span>${title.collected ? 'Obtido' : 'Não encontrado'}</span></div><div class="rng-title-odds"><strong>${safeText(title.currentOdds)}</strong><small>Chance atual</small>${title.currentOdds !== title.baseOdds ? `<small>Base ${safeText(title.baseOdds)}</small>` : ''}</div></article>`).join('');
   renderRngExpansion(state);
+  renderRngShop(state);
+  renderRngInventory(state);
+  renderRngRelics(state);
   updateRngDebugControls(state);
   updateRngTimers();
 }
@@ -904,7 +1021,7 @@ $('#exportMarkers').onclick = () => { const item = currentEditingConversion(); i
 $('#applyToAudioQueue').onclick = () => { const item = currentEditingConversion(); if (!item) return; saveConversionEdits(); const settings = currentAudioSettings(); conversionQueue.filter(entry => entry.conversionId !== item.conversionId && entry.status === 'pronto').forEach(entry => Object.assign(entry, settings)); renderConversionQueue(); showToast('Ajustes aplicados aos itens prontos da fila.'); };
 $('#toggleSpectrum').onclick = () => { spectrumVisible = !spectrumVisible; $('#toggleSpectrum').textContent = spectrumVisible ? 'Ocultar espectro' : 'Ver espectro'; paintWaveform(); };
 $('#audioPreset').onchange = event => { const basic = { voz: { gain: 1, eqBass: -2, eqMid: 3, eqTreble: 2, removeSilence: false }, musica: { gain: 0, eqBass: 2, eqMid: 0, eqTreble: 2, removeSilence: false }, podcast: { gain: 2, eqBass: -1, eqMid: 3, eqTreble: 1, removeSilence: true } }; const saved = JSON.parse(localStorage.getItem('ntc-audio-presets') || '{}'); const value = event.target.value; if (value) { applyAudioSettings(value.startsWith('saved:') ? saved[value.slice(6)] : basic[value]); showToast('Preset aplicado.'); } };
-$('#saveAudioPreset').onclick = () => { const name = window.prompt('Nome do preset'); if (!name?.trim()) return; const presets = JSON.parse(localStorage.getItem('ntc-audio-presets') || '{}'); presets[name.trim().slice(0, 40)] = currentAudioSettings(); localStorage.setItem('ntc-audio-presets', JSON.stringify(presets)); refreshAudioPresets(); $('#audioPreset').value = `saved:${name.trim().slice(0, 40)}`; showToast('Preset salvo neste computador.'); };
+$('#saveAudioPreset').onclick = () => { const name = window.prompt('Nome do preset'); if (!name?.trim()) return; const presets = JSON.parse(localStorage.getItem('ntc-audio-presets') || '{}'); presets[name.trim().slice(0, 40)] = currentAudioSettings(); localStorage.setItem('ntc-audio-presets', JSON.stringify(presets)); refreshAudioPresets(); window.refreshMusicEqualizerPresets?.(); $('#audioPreset').value = `saved:${name.trim().slice(0, 40)}`; showToast('Preset salvo neste computador.'); };
 async function chooseToolFolder() { const chosen = await window.ntc.chooseDownloadFolder(); if (!chosen) return; folder = chosen; localStorage.setItem('ntc-folder', folder); syncSettings(); refreshSpaceHint(); showToast('Pasta de destino atualizada.'); }
 function wouldCreateLargeImage() { const scale = Math.max(1, Number($('#imageScale').value) || 100) / 100; const typedWidth = Number($('#imageWidth').value); const typedHeight = Number($('#imageHeight').value); return imageQueue.some(item => Math.max(typedWidth || Math.round((item.sourceWidth || 0) * scale), typedHeight || Math.round((item.sourceHeight || 0) * scale)) > 16384); }
 async function startImagesWithWarning() { if (!imageQueue.some(item => item.status === 'pronto') && lastFailedImage) { if (!imageQueue.some(item => item.id === lastFailedImage.id)) imageQueue.push(lastFailedImage); lastFailedImage.status = 'pronto'; lastFailedImage = null; renderMediaQueue('image'); } if (wouldCreateLargeImage()) { const accepted = await confirmAction('Imagem muito grande', 'Este tamanho pode consumir muita memória, travar o computador ou falhar por limite do formato. Deseja tentar mesmo assim?', 'Tentar mesmo assim'); if (!accepted) return; } startNextImage(); }
@@ -931,6 +1048,25 @@ window.ntc.onRngState(renderRngState);
 $('#rngRollButton').onclick = performManualRngRoll;
 $('#rngAutoButton').onclick = toggleRngAutoRoll;
 $('.rng-section-tabs').addEventListener('click', event => { const button = event.target.closest('[data-rng-section]'); if (!button) return; rngActiveSection = button.dataset.rngSection; $$('[data-rng-section]').forEach(tab => tab.classList.toggle('active', tab.dataset.rngSection === rngActiveSection)); $$('[data-rng-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.rngPanel !== rngActiveSection)); });
+$('#rngBuyUpgrade').onclick = () => performRngShopAction('purchaseRngUpgrade', undefined, result => `Sorte permanente aumentada para o nível ${new Intl.NumberFormat('pt-BR').format(result.levels)}.`);
+$('#rngBuyRollBoost').onclick = () => performRngShopAction('purchaseRngConsumable', 'rolls', () => 'Consumível de 600 rolagens adicionado ao inventário.');
+$('#rngBuyTimeBoost').onclick = () => performRngShopAction('purchaseRngConsumable', 'time', () => 'Consumível de 10 minutos adicionado ao inventário.');
+$('#rngActivateRollBoost').onclick = () => performRngShopAction('activateRngConsumable', 'rolls', result => result.queued ? 'Bônus de 600 rolagens adicionado à fila.' : 'Bônus ×2 de 600 rolagens ativado.');
+$('#rngActivateTimeBoost').onclick = () => performRngShopAction('activateRngConsumable', 'time', result => result.queued ? 'Bônus de 10 minutos adicionado à fila.' : 'Bônus ×2 de 10 minutos ativado.');
+$('#rngRelicShop').addEventListener('click', event => {
+  const button = event.target.closest('[data-buy-rng-relic]');
+  if (button) void performRngShopAction('purchaseRngRelic', button.dataset.buyRngRelic, () => 'Relíquia adicionada ao inventário.');
+});
+$('#rngRelicInventory').addEventListener('click', event => {
+  const equip = event.target.closest('[data-equip-rng-relic]');
+  const unequip = event.target.closest('[data-unequip-rng-relic]');
+  if (equip) void performRngShopAction('equipRngRelic', equip.dataset.equipRngRelic, () => 'Relíquia equipada.');
+  else if (unequip) void performRngShopAction('unequipRngRelic', unequip.dataset.unequipRngRelic, () => 'Relíquia retirada.');
+});
+$('#rngRelicSlots').addEventListener('click', event => {
+  const button = event.target.closest('[data-unequip-rng-relic]');
+  if (button) void performRngShopAction('unequipRngRelic', button.dataset.unequipRngRelic, () => 'Relíquia retirada.');
+});
 $('#rngEventSchedule').addEventListener('click', async event => { const button = event.target.closest('[data-join-rng-event]'); if (!button) return; button.disabled = true; try { renderRngState(await window.ntc.joinRngEvent(button.dataset.joinRngEvent)); } catch (error) { showToast(cleanError(error)); button.disabled = false; } });
 $('#rngDebugTrigger').onclick = openRngDebug;
 $('#closeRngDebug').onclick = closeRngDebug;

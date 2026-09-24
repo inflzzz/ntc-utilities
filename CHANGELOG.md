@@ -1,25 +1,25 @@
 # Changelog
 
+## 0.8.0 — NTC Utilities · 24 set. 2026
+
+- **Player de música:** importação de arquivos individuais; edição do nome, descrição e capa de playlists; reordenação de faixas.
+- **Biblioteca:** metadados, capas e playlists são persistidos entre sessões. Remover uma faixa do aplicativo não exclui o arquivo original do computador.
+- **Ferramentas:** adicionados o Auto-clicker e o Seletor de cor; corrigido o fluxo de Ctrl+C no editor de captura para copiar e fechar.
+- Refinamentos de estabilidade e interface. Controles internos de desenvolvimento não são exibidos na versão de produção.
+
 ## 0.7.0 — 23 set. 2026
 
 - Novo **Renomear arquivos** em lote: arraste arquivos ou uma pasta, configure prefixo, busca/substituição e numeração, confira a prévia e aplique sem sobrescrever outros arquivos.
-- **NTC RNG** ganhou páginas de Conquistas, Estatísticas e Eventos, histórico mais completo, recordes pessoais e títulos secretos que só aparecem após serem descobertos.
-- Conquistas agora notificam quando são atingidas; há marcos para rolagens totais, 1.000/10.000/100.000/1.000.000 cliques manuais (separados do Auto-roll), coleção e raridades.
-- Eventos programados usam horário UTC verificado independentemente do relógio do PC: raridade semanal em foco, Chuva de Sorte, Eclipse e Chuva de Fragmentos com título garantido após 1.000 rolagens participantes.
-- Horas iguais e bônus acumulados ficam registrados junto às novas descobertas; títulos raros podem tocar um aviso sonoro discreto.
 - Atalhos de captura aceitam Print Screen e o editor abre pronto para selecionar a área; refinamentos nas setas e nas interações das imagens inseridas.
 
 ## 0.6.1 — 2026-09-23
 
-- O Auto-roll agora aguarda o fim da tela de carregamento e só começa quando a interface principal aparece; a primeira rolagem ocorre um segundo depois.
 - Alinhados verticalmente os botões **Agora não** e **Baixar atualização**, removendo a margem herdada que deslocava o texto.
 
 ## 0.6.0 — 2026-09-23
 
-- Novo **NTC RNG** com coleção de 200 títulos em português, chances explícitas, histórico de descobertas e salvamento com backup. Lucky Lad agora é Lendário (1 em 278.000.000) e Luckiest Lad é Lendário (exatamente 1 em 777.777.777).
-- A coleção aplica automaticamente bônus de sorte e ciclos extras de rolagem; o Auto-roll começa ao abrir o app, continua na bandeja e pode iniciar junto com o Windows.
 - Minimizar ou fechar pelo X mantém o NTC Utilities na bandeja; o menu do ícone permite reabrir o app ou sair de verdade.
-- Os dados pessoais e a coleção são mantidos fora da pasta de instalação e preservados ao atualizar. Usuários existentes veem este changelog uma vez após atualizar.
+- Preferências e arquivos pessoais são mantidos fora da pasta de instalação e preservados ao atualizar. Usuários existentes veem este changelog uma vez após atualizar.
 - Nova aba **Captura de tela**, com atalhos configuráveis para captura com editor e captura rápida direto para a pasta escolhida.
 - Editor de capturas em tela cheia com caneta, formas, setas retas e curvas editáveis, texto, destaque, desfoque, pixelização, recorte, numeração e imagens que podem ser movidas/redimensionadas. Ctrl+C copia e fecha; Esc descarta.
 - As ferramentas de anotação usam branco como cor inicial; controles, setas e janela do editor foram refinados para deixar claro o limite da captura.

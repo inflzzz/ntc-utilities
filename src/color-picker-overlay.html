@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Seletor de cor</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #101114; font-family: "Segoe UI", sans-serif; cursor: none; }
+    #screen { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; user-select: none; -webkit-user-drag: none; }
+    .shade { position: absolute; inset: 0; background: transparent; pointer-events: none; }
+    .topbar { position: absolute; z-index: 4; top: 18px; left: 50%; display: flex; align-items: center; gap: 16px; padding: 10px 12px 10px 16px; border: 1px solid #ffffff35; border-radius: 10px; color: #f6f7f8; background: #17191df2; box-shadow: 0 8px 32px #0008; transform: translateX(-50%); white-space: nowrap; }
+    .topbar strong { font-size: 13px; }
+    .topbar span { color: #c3c6cb; font-size: 11px; }
+    .topbar button { min-height: 30px; padding: 0 10px; border: 1px solid #ffffff30; border-radius: 7px; color: #eee; background: #282b30; font: inherit; font-size: 11px; cursor: pointer; }
+    .topbar button:hover { background: #383c43; }
+    .lens { position: absolute; z-index: 3; display: none; width: 150px; overflow: hidden; border: 1px solid #fff9; border-radius: 9px; background: #17191df2; box-shadow: 0 8px 30px #000a; pointer-events: none; }
+    .lens canvas { display: block; width: 148px; height: 148px; }
+    .lens-color { display: flex; min-height: 27px; align-items: center; gap: 7px; padding: 4px 8px; border-top: 1px solid #ffffff25; background: #101114; }
+    .lens-color span { color: #fff; font: 600 11px Consolas, monospace; }
+    .lens-swatch { width: 12px; height: 12px; border: 1px solid #ffffff80; border-radius: 3px; }
+    .target-mark { position: absolute; z-index: 2; display: none; width: 9px; height: 9px; border: 1px solid #111318; border-radius: 50%; background: #f5d274; box-shadow: 0 0 0 2px #fff, 0 0 8px #000; pointer-events: none; transform: translate(-50%, -50%); }
+    .target-mark::before, .target-mark::after { position: absolute; top: 50%; left: 50%; display: block; content: ""; transform: translate(-50%, -50%); }
+    .target-mark::before { width: 25px; height: 2px; background: #fff; box-shadow: 0 0 0 1px #111318; }
+    .target-mark::after { width: 2px; height: 25px; background: #fff; box-shadow: 0 0 0 1px #111318; }
+    .cancel-target { cursor: pointer; }
+    @media (max-width: 540px) { .topbar { top: 10px; max-width: calc(100% - 20px); gap: 8px; padding: 8px; } .topbar span { white-space: normal; } }
+  </style>
+</head>
+<body>
+  <img id="screen" alt="Captura congelada da tela para escolher uma cor" />
+  <div class="shade"></div>
+  <div class="topbar"><strong>Seletor de cor</strong><span>A mira na tela e o centro da lupa indicam o mesmo pixel · Esc cancela</span><button class="cancel-target" type="button">Cancelar</button></div>
+  <div class="target-mark" id="targetMark" aria-hidden="true"></div>
+  <div class="lens" id="lens"><canvas width="148" height="148"></canvas><div class="lens-color"><span class="lens-swatch" id="lensSwatch"></span><span id="lensHex">#------</span></div></div>
+  <script src="./color-picker-overlay.js"></script>
+</body>
+</html>
