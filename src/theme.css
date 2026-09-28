@@ -1,0 +1,86 @@
+/* Shared deep-violet accent palette for the entire app. */
+:root {
+  --accent-violet: #57416e;
+  --accent-violet-light: #a98fc9;
+  --accent-violet-border: #4a385b;
+  --accent-violet-surface: #211a29;
+  --accent-violet-text: #d4c4e9;
+  --accent-violet-wash: #30243d;
+  --study-accent: var(--accent-violet);
+}
+
+button:focus-visible, input:focus-visible, select:focus-visible { outline-color: var(--accent-violet-light); }
+input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color: var(--accent-violet-light); }
+
+.navigation-group-label, .rng-nav-item .nav-icon, .home-game-label, .rng-patch-changelog-card .eyebrow,
+.rng-shop-kicker, .rng-event-kicker, .rng-unlock-notice small, .rng-discovery-mark,
+.rng-discovery-copy .rng-discovery-badge, .rng-title-history-card .rng-discovery-badges .rng-discovery-badge,
+.rng-title-history-card .rng-discovery-mark, .document-highlight-control span,
+.document-drawing-heading .eyebrow, .world-city-result > span:last-child, .world-weather-placeholder,
+.time-empty-state > span, .alarm-item-icon, .stopwatch-laps li strong, .rng-tool-icon,
+.rng-result-icon, .rng-relic-icon, .rng-relic-slot > span, .rng-relic-effects > div > span,
+.rng-relic-count, .rng-info-icon, .rng-info-card .rng-achievement-reward, .rng-event-reward {
+  color: var(--accent-violet-light);
+}
+
+.rng-nav-item.active { color: var(--accent-violet-text); background: color-mix(in srgb, var(--accent-violet) 25%, #272727); }
+.home-game-card { border-color: color-mix(in srgb, var(--accent-violet) 48%, var(--line)); background: color-mix(in srgb, var(--surface) 92%, var(--accent-violet) 8%); }
+.home-game-card:hover { border-color: var(--accent-violet-light); background: color-mix(in srgb, var(--surface) 86%, var(--accent-violet) 14%); }
+.home-game-icon { color: var(--accent-violet-text); background: color-mix(in srgb, var(--accent-violet) 22%, var(--surface-raised)); }
+.home-game-action { color: var(--accent-violet-light); }
+.world-weather-icon { filter: drop-shadow(0 2px 8px color-mix(in srgb, var(--accent-violet) 25%, transparent)); }
+.weekday-options input:checked + span { border-color: var(--accent-violet-light); color: var(--accent-violet-text); background: var(--accent-violet-surface); }
+.alarm-item-icon { background: var(--accent-violet-surface); }
+.timer-display, .stopwatch-display { color: var(--accent-violet-text); text-shadow: 0 0 30px color-mix(in srgb, var(--accent-violet) 22%, transparent); }
+.documents-tab.active, .pdf-workspace-tab.active { border-bottom-color: var(--accent-violet-light); }
+.document-format-toolbar button.is-active, .document-format-toolbar select.has-format { border-color: var(--accent-violet-light); background: var(--accent-violet-surface); color: var(--accent-violet-text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-violet-light) 28%, transparent); }
+.document-format-toolbar select:focus-visible, .document-page-settings select:focus-visible { outline-color: var(--accent-violet-light); }
+.document-ruler-range::-webkit-slider-thumb { border-color: var(--accent-violet-light); background: var(--accent-violet); }
+.document-find-panel summary:hover, .document-find-panel[open] summary { color: var(--accent-violet-text); }
+.document-editor:focus { border-color: var(--accent-violet-light); }
+.document-editor a { color: var(--accent-violet-light); }
+.document-drawing-tools input[type="range"], .pdf-field input[type="range"], .pdf-form-field input[type="checkbox"] { accent-color: var(--accent-violet-light); }
+.qr-contrast-warning, .clipboard-status[data-state="warning"], .security-warning-note > span:first-child { color: var(--accent-violet-light); }
+.clipboard-status[data-state="warning"] { border-color: var(--accent-violet-border); }
+.security-warning-note { border-color: var(--accent-violet-border); color: var(--accent-violet-text); }
+.study-tools-view { --study-accent: var(--accent-violet); }
+.study-phase-pill[data-running="true"] { border-color: var(--accent-violet-border); color: var(--accent-violet-text); }
+
+.rng-progress-track > span { background: linear-gradient(90deg, #777, var(--accent-violet-light)); }
+.rng-auto-button.is-active { border-color: var(--accent-violet-light); color: var(--accent-violet-text); }
+.rng-last-result.is-new, .rng-batch-result.is-new { border-color: var(--accent-violet-border); }
+.rng-last-result[data-tier="ntc"] .rng-result-icon, .rng-last-result[data-tier="dimensional"] .rng-result-icon { color: #cbb1e3; }
+.rng-wallet { border-color: var(--accent-violet-border); color: var(--accent-violet-text); background: color-mix(in srgb, var(--accent-violet-border) 18%, var(--surface)); }
+.rng-relic-card.is-owned, .rng-relic-card.is-equipped, .rng-relic-slot.is-filled,
+.rng-set-card.is-complete, .rng-info-card.unlocked, .rng-event-card.is-open { border-color: var(--accent-violet-border); }
+.rng-set-card.is-complete { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-violet-light) 12%, transparent); }
+.rng-clock-status[data-active="true"] { border-color: var(--accent-violet-border); background: color-mix(in srgb, var(--accent-violet-border) 15%, var(--surface-2)); }
+.rng-clock-status[data-active="true"] .rng-clock-indicator { background: var(--accent-violet-light); box-shadow: 0 0 9px color-mix(in srgb, var(--accent-violet-light) 48%, transparent); }
+.rng-clock-status[data-active="true"] > b { color: var(--accent-violet-text); }
+.rng-discovery-copy .rng-discovery-badge, .rng-title-history-card .rng-discovery-badge { border-color: color-mix(in srgb, var(--accent-violet-light) 24%, transparent); background: color-mix(in srgb, var(--accent-violet) 16%, transparent); }
+.rng-discovery-copy .rng-discovery-badge.is-combined, .rng-title-history-card .rng-discovery-badge.is-combined { border-color: color-mix(in srgb, var(--accent-violet-light) 42%, transparent); }
+.rng-title-history-card .rng-discovery-badges .rng-discovery-badge { border-color: color-mix(in srgb, var(--accent-violet-light) 24%, transparent); color: var(--accent-violet-light); background: color-mix(in srgb, var(--accent-violet) 16%, transparent); }
+.rng-title-history-card .rng-discovery-badges .rng-discovery-badge.is-combined { border-color: color-mix(in srgb, var(--accent-violet-light) 42%, transparent); }
+.rng-info-card .rng-achievement-reward { color: var(--accent-violet-light); }
+.rng-event-reward { color: var(--accent-violet-text) !important; }
+.reaction-pad.waiting { background: var(--accent-violet-surface); }
+.reaction-pad.ready { border-color: var(--accent-violet-light); background: var(--accent-violet-wash); color: #f3eefb; }
+.rng-discovery-card[data-tier] .rng-discovery-mark { color: var(--accent-violet-light); }
+
+.rng-unlock-notice { --rng-reveal-accent: var(--accent-violet-light); border-color: var(--accent-violet-border); }
+.rng-achievement-notice { border-color: var(--accent-violet-border); }
+.rng-title-reveal { --rng-reveal-accent: var(--accent-violet-light); }
+.rng-unlock-notice[data-tier="basic"], .rng-title-reveal[data-tier="basic"] { --rng-reveal-accent: #9f89bd; }
+.rng-unlock-notice[data-tier="epic"], .rng-title-reveal[data-tier="epic"] { --rng-reveal-accent: #9e92c8; }
+.rng-unlock-notice[data-tier="unique"], .rng-title-reveal[data-tier="unique"] { --rng-reveal-accent: #aa8fd0; }
+.rng-unlock-notice[data-tier="legendary"], .rng-title-reveal[data-tier="legendary"] { --rng-reveal-accent: #b795d1; border-color: #5c456d; }
+.rng-unlock-notice[data-tier="mythic"], .rng-title-reveal[data-tier="mythic"] { --rng-reveal-accent: #b18caf; border-color: #57415d; }
+.rng-unlock-notice[data-tier="exalted"], .rng-title-reveal[data-tier="exalted"] { --rng-reveal-accent: #9692c3; border-color: #494260; }
+.rng-unlock-notice[data-tier="glorious"], .rng-title-reveal[data-tier="glorious"] { --rng-reveal-accent: #c5b0dd; border-color: #604d73; }
+.rng-unlock-notice[data-tier="transcendent"], .rng-title-reveal[data-tier="transcendent"] { --rng-reveal-accent: #b29bcf; border-color: #55436b; }
+.rng-unlock-notice[data-tier="dimensional"], .rng-title-reveal[data-tier="dimensional"] { --rng-reveal-accent: #cbb2e4; border-color: #624b76; }
+.rng-unlock-notice[data-tier="ntc"], .rng-title-reveal[data-tier="ntc"] { --rng-reveal-accent: #dfc7f2; border-color: #70547f; }
+
+.postit-card { border-color: var(--accent-violet-border); color: var(--accent-violet-text); background: var(--accent-violet-surface); }
+.postit-card[data-color="green"] { border-color: var(--accent-violet-border); color: var(--accent-violet-text); background: var(--accent-violet-surface); }
+.postit-color[data-note-color="violet"] { background-color: var(--accent-violet-light); }

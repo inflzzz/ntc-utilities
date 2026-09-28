@@ -48,7 +48,7 @@
     lensContext.moveTo(lensCanvas.width / 2, 0); lensContext.lineTo(lensCanvas.width / 2, lensCanvas.height);
     lensContext.moveTo(0, lensCanvas.height / 2); lensContext.lineTo(lensCanvas.width, lensCanvas.height / 2);
     lensContext.stroke();
-    lensContext.strokeStyle = '#f5d274';
+    lensContext.strokeStyle = '#a98fc9';
     lensContext.lineWidth = 2;
     lensContext.strokeRect((lensCanvas.width - scaleX) / 2 + 1, (lensCanvas.height - scaleY) / 2 + 1, scaleX - 2, scaleY - 2);
     const color = sampleAt(x, y);

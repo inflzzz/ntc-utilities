@@ -1,0 +1,75 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; overflow: hidden; color: #f1eceb; background: #0b0a0b; font-family: "Segoe UI Variable", "Segoe UI", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+body { width: 1920px; height: 1080px; }
+.profile-card { --profile-accent: #887a76; position: relative; display: grid; width: 100%; height: 100%; grid-template-rows: 78px minmax(0, 1fr) 132px 86px; overflow: hidden; padding: 42px 70px 34px; isolation: isolate; background: #121011; }
+.profile-card::before { position: absolute; z-index: -1; inset: 18px; border: 1px solid color-mix(in srgb, var(--profile-accent) 38%, transparent); content: ""; }
+.profile-card::after { position: absolute; z-index: -1; inset: 0; background: repeating-linear-gradient(118deg, transparent 0 212px, rgba(255,255,255,.011) 213px 214px, transparent 215px 424px); content: ""; opacity: .7; }
+.profile-card[data-tier="basic"] { --profile-accent: #a9a29d; }
+.profile-card[data-tier="epic"] { --profile-accent: #a99b91; }
+.profile-card[data-tier="unique"] { --profile-accent: #ad908c; }
+.profile-card[data-tier="legendary"] { --profile-accent: #a47c78; }
+.profile-card[data-tier="mythic"] { --profile-accent: #93676a; }
+.profile-card[data-tier="exalted"] { --profile-accent: #80575c; }
+.profile-card[data-tier="glorious"] { --profile-accent: #70474d; }
+.profile-card[data-tier="transcendent"] { --profile-accent: #623940; }
+.profile-card[data-tier="dimensional"] { --profile-accent: #512d35; }
+.profile-card[data-tier="ntc"] { --profile-accent: #b1767e; }
+.profile-card-atmosphere { position: absolute; z-index: -1; inset: 0; border-left: 7px solid var(--profile-accent); opacity: .68; }
+.profile-card-atmosphere span { display: none; }
+.profile-card-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid color-mix(in srgb, var(--profile-accent) 34%, #292425); }
+.profile-card-brand { display: flex; align-items: baseline; font-size: 24px; font-weight: 800; letter-spacing: .035em; }
+.profile-card-brand i { margin-left: 8px; color: #9b8f8d; font-size: 16px; font-style: normal; font-weight: 600; }
+.profile-card-brand small { margin-left: 23px; color: #756d6e; font: 700 9px "Cascadia Mono", Consolas, monospace; letter-spacing: .2em; }
+.profile-card-tier { padding: 9px 17px; border: 1px solid color-mix(in srgb, var(--profile-accent) 65%, #302a2a); border-radius: 999px; color: color-mix(in srgb, var(--profile-accent) 75%, #eee); font: 700 12px "Cascadia Mono", Consolas, monospace; letter-spacing: .16em; }
+.profile-card-identity { display: grid; min-height: 0; grid-template-columns: 480px minmax(320px, .75fr) minmax(540px, 1.05fr); align-items: center; gap: 40px; padding: 18px 12px 16px; }
+.profile-card-crystal { display: grid; width: 100%; height: 100%; max-height: 590px; place-items: center; }
+.profile-card-crystal > .ntc-rng-icon { width: 460px; height: 460px; filter: drop-shadow(0 24px 38px rgba(0,0,0,.42)); }
+.profile-card-crystal .ntc-rng-icon > img { object-fit: contain; }
+.profile-card-copy { display: grid; align-content: center; min-width: 0; gap: 15px; }
+.profile-card-kicker { color: color-mix(in srgb, var(--profile-accent) 88%, #d8c9c8); font: 700 12px "Cascadia Mono", Consolas, monospace; letter-spacing: .22em; }
+.profile-card-copy h1 { max-width: 100%; margin: 0; overflow-wrap: anywhere; font-size: 66px; font-weight: 760; letter-spacing: -.057em; line-height: .98; }
+.profile-card-copy h1[data-length="medium"] { font-size: 57px; }
+.profile-card-copy h1[data-length="long"] { font-size: 47px; line-height: 1.02; }
+.profile-card-copy > strong { overflow-wrap: anywhere; color: #e0d6d4; font-size: 27px; font-weight: 580; line-height: 1.15; }
+.profile-card-copy > strong[data-length="long"] { font-size: 22px; }
+.profile-card-copy > span:last-child { color: #999193; font-size: 15px; letter-spacing: .08em; }
+.profile-card-record { position: relative; display: grid; min-height: 260px; grid-template-columns: minmax(0, 1fr); align-items: center; overflow: hidden; padding: 28px 32px 28px 38px; border-left: 2px solid var(--profile-accent); background: transparent; }
+.profile-card-record[hidden] { display: none; }
+.profile-card-record-copy { position: relative; z-index: 1; display: grid; min-width: 0; align-content: center; gap: 12px; }
+.profile-card-record h2 { max-width: 100%; margin: 0; overflow-wrap: anywhere; font-size: 34px; font-weight: 680; letter-spacing: -.032em; line-height: 1.08; }
+.profile-card-record-copy > span:not(.profile-card-kicker) { color: #aaa0a0; font-size: 14px; text-transform: uppercase; letter-spacing: .09em; }
+.profile-card-record-copy > strong { max-width: 100%; overflow-wrap: anywhere; color: #f0e4e3; font: 650 39px/1.08 "Cascadia Mono", Consolas, monospace; letter-spacing: -.055em; }
+.profile-card-record-copy > strong[data-length="long"] { font-size: 31px; }
+.profile-card-record-copy > strong[data-length="very-long"] { font-size: 25px; }
+.profile-card-record-copy > small { color: #8f8586; font-size: 13px; }
+.profile-card-stats { display: grid; grid-template-columns: repeat(4, 1fr); align-items: center; border-top: 1px solid color-mix(in srgb, var(--profile-accent) 28%, #292425); border-bottom: 1px solid color-mix(in srgb, var(--profile-accent) 28%, #292425); }
+.profile-card-stats article { display: grid; gap: 8px; padding: 18px 28px; border-right: 1px solid rgba(255,255,255,.07); }
+.profile-card-stats article:last-child { border: 0; }
+.profile-card-stats strong { overflow: hidden; color: #eee8e7; font: 650 29px "Cascadia Mono", Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.profile-card-stats span { color: #938a8b; font: 700 10px "Cascadia Mono", Consolas, monospace; letter-spacing: .17em; }
+.profile-card-footer { display: flex; align-items: center; justify-content: space-between; }
+.profile-card-luck { display: grid; gap: 5px; }
+.profile-card-luck > strong { font: 680 21px "Cascadia Mono", Consolas, monospace; }
+.profile-card-luck small { color: #928a8a; font-size: 11px; }
+.profile-card-mark { display: grid; gap: 5px; color: #8e8585; text-align: right; }
+.profile-card-mark span { font: 700 9px "Cascadia Mono", Consolas, monospace; letter-spacing: .18em; }
+.profile-card-mark b { color: #c5babb; font-size: 12px; letter-spacing: .11em; }
+.profile-card[data-format="portrait"] { grid-template-rows: 70px minmax(0, 1fr) 190px 92px; padding: 42px 58px 34px; }
+.profile-card[data-format="portrait"] .profile-card-brand small { margin-left: 18px; }
+.profile-card[data-format="portrait"] .profile-card-identity { grid-template-columns: 1fr; grid-template-rows: 400px 190px minmax(230px, 1fr); justify-items: center; gap: 12px; padding: 12px 16px 16px; text-align: center; }
+.profile-card[data-format="portrait"] .profile-card-crystal { height: 400px; }
+.profile-card[data-format="portrait"] .profile-card-crystal > .ntc-rng-icon { width: 420px; height: 420px; }
+.profile-card[data-format="portrait"] .profile-card-copy { justify-items: center; gap: 9px; }
+.profile-card[data-format="portrait"] .profile-card-copy h1 { max-width: 890px; font-size: 59px; }
+.profile-card[data-format="portrait"] .profile-card-copy h1[data-length="medium"] { font-size: 51px; }
+.profile-card[data-format="portrait"] .profile-card-copy h1[data-length="long"] { font-size: 43px; }
+.profile-card[data-format="portrait"] .profile-card-copy > strong { font-size: 24px; }
+.profile-card[data-format="portrait"] .profile-card-record { width: min(100%, 900px); min-height: 230px; grid-template-columns: minmax(0, 1fr); justify-self: center; padding: 24px 28px 24px 38px; border-left: 0; border-top: 2px solid var(--profile-accent); text-align: left; }
+.profile-card[data-format="portrait"] .profile-card-record h2 { font-size: 29px; }
+.profile-card[data-format="portrait"] .profile-card-record-copy > strong { font-size: 34px; }
+.profile-card[data-format="portrait"] .profile-card-record-copy > strong[data-length="long"] { font-size: 28px; }
+.profile-card[data-format="portrait"] .profile-card-record-copy > strong[data-length="very-long"] { font-size: 23px; }
+.profile-card[data-format="portrait"] .profile-card-stats article { padding: 22px 10px; text-align: center; }
+.profile-card[data-format="portrait"] .profile-card-stats strong { font-size: 23px; }
+.profile-card[data-format="portrait"] .profile-card-stats span { font-size: 9px; }
+.profile-card[data-format="portrait"] .profile-card-footer { padding-top: 12px; }

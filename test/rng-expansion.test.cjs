@@ -135,14 +135,14 @@ test('one-in-a-million at x1, consecutive Singular+, and one-hour Auto-roll unlo
 
 test('Basic at x100 unlocks the secret and discovery history records stacked event boosts', () => {
   const state = normalizeState({ totalRolls: 9_999, bonusRollCounter: 9, collectedIds: TITLES.slice(1, 51).map(title => title.id) });
-  const event = { id: 'rain:test', name: 'Chuva de Sorte', multiplier: 2 };
+  const event = { id: 'rain:test', name: 'Noite do Acaso', multiplier: 2 };
   const outcome = rollTitle(state, 0n, { event, rolledAt: Date.UTC(2026, 8, 24, 22) });
   assert.ok(outcome.state.unlockedSecrets.includes('secret-hundred'));
   assert.equal(outcome.eventMultiplier, 2);
   assert.equal(outcome.isTenThousandRollBonus, true);
   assert.equal(outcome.isThousandRollBonus, true);
   assert.equal(outcome.state.trackedRolls, 1);
-  assert.equal(outcome.state.titleHistory[0].eventName, 'Chuva de Sorte');
+  assert.equal(outcome.state.titleHistory[0].eventName, 'Noite do Acaso');
   assert.equal(outcome.state.titleHistory[0].eventMultiplier, 2);
 });
 

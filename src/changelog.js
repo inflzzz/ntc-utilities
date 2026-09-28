@@ -1,5 +1,19 @@
 window.NTC_CHANGELOG = [
   {
+    version: '1.0.0',
+    date: '28 set. 2026',
+    changes: [
+      'O jogo permanece visível na navegação, mas abre apenas a tela de manutenção; o progresso existente foi preservado.',
+      'Editor de vídeo com workspace dedicado, timeline, prévia, propriedades e exportação. A navegação global se recolhe enquanto ele está aberto.',
+      'Editor de áudio multifaixa: mixagem de stems em um WAV ou MP3, régua e zoom na timeline e reprodução que acompanha o tempo real ao minimizar e restaurar.',
+      'Exportação de áudio mostra estados distintos para andamento, conclusão, cancelamento e erro, com ações para abrir a pasta ou tentar novamente.',
+      'O Editor de áudio clássico continua disponível enquanto formatos, efeitos, marcadores, metadados e fila não têm paridade completa no multifaixa.',
+      'Área de transferência: miniaturas de imagens carregadas sob demanda no histórico, links identificados e ações secundárias em menu compacto.',
+      'Conversores e compressor: áreas de arrastar arquivos com foco de teclado e mensagens de falha mais claras.',
+      'Novas ferramentas locais de documentos, PDF, estudos e segurança, com refinamentos de navegação e estabilidade.'
+    ]
+  },
+  {
     version: '0.9.0',
     date: '24 set. 2026',
     changes: [

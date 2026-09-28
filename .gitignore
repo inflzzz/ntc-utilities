@@ -5,4 +5,6 @@ dist/
 npm-debug.log*
 pnpm-debug.log*
 .ntc-data/
+.env.online.local
+src/rng-online-config.generated.cjs
 resources/bin/

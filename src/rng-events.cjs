@@ -1,31 +1,31 @@
 const FOCUS_ROTATION = [
   { id: 'epic', label: 'Épico' }, { id: 'unique', label: 'Singular' }, { id: 'legendary', label: 'Lendário' },
   { id: 'mythic', label: 'Mítico' }, { id: 'exalted', label: 'Exaltado' }, { id: 'glorious', label: 'Glorioso' },
-  { id: 'transcendent', label: 'Transcendente' }, { id: 'dimensional', label: 'Dimensional' }, { id: 'ntc', label: 'Além do NTC' }
+  { id: 'transcendent', label: 'Abissal' }, { id: 'dimensional', label: 'Inominável' }, { id: 'ntc', label: 'Além do NTC' }
 ];
 const EVENTS = [
-  { id: 'rain', name: 'Chuva de Sorte', weekday: null, hourUtc: 22, durationMinutes: 10, multiplier: 2, description: 'Todos os dias' },
-  { id: 'eclipse', name: 'Eclipse', weekday: 6, hourUtc: 23, durationMinutes: 5, multiplier: 5, description: 'Sábados' },
-  { id: 'focus', name: 'Alinhamento de Raridade', weekday: 3, hourUtc: 23, durationMinutes: 5, multiplier: 1, description: 'Semanalmente', focusMultiplier: 3 },
-  { id: 'fragments', name: 'Chuva de Fragmentos', monthlyFirstWeekday: 0, hourUtc: 20, durationMinutes: 25, multiplier: 2, description: 'Todo mês', fragmentGoal: 1_000 }
+  { id: 'rain', name: 'Noite do Acaso', weekday: null, hourUtc: 22, durationMinutes: 10, multiplier: 2, description: 'Todos os dias' },
+  { id: 'eclipse', name: 'Noite sem Alvorecer', weekday: 6, hourUtc: 23, durationMinutes: 5, multiplier: 5, description: 'Sábados' },
+  { id: 'focus', name: 'Ritual dos Selos', weekday: 3, hourUtc: 23, durationMinutes: 5, multiplier: 1, description: 'Semanalmente', focusMultiplier: 3 },
+  { id: 'fragments', name: 'Queda de Cinzas', monthlyFirstWeekday: 0, hourUtc: 20, durationMinutes: 25, multiplier: 2, description: 'Todo mês', fragmentGoal: 1_000 }
 ];
 
 // Edições únicas. Datas e recompensas são distribuídas com a versão do app.
 const LIMITED_REWARDS = [
-  { eventId: 'rain', edition: '2026-10-01', titleId: 'limited-first-rain', name: 'Primeira Chuva de Sorte', odds: 5_000 },
-  { eventId: 'eclipse', edition: '2026-10-03', titleId: 'limited-first-eclipse', name: 'Testemunha do Eclipse', odds: 10_000 },
-  { eventId: 'fragments', edition: '2026-09-27', titleId: 'limited-fragment-2026-09', name: 'Fragmento da Lua Nova', rollGoal: 1_000 },
-  { eventId: 'fragments', edition: '2026-10-04', titleId: 'limited-fragment-2026-10', name: 'Fragmento da Primeira Chuva', rollGoal: 1_000 },
+  { eventId: 'rain', edition: '2026-10-01', titleId: 'limited-first-rain', name: 'Primeira Vigília', odds: 5_000 },
+  { eventId: 'eclipse', edition: '2026-10-03', titleId: 'limited-first-eclipse', name: 'Testemunha da Noite sem Alvorecer', odds: 10_000 },
+  { eventId: 'fragments', edition: '2026-09-27', titleId: 'limited-fragment-2026-09', name: 'Estilhaço das Horas Mortas', rollGoal: 1_000 },
+  { eventId: 'fragments', edition: '2026-10-04', titleId: 'limited-fragment-2026-10', name: 'Pedaço da Primeira Vigília', rollGoal: 1_000 },
   { eventId: 'fragments', edition: '2026-11-01', titleId: 'limited-fragment-2026-11', name: 'Fragmento Carmesim', rollGoal: 1_000 },
-  { eventId: 'fragments', edition: '2026-12-06', titleId: 'limited-fragment-2026-12', name: 'Fragmento do Solstício', rollGoal: 1_000 },
-  { eventId: 'fragments', edition: '2027-01-03', titleId: 'limited-fragment-2027-01', name: 'Fragmento do Ano Novo', rollGoal: 1_000 },
-  { eventId: 'fragments', edition: '2027-02-07', titleId: 'limited-fragment-2027-02', name: 'Fragmento de Aurora', rollGoal: 1_000 },
+  { eventId: 'fragments', edition: '2026-12-06', titleId: 'limited-fragment-2026-12', name: 'Lasca do Dia Imóvel', rollGoal: 1_000 },
+  { eventId: 'fragments', edition: '2027-01-03', titleId: 'limited-fragment-2027-01', name: 'Cinza do Ano Velho', rollGoal: 1_000 },
+  { eventId: 'fragments', edition: '2027-02-07', titleId: 'limited-fragment-2027-02', name: 'Estilhaço do Primeiro Lamento', rollGoal: 1_000 },
   { eventId: 'fragments', edition: '2027-03-07', titleId: 'limited-fragment-2027-03', name: 'Fragmento Equinocial', rollGoal: 1_000 },
   { eventId: 'fragments', edition: '2027-04-04', titleId: 'limited-fragment-2027-04', name: 'Fragmento de Outono', rollGoal: 1_000 },
-  { eventId: 'fragments', edition: '2027-05-02', titleId: 'limited-fragment-2027-05', name: 'Fragmento Celeste', rollGoal: 1_000 },
+  { eventId: 'fragments', edition: '2027-05-02', titleId: 'limited-fragment-2027-05', name: 'Estilhaço do Sepulcro', rollGoal: 1_000 },
   { eventId: 'fragments', edition: '2027-06-06', titleId: 'limited-fragment-2027-06', name: 'Fragmento de Geada', rollGoal: 1_000 },
-  { eventId: 'fragments', edition: '2027-07-04', titleId: 'limited-fragment-2027-07', name: 'Fragmento Boreal', rollGoal: 1_000 },
-  { eventId: 'fragments', edition: '2027-08-01', titleId: 'limited-fragment-2027-08', name: 'Fragmento de Safira', rollGoal: 1_000 },
+  { eventId: 'fragments', edition: '2027-07-04', titleId: 'limited-fragment-2027-07', name: 'Estilhaço da Geada', rollGoal: 1_000 },
+  { eventId: 'fragments', edition: '2027-08-01', titleId: 'limited-fragment-2027-08', name: 'Estilhaço de Chumbo', rollGoal: 1_000 },
   { eventId: 'fragments', edition: '2027-09-05', titleId: 'limited-fragment-2027-09', name: 'Fragmento da Primavera', rollGoal: 1_000 }
 ];
 

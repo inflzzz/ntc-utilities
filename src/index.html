@@ -6,6 +6,13 @@
     <meta name="color-scheme" content="dark" />
     <title>NTC Utilities</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./video-project.css" />
+    <link rel="stylesheet" href="./catalog.css" />
+    <link rel="stylesheet" href="./theme.css" />
+    <link rel="stylesheet" href="./rng-icons.css" />
+    <link rel="stylesheet" href="./rng-theme.css" />
+    <link rel="stylesheet" href="./rng-event-scenes.css" />
+    <link rel="stylesheet" href="./rng-roll-experience.css" />
   </head>
   <body>
     <div class="splash" id="splash" aria-label="Carregando NTC Utilities">
@@ -16,7 +23,7 @@
     </div>
 
     <main class="app-shell" id="appShell" aria-hidden="true">
-      <aside class="sidebar">
+      <aside class="sidebar" id="appSidebar">
         <div class="brand">
           <div class="brand-mark wordmark">NTC</div>
           <div><strong>NTC</strong><span>Utilities</span></div>
@@ -45,6 +52,11 @@
           <button class="nav-item" data-view="history">
             <span class="nav-icon">◷</span> Histórico
           </button>
+          <button class="nav-item" data-view="clipboardHistory"><span class="nav-icon">▤</span> Área de transferência</button>
+          <button class="nav-item" data-view="security"><span class="nav-icon">◇</span> Segurança</button>
+          <button class="nav-item" data-view="documents"><span class="nav-icon">▤</span> Documentos</button>
+          <button class="nav-item" data-view="pdf"><span class="nav-icon">▧</span> PDF</button>
+          <button class="nav-item" data-view="studyTools"><span class="nav-icon">▤</span> Estudos</button>
           <button class="nav-item" data-view="settings">
             <span class="nav-icon">⚙</span> Configurações
           </button>
@@ -88,7 +100,280 @@
             <button class="tool-card available" data-open-tool="compressor"><span class="tool-icon">⇣</span><span><strong>Compressor</strong><small>Reduza o tamanho de vídeos e áudios.</small></span></button>
             <button class="tool-card available" data-open-tool="renamer"><span class="tool-icon">↔</span><span><strong>Renomear arquivos</strong><small>Renomeie vários arquivos com uma prévia.</small></span></button>
             <button class="tool-card available" data-open-tool="qrGenerator"><span class="tool-icon">▦</span><span><strong>Gerador de QR Code</strong><small>Crie QR Codes de links em PNG ou SVG.</small></span></button>
+            <button class="tool-card available" data-open-tool="clipboardHistory"><span class="tool-icon">▤</span><span><strong>Área de transferência</strong><small>Consulte e reutilize textos e imagens copiados.</small></span></button>
+            <button class="tool-card available" data-open-tool="security"><span class="tool-icon">◇</span><span><strong>Segurança</strong><small>Gere segredos, limpe metadados e proteja arquivos.</small></span></button>
+            <button class="tool-card available" data-open-tool="documents"><span class="tool-icon">▤</span><span><strong>Documentos</strong><small>Escreva e formate textos; organize notas rápidas.</small></span></button>
+            <button class="tool-card available" data-open-tool="pdf"><span class="tool-icon">▧</span><span><strong>PDF</strong><small>Leia, organize, edite e converta documentos PDF.</small></span></button>
+            <button class="tool-card available" data-open-tool="studyTools"><span class="tool-icon">▤</span><span><strong>Estudos</strong><small>Organize sessões de foco e revise flashcards.</small></span></button>
           </div>
+        </section>
+
+        <section class="view documents-view" id="documentsView">
+          <div class="hero compact"><div class="eyebrow">ESCRITA E ORGANIZAÇÃO</div><h1>Documentos</h1><p>Escreva documentos simples e guarde notas rápidas neste computador.</p></div>
+          <div class="documents-tabs" role="tablist" aria-label="Documentos e notas">
+            <button class="documents-tab active" type="button" role="tab" aria-selected="true" data-documents-tab="editor">Editor de texto</button>
+            <button class="documents-tab" type="button" role="tab" aria-selected="false" data-documents-tab="notes">Post-its</button>
+          </div>
+          <section class="documents-panel active" data-documents-panel="editor" role="tabpanel">
+            <section class="document-editor-card">
+              <div class="documents-toolbar">
+                <div class="documents-toolbar-main"><span class="documents-toolbar-label">Arquivo</span><button class="outline-button" id="documentNew" type="button">Novo</button><button class="outline-button" id="documentOpen" type="button">Abrir</button><button class="outline-button" id="documentPrint" type="button">Imprimir</button><span class="documents-toolbar-divider" aria-hidden="true"></span><button class="primary-button" id="documentSave" type="button">Salvar como</button></div>
+                <label class="documents-format-label">Formato<select class="text-input" id="documentFormat"><option value="html">HTML formatado</option><option value="rtf">Rich Text (.rtf)</option><option value="txt">Texto simples (.txt)</option><option value="md">Markdown (.md)</option></select></label>
+              </div>
+              <div class="document-name-row"><input class="text-input document-title-input" id="documentTitle" type="text" maxlength="240" value="Sem título" aria-label="Título do documento"><div class="document-page-settings"><span>Página</span><label>Papel<select id="documentPaper" aria-label="Tamanho do papel"><option value="A4">A4</option><option value="Letter">Carta</option><option value="Legal">Ofício</option></select></label><label>Orientação<select id="documentOrientation" aria-label="Orientação da página"><option value="portrait">Retrato</option><option value="landscape">Paisagem</option></select></label></div></div>
+              <div class="document-format-toolbar" role="toolbar" aria-label="Formatação do texto">
+                <div class="document-ribbon-group document-ribbon-font"><div class="document-ribbon-row"><select id="documentFontFamily" aria-label="Fonte"><option value="Arial">Arial</option><option value="Aptos">Aptos</option><option value="Calibri">Calibri</option><option value="Cambria">Cambria</option><option value="Consolas">Consolas</option><option value="Courier New">Courier New</option><option value="Georgia">Georgia</option><option value="Segoe UI">Segoe UI</option><option value="Tahoma">Tahoma</option><option value="Times New Roman">Times New Roman</option><option value="Trebuchet MS">Trebuchet MS</option><option value="Verdana">Verdana</option></select><select id="documentFontSize" aria-label="Tamanho da fonte"><option value="8px">8</option><option value="9px">9</option><option value="10px">10</option><option value="11px">11</option><option value="12px">12</option><option value="14px">14</option><option value="16px" selected>16</option><option value="18px">18</option><option value="20px">20</option><option value="24px">24</option><option value="28px">28</option><option value="32px">32</option><option value="36px">36</option><option value="48px">48</option><option value="72px">72</option></select></div><div class="document-ribbon-row"><button type="button" data-document-command="bold" aria-label="Negrito" title="Negrito" aria-pressed="false"><strong>N</strong></button><button type="button" data-document-command="italic" aria-label="Itálico" title="Itálico" aria-pressed="false"><em>I</em></button><button type="button" data-document-command="underline" aria-label="Sublinhado" title="Sublinhado" aria-pressed="false"><u>S</u></button><button type="button" data-document-command="strikeThrough" aria-label="Tachado" title="Tachado" aria-pressed="false"><s>S</s></button><button type="button" data-document-command="subscript" aria-label="Subscrito" title="Subscrito" aria-pressed="false">x₂</button><button type="button" data-document-command="superscript" aria-label="Sobrescrito" title="Sobrescrito" aria-pressed="false">x²</button><label class="document-color-control" title="Cor do texto"><span aria-hidden="true">A</span><input id="documentTextColor" type="color" value="#dddddd" aria-label="Cor do texto"></label><label class="document-color-control document-highlight-control" title="Realce do texto"><span aria-hidden="true">▰</span><input id="documentHighlightColor" type="color" value="#8d6fb0" aria-label="Realce do texto"></label></div><span class="document-ribbon-label">Fonte</span></div>
+                <div class="document-ribbon-group document-ribbon-paragraph"><div class="document-ribbon-row"><button type="button" data-document-command="formatBlock" data-document-value="h2" aria-pressed="false">Título</button><button type="button" data-document-command="formatBlock" data-document-value="p" aria-pressed="false">Parágrafo</button><button type="button" data-document-command="insertUnorderedList" aria-label="Lista com marcadores" aria-pressed="false">• Lista</button><button type="button" data-document-command="insertOrderedList" aria-label="Lista numerada" aria-pressed="false">1. Lista</button><select id="documentListStyle" class="document-list-style" aria-label="Estilo de numeração"><option value="disc">• Marcadores</option><option value="circle">○ Círculos</option><option value="square">▪ Quadrados</option><option value="1">1, 2, 3</option><option value="a">a, b, c</option><option value="A">A, B, C</option><option value="i">i, ii, iii</option><option value="I">I, II, III</option></select></div><div class="document-ribbon-row"><button type="button" data-document-command="justifyLeft" aria-label="Alinhar à esquerda" title="Alinhar à esquerda" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 4h16M2 8h11M2 12h16M2 16h11"/></svg></button><button type="button" data-document-command="justifyCenter" aria-label="Centralizar" title="Centralizar" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 4h16M5 8h10M2 12h16M5 16h10"/></svg></button><button type="button" data-document-command="justifyRight" aria-label="Alinhar à direita" title="Alinhar à direita" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 4h16M7 8h11M2 12h16M7 16h11"/></svg></button><button type="button" data-document-command="justifyFull" aria-label="Justificar" title="Justificar" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2 4h16M2 8h16M2 12h16M2 16h16"/></svg></button><span class="document-ribbon-mini-divider" aria-hidden="true"></span><button id="documentIndentLess" type="button" aria-label="Diminuir recuo" title="Diminuir recuo">⇤</button><button id="documentIndentMore" type="button" aria-label="Aumentar recuo" title="Aumentar recuo">⇥</button><select id="documentLineSpacing" aria-label="Espaçamento entre linhas" title="Espaçamento entre linhas"><option value="1">1,0 linha</option><option value="1.15">1,15 linha</option><option value="1.5">1,5 linha</option><option value="1.75" selected>1,75 linha</option><option value="2">2,0 linhas</option></select></div><span class="document-ribbon-label">Parágrafo</span></div>
+                <div class="document-ribbon-group document-ribbon-insert"><div class="document-ribbon-row"><button id="documentInsertImage" type="button">Imagem</button><button id="documentInsertDrawing" type="button">Desenho</button></div><div class="document-ribbon-row"><button id="documentInsertDate" type="button">Data e hora</button><button id="documentInsertLink" type="button">Link</button></div><span class="document-ribbon-label">Inserir</span></div>
+                <div class="document-ribbon-group document-ribbon-edit"><div class="document-ribbon-row"><button id="documentUndo" type="button" title="Desfazer">↶ Desfazer</button><button id="documentRedo" type="button" title="Refazer">↷ Refazer</button></div><div class="document-ribbon-row"><button id="documentSelectAll" type="button">Selecionar tudo</button></div><span class="document-ribbon-label">Editar</span></div>
+              </div>
+              <details class="document-find-panel"><summary>⌕ Localizar e substituir</summary><div class="document-find-fields"><input class="text-input" id="documentFindText" type="search" placeholder="Texto para localizar" aria-label="Texto para localizar"><input class="text-input" id="documentReplaceText" type="text" placeholder="Substituir por" aria-label="Substituir por"><button class="outline-button" id="documentFindNext" type="button">Localizar próxima</button><button class="outline-button" id="documentReplaceOne" type="button">Substituir</button><button class="outline-button" id="documentReplaceAll" type="button">Substituir tudo</button></div></details>
+              <div class="document-ruler" aria-label="Régua de margens do documento">
+                <div class="document-ruler-label">Margens</div>
+                <div class="document-ruler-track" aria-hidden="true"><span>0</span><span>2</span><span>4</span><span>6</span><span>8</span><span>10</span><span>12</span><span>14</span><span>16</span><span>18</span><span>20</span></div>
+                <input id="documentLeftMargin" class="document-ruler-range document-ruler-left" type="range" min="5" max="35" value="12" aria-label="Margem esquerda">
+                <input id="documentRightMargin" class="document-ruler-range document-ruler-right" type="range" min="5" max="35" value="12" aria-label="Margem direita">
+              </div>
+              <div class="document-page-stage"><div class="document-editor" id="documentEditor" contenteditable="true" role="textbox" aria-label="Conteúdo do documento" aria-multiline="true" data-placeholder="Comece a escrever…"></div></div>
+              <div class="document-editor-footer"><span id="documentSaveStatus" role="status" aria-live="polite">Rascunho salvo neste computador</span><span id="documentWordCount">0 palavras</span></div>
+            </section>
+            <dialog class="document-drawing-dialog" id="documentDrawingDialog" aria-labelledby="documentDrawingTitle">
+              <div class="document-drawing-heading"><div><span class="eyebrow">INSERIR NO DOCUMENTO</span><h2 id="documentDrawingTitle">Desenho</h2></div><button class="ghost-button" id="documentDrawingClose" type="button" aria-label="Fechar desenho">×</button></div>
+              <div class="document-drawing-tools"><label>Cor<input id="documentDrawingColor" type="color" value="#222222" aria-label="Cor do traço"></label><label>Espessura<input id="documentDrawingSize" type="range" min="2" max="28" value="6" aria-label="Espessura do traço"><output id="documentDrawingSizeValue">6 px</output></label><button class="outline-button" id="documentDrawingClear" type="button">Limpar desenho</button></div>
+              <canvas class="document-drawing-canvas" id="documentDrawingCanvas" width="1000" height="620" aria-label="Área para desenhar"></canvas>
+              <div class="document-drawing-footer"><span>Desenhe com o mouse ou toque.</span><div><button class="outline-button" id="documentDrawingCancel" type="button">Cancelar</button><button class="primary-button" id="documentDrawingInsert" type="button" disabled>Inserir no texto</button></div></div>
+            </dialog>
+          </section>
+          <section class="documents-panel hidden" data-documents-panel="notes" role="tabpanel">
+            <div class="notes-toolbar"><p>Suas notas ficam salvas automaticamente neste computador.</p><button class="primary-button" id="noteAdd" type="button">＋ Nova nota</button></div>
+            <div class="notes-board" id="notesBoard" aria-live="polite"></div>
+          </section>
+        </section>
+
+        <section class="view pdf-view" id="pdfView">
+          <div class="hero compact"><div class="eyebrow">ESPAÇO DE TRABALHO</div><h1>PDF</h1><p>Leia, organize, edite e converta arquivos PDF localmente.</p></div>
+          <div class="pdf-toolbar">
+            <button class="primary-button" id="pdfOpen" type="button">Abrir PDF</button><button class="outline-button" id="pdfSave" type="button" disabled>Salvar PDF</button><span class="pdf-file-name" id="pdfFileName">Nenhum arquivo aberto</span>
+            <div class="pdf-page-controls"><button class="outline-button" id="pdfPreviousPage" type="button" aria-label="Página anterior" disabled>‹</button><span id="pdfPageStatus">— / —</span><button class="outline-button" id="pdfNextPage" type="button" aria-label="Próxima página" disabled>›</button><label class="pdf-goto-control">Ir para<input class="text-input" id="pdfGoToPage" type="number" min="1" value="1" aria-label="Número da página" disabled></label><button class="outline-button" id="pdfGoToPageButton" type="button" disabled>Ir</button></div>
+            <div class="pdf-zoom-controls"><button class="outline-button" id="pdfZoomOut" type="button" aria-label="Diminuir zoom" disabled>−</button><span id="pdfZoomStatus">100%</span><button class="outline-button" id="pdfZoomIn" type="button" aria-label="Aumentar zoom" disabled>＋</button></div>
+          </div>
+          <div class="pdf-workspace-tabs" role="tablist" aria-label="Ferramentas de PDF">
+            <button class="pdf-workspace-tab active" type="button" role="tab" aria-selected="true" data-pdf-tab="read">Leitor</button><button class="pdf-workspace-tab" type="button" role="tab" aria-selected="false" data-pdf-tab="pages">Organizar páginas</button><button class="pdf-workspace-tab" type="button" role="tab" aria-selected="false" data-pdf-tab="edit">Editar e assinar</button><button class="pdf-workspace-tab" type="button" role="tab" aria-selected="false" data-pdf-tab="convert">Converter e extrair</button><button class="pdf-workspace-tab" type="button" role="tab" aria-selected="false" data-pdf-tab="info">Informações</button>
+          </div>
+          <section class="pdf-workspace-panel active" data-pdf-panel="read" role="tabpanel">
+            <div class="pdf-reader-tools"><label>Buscar no documento<input class="text-input" id="pdfFindText" type="search" placeholder="Digite uma palavra ou trecho" disabled></label><button class="outline-button" id="pdfFindButton" type="button" disabled>Buscar</button><span id="pdfFindStatus" role="status"></span><button class="outline-button" id="pdfExportPageImage" type="button" disabled>Salvar página como PNG</button></div>
+            <section class="pdf-reader-card" id="pdfReaderCard">
+              <div class="pdf-empty-state" id="pdfEmptyState"><span aria-hidden="true">▧</span><h2>Seu próximo PDF começa aqui</h2><p>Abra um arquivo para ler, procurar trechos e trabalhar com as páginas dentro do NTC Utilities.</p><button class="outline-button" id="pdfEmptyOpen" type="button">Selecionar PDF</button></div>
+              <div class="pdf-page-frame hidden" id="pdfPageFrame"><canvas id="pdfPageCanvas" aria-label="Página atual do PDF"></canvas></div>
+            </section>
+          </section>
+          <section class="pdf-workspace-panel hidden" data-pdf-panel="pages" role="tabpanel">
+            <div class="pdf-tool-intro"><h2>Organizar páginas</h2><p>Use números separados por vírgula ou intervalos, por exemplo: 1, 3-5.</p></div>
+            <div class="pdf-tool-grid">
+              <article class="pdf-tool-card"><div class="pdf-tool-card-heading"><span>01</span><div><h3>Selecionar páginas</h3><p>Deixe vazio para usar todas.</p></div></div><label class="pdf-field">Páginas<input class="text-input" id="pdfPageSelection" type="text" placeholder="1, 3-5" disabled></label><div class="pdf-tool-actions"><button class="outline-button" id="pdfRotateLeft" type="button" disabled>Girar −90°</button><button class="outline-button" id="pdfRotateRight" type="button" disabled>Girar +90°</button></div><div class="pdf-tool-actions"><button class="outline-button" id="pdfExtractPages" type="button" disabled>Extrair seleção</button><button class="outline-button danger-outline" id="pdfRemovePages" type="button" disabled>Excluir seleção</button></div></article>
+              <article class="pdf-tool-card"><div class="pdf-tool-card-heading"><span>02</span><div><h3>Ordem das páginas</h3><p>Informe a ordem final, incluindo repetidos para duplicar.</p></div></div><label class="pdf-field">Nova ordem<input class="text-input" id="pdfPageOrder" type="text" placeholder="3, 1, 2" disabled></label><div class="pdf-tool-actions"><button class="outline-button" id="pdfReorderPages" type="button" disabled>Aplicar ordem</button><button class="outline-button" id="pdfReversePages" type="button" disabled>Inverter ordem</button><button class="outline-button" id="pdfDuplicatePages" type="button" disabled>Duplicar seleção</button></div><button class="outline-button" id="pdfInsertBlank" type="button" disabled>Adicionar página em branco</button></article>
+              <article class="pdf-tool-card"><div class="pdf-tool-card-heading"><span>03</span><div><h3>Combinar arquivos</h3><p>Una PDFs pela ordem em que selecionar.</p></div></div><button class="outline-button" id="pdfMergeOpen" type="button">Selecionar PDFs para combinar</button><span class="pdf-tool-hint" id="pdfMergeStatus">Selecione pelo menos dois arquivos.</span></article>
+            </div>
+          </section>
+          <section class="pdf-workspace-panel hidden" data-pdf-panel="edit" role="tabpanel">
+            <div class="pdf-tool-intro"><h2>Editar e assinar</h2><p>Veja as alterações na prévia ao vivo antes de aplicá-las; o arquivo original fica preservado.</p></div>
+            <div class="pdf-edit-layout"><div class="pdf-tool-grid">
+              <article class="pdf-tool-card"><div class="pdf-tool-card-heading"><span>01</span><div><h3>Marca d’água</h3><p>Texto inclinado aplicado às páginas escolhidas.</p></div></div><label class="pdf-field">Texto<input class="text-input" id="pdfWatermarkText" type="text" maxlength="120" placeholder="CONFIDENCIAL" disabled></label><label class="pdf-field">Opacidade <span id="pdfWatermarkOpacityValue">18%</span><input id="pdfWatermarkOpacity" type="range" min="5" max="60" value="18" disabled></label><label class="pdf-field">Ângulo<select id="pdfWatermarkAngle" disabled><option value="-45">−45°</option><option value="-30">−30°</option><option value="0">0°</option><option value="30">30°</option><option value="45" selected>45°</option></select></label><button class="outline-button" id="pdfApplyWatermark" type="button" disabled>Aplicar marca d’água</button></article>
+              <article class="pdf-tool-card"><div class="pdf-tool-card-heading"><span>02</span><div><h3>Numeração</h3><p>Insira números no rodapé das páginas.</p></div></div><label class="pdf-field">Modelo<input class="text-input" id="pdfNumberFormat" type="text" maxlength="80" value="Página {n} de {total}" disabled></label><label class="pdf-field">Começar em<input class="text-input" id="pdfNumberStart" type="number" min="1" max="999999" value="1" disabled></label><button class="outline-button" id="pdfAddPageNumbers" type="button" disabled>Adicionar numeração</button></article>
+              <article class="pdf-tool-card"><div class="pdf-tool-card-heading"><span>03</span><div><h3>Texto em página</h3><p>Adicione uma nota curta na página atual.</p></div></div><label class="pdf-field">Texto<input class="text-input" id="pdfStampText" type="text" maxlength="250" placeholder="Texto para inserir" disabled></label><div class="pdf-tool-actions"><label class="pdf-field">Tamanho<input class="text-input" id="pdfStampSize" type="number" min="8" max="72" value="16" disabled></label><label class="pdf-field">Cor<input id="pdfStampColor" type="color" value="#333333" disabled></label></div><button class="outline-button" id="pdfApplyStamp" type="button" disabled>Inserir na página atual</button></article>
+              <article class="pdf-tool-card pdf-tool-card-wide"><div class="pdf-tool-card-heading"><span>04</span><div><h3>Assinatura visual</h3><p>Desenhe e aplique na página aberta. Não é uma assinatura digital certificada.</p></div></div><canvas class="pdf-signature-canvas" id="pdfSignatureCanvas" width="900" height="200" aria-label="Desenhe sua assinatura"></canvas><div class="pdf-tool-actions"><button class="outline-button" id="pdfClearSignature" type="button">Limpar assinatura</button><button class="outline-button" id="pdfApplySignature" type="button" disabled>Aplicar na página atual</button></div></article>
+            </div><aside class="pdf-live-preview-card" id="pdfLivePreviewCard"><div class="pdf-live-preview-heading"><div><span class="eyebrow">PRÉ-VISUALIZAÇÃO</span><h3>PDF ao vivo</h3></div><div class="pdf-live-preview-heading-actions"><span class="pdf-live-preview-page" id="pdfLivePreviewPage">— / —</span><button class="outline-button pdf-live-preview-expand" id="pdfLivePreviewExpand" type="button" aria-expanded="false" aria-label="Ampliar prévia do PDF">Ampliar</button></div></div><div class="pdf-live-preview-page-frame"><canvas id="pdfLivePreviewCanvas" aria-label="Pré-visualização em tempo real do PDF"></canvas><div class="pdf-live-preview-empty" id="pdfLivePreviewEmpty">Abra um PDF para visualizar as alterações.</div></div><div class="pdf-live-preview-status" id="pdfLivePreviewStatus" role="status" aria-live="polite">A prévia acompanha a página aberta.</div><p class="pdf-live-preview-hint">As alterações aparecem aqui antes de serem aplicadas. Salve o PDF para criar uma cópia no disco.</p></aside></div>
+          </section>
+          <section class="pdf-workspace-panel hidden" data-pdf-panel="convert" role="tabpanel">
+            <div class="pdf-tool-intro"><h2>Converter e extrair</h2><p>Extraia texto de PDFs digitais, exporte páginas como imagens ou crie um PDF a partir de imagens e texto.</p></div>
+            <div class="pdf-tool-grid">
+              <article class="pdf-tool-card"><div class="pdf-tool-card-heading"><span>01</span><div><h3>Extrair texto</h3><p>Salve o texto reconhecido em um arquivo TXT.</p></div></div><label class="pdf-field">Páginas<input class="text-input" id="pdfTextPages" type="text" placeholder="Todas as páginas" disabled></label><button class="outline-button" id="pdfExtractText" type="button" disabled>Extrair para TXT</button></article>
+              <article class="pdf-tool-card"><div class="pdf-tool-card-heading"><span>02</span><div><h3>PDF para imagem</h3><p>Exporte a página que está aberta como PNG.</p></div></div><button class="outline-button" id="pdfExportPageImageTool" type="button" disabled>Salvar página atual como PNG</button></article>
+              <article class="pdf-tool-card"><div class="pdf-tool-card-heading"><span>03</span><div><h3>Imagens para PDF</h3><p>Crie páginas ajustadas ao tamanho de cada imagem.</p></div></div><button class="outline-button" id="pdfCreateFromImages" type="button">Selecionar imagens</button></article>
+              <article class="pdf-tool-card pdf-tool-card-wide"><div class="pdf-tool-card-heading"><span>04</span><div><h3>Texto para PDF</h3><p>Gere um PDF simples com o texto abaixo.</p></div></div><textarea class="text-input pdf-source-text" id="pdfSourceText" maxlength="100000" placeholder="Digite ou cole o texto…"></textarea><div class="pdf-tool-actions"><label class="pdf-field">Papel<select id="pdfSourcePaper"><option value="A4">A4</option><option value="Letter">Carta</option><option value="Legal">Ofício</option></select></label><label class="pdf-field">Tamanho da fonte<input class="text-input" id="pdfSourceSize" type="number" min="8" max="36" value="12"></label></div><button class="outline-button" id="pdfCreateFromText" type="button">Criar PDF a partir do texto</button></article>
+            </div>
+          </section>
+          <section class="pdf-workspace-panel hidden" data-pdf-panel="info" role="tabpanel">
+            <div class="pdf-tool-intro"><h2>Informações do PDF</h2><p>Consulte e atualize os metadados básicos do documento.</p></div>
+            <div class="pdf-info-summary" id="pdfInfoSummary">Abra um PDF para ver os detalhes.</div>
+            <div class="pdf-metadata-form"><label class="pdf-field">Título<input class="text-input" id="pdfMetadataTitle" type="text" maxlength="300" disabled></label><label class="pdf-field">Autor<input class="text-input" id="pdfMetadataAuthor" type="text" maxlength="300" disabled></label><label class="pdf-field">Assunto<input class="text-input" id="pdfMetadataSubject" type="text" maxlength="500" disabled></label><label class="pdf-field">Palavras-chave<input class="text-input" id="pdfMetadataKeywords" type="text" maxlength="1000" disabled></label><div class="pdf-tool-actions"><button class="outline-button" id="pdfSaveMetadata" type="button" disabled>Salvar metadados</button><button class="outline-button danger-outline" id="pdfClearMetadata" type="button" disabled>Remover metadados</button></div></div>
+            <article class="pdf-tool-card pdf-form-card"><div class="pdf-tool-card-heading"><span>▤</span><div><h3>Formulário interativo</h3><p>Preencha campos de texto, listas e caixas de seleção presentes no PDF.</p></div></div><button class="outline-button" id="pdfLoadFormFields" type="button" disabled>Carregar campos do formulário</button><div class="pdf-form-fields" id="pdfFormFields"></div><button class="outline-button" id="pdfApplyFormFields" type="button" disabled>Aplicar respostas ao PDF</button></article>
+          </section>
+          <div class="pdf-reader-status" id="pdfReaderStatus" role="status" aria-live="polite"></div>
+        </section>
+
+        <section class="view study-tools-view" id="studyToolsView">
+          <div class="hero compact"><div class="eyebrow">ESTUDO E FOCO</div><h1>Estudos</h1><p>Planeje sessões de concentração e revise o que está aprendendo.</p></div>
+          <div class="study-tabs" role="tablist" aria-label="Ferramentas de estudo">
+            <button class="study-tab active" type="button" role="tab" aria-selected="true" data-study-tab="pomodoro">Pomodoro</button>
+            <button class="study-tab" type="button" role="tab" aria-selected="false" data-study-tab="flashcards">Flashcards</button>
+          </div>
+          <section class="study-panel active" data-study-panel="pomodoro" role="tabpanel">
+            <div class="study-pomodoro-layout">
+              <article class="study-card study-timer-card">
+                <div class="study-section-heading"><div><span class="eyebrow">SESSÃO ATUAL</span><h2 id="studyTimerPhase">Foco</h2></div><span class="study-phase-pill" id="studyTimerState">PRONTO</span></div>
+                <div class="study-timer-ring" id="studyTimerRing" style="--study-progress: 0%"><div class="study-timer-face"><time id="studyTimerDisplay">25:00</time><span id="studyTimerCaption">Pronto para começar</span></div></div>
+                <div class="study-timer-actions"><button class="primary-button" id="studyTimerToggle" type="button">Iniciar foco</button><button class="outline-button" id="studyTimerReset" type="button">Reiniciar</button><button class="outline-button" id="studyTimerSkip" type="button">Pular sessão</button></div>
+                <div class="study-session-stats"><div><strong id="studySessionsToday">0</strong><span>sessões concluídas</span></div><div><strong id="studyFocusToday">0 min</strong><span>tempo total de foco</span></div><div><strong id="studyCycleCount">0</strong><span>ciclos completos</span></div></div>
+                <p class="study-status" id="studyPomodoroStatus" role="status" aria-live="polite">Seu progresso é salvo neste computador.</p>
+              </article>
+              <article class="study-card study-settings-card">
+                <div class="study-section-heading"><div><span class="eyebrow">PERSONALIZAR</span><h2>Tempos das sessões</h2></div></div>
+                <p class="study-card-description">Ajuste os blocos de foco e descanso do seu ciclo.</p>
+                <div class="study-duration-grid">
+                  <label class="study-field">Foco<input class="text-input" id="studyFocusMinutes" type="number" min="1" max="180" value="25"><span>minutos</span></label>
+                  <label class="study-field">Pausa curta<input class="text-input" id="studyShortBreakMinutes" type="number" min="1" max="60" value="5"><span>minutos</span></label>
+                  <label class="study-field">Pausa longa<input class="text-input" id="studyLongBreakMinutes" type="number" min="1" max="90" value="15"><span>minutos</span></label>
+                  <label class="study-field">Pausa longa a cada<input class="text-input" id="studyLongBreakEvery" type="number" min="2" max="12" value="4"><span>sessões</span></label>
+                </div>
+                <button class="outline-button" id="studySaveSettings" type="button">Salvar tempos</button>
+                <div class="study-cycle-note"><span aria-hidden="true">◷</span><p>Ao concluir um bloco de foco, o app prepara a pausa correspondente. Você decide quando iniciar a próxima etapa.</p></div>
+              </article>
+            </div>
+          </section>
+          <section class="study-panel hidden" data-study-panel="flashcards" role="tabpanel">
+            <div class="study-flashcard-toolbar">
+              <label class="study-field study-deck-select-label">Baralho<select class="text-input" id="studyDeckSelect" aria-label="Selecionar baralho"></select></label>
+              <label class="study-field study-deck-new-label">Novo baralho<input class="text-input" id="studyNewDeckName" type="text" maxlength="60" placeholder="Ex.: Biologia"></label>
+              <button class="outline-button study-create-deck" id="studyCreateDeck" type="button">Criar baralho</button>
+              <button class="outline-button danger-outline study-delete-deck" id="studyDeleteDeck" type="button">Excluir baralho</button>
+              <div class="study-due-count" id="studyDueCount">0 para revisar</div>
+            </div>
+            <div class="study-flashcard-layout">
+              <div class="study-flashcard-column">
+                <article class="study-card study-review-card" id="studyReviewCard">
+                  <div class="study-section-heading"><div><span class="eyebrow">REVISÃO</span><h2 id="studyReviewProgress">Cartões prontos quando você estiver</h2></div><span class="study-phase-pill" id="studyReviewDuePill">0 PENDENTES</span></div>
+                  <div class="study-flashcard-face" id="studyFlashcardFace">
+                    <span class="study-card-side-label" id="studyCardSideLabel">FRENTE</span>
+                    <p id="studyCardText">Crie um baralho e adicione seu primeiro cartão.</p>
+                  </div>
+                  <button class="primary-button study-reveal-button" id="studyRevealCard" type="button" disabled>Mostrar resposta</button>
+                  <div class="study-review-actions hidden" id="studyReviewActions" aria-label="Avalie sua lembrança">
+                    <button class="outline-button" data-study-grade="again" type="button">Errei <small>1 min</small></button>
+                    <button class="outline-button" data-study-grade="hard" type="button">Difícil <small>1 dia</small></button>
+                    <button class="outline-button" data-study-grade="good" type="button">Bom <small>3 dias</small></button>
+                    <button class="outline-button" data-study-grade="easy" type="button">Fácil <small>7 dias</small></button>
+                  </div>
+                  <div class="study-review-footer"><span id="studyReviewStatus" role="status" aria-live="polite">Cartões ficam salvos neste computador.</span><button class="ghost-button" id="studyNextCard" type="button" disabled>Pular</button></div>
+                </article>
+                <article class="study-card study-card-editor">
+                  <div class="study-section-heading"><div><span class="eyebrow">SEU CONTEÚDO</span><h2 id="studyEditorTitle">Novo cartão</h2></div></div>
+                  <form id="studyCardForm" class="study-card-form">
+                    <label class="study-field">Frente<textarea class="text-input" id="studyCardFront" rows="3" maxlength="4000" placeholder="Pergunta, conceito ou termo" required></textarea></label>
+                    <label class="study-field">Verso<textarea class="text-input" id="studyCardBack" rows="3" maxlength="8000" placeholder="Resposta ou explicação" required></textarea></label>
+                    <div class="study-form-actions"><button class="primary-button" id="studyCardSubmit" type="submit">Adicionar cartão</button><button class="outline-button hidden" id="studyCardCancelEdit" type="button">Cancelar edição</button></div>
+                  </form>
+                </article>
+              </div>
+              <article class="study-card study-card-list-card">
+                <div class="study-section-heading"><div><span class="eyebrow">BARALHO ATUAL</span><h2>Cartões</h2></div><div class="study-card-list-actions"><span class="study-card-total" id="studyCardTotal">0 cartões</span><input class="text-input" id="studyCardSearch" type="search" placeholder="Buscar cartão" aria-label="Buscar cartões no baralho"></div></div>
+                <div class="study-card-list" id="studyCardList"><div class="study-empty-state">Os cartões que você criar aparecem aqui.</div></div>
+              </article>
+            </div>
+          </section>
+          <div class="study-global-status" id="studyGlobalStatus" role="status" aria-live="polite"></div>
+        </section>
+
+        <section class="view clipboard-history-view" id="clipboardHistoryView">
+          <div class="hero compact"><div class="eyebrow">DADOS LOCAIS</div><h1>Área de transferência</h1><p>Textos e imagens copiados recentemente, guardados somente neste computador.</p></div>
+          <div class="clipboard-toolbar">
+            <label class="clipboard-search"><span aria-hidden="true">⌕</span><input class="text-input" id="clipboardSearch" type="search" placeholder="Buscar no histórico" aria-label="Buscar no histórico da área de transferência" /></label>
+            <div class="clipboard-filter-group" role="group" aria-label="Filtrar itens">
+              <button class="clipboard-filter active" type="button" data-clipboard-filter="all" aria-pressed="true">Tudo</button>
+              <button class="clipboard-filter" type="button" data-clipboard-filter="text" aria-pressed="false">Textos</button>
+              <button class="clipboard-filter" type="button" data-clipboard-filter="image" aria-pressed="false">Imagens</button>
+              <button class="clipboard-filter" type="button" data-clipboard-filter="pinned" aria-pressed="false">Fixados</button>
+            </div>
+            <button class="outline-button" id="clipboardClearAll" type="button">Limpar tudo</button>
+          </div>
+          <div class="clipboard-status" id="clipboardStatus" role="status" aria-live="polite">Iniciando captura…</div>
+          <div class="clipboard-storage-summary" id="clipboardStorageSummary"></div>
+          <div class="clipboard-list" id="clipboardHistoryList" aria-live="polite"><div class="empty-state"><p>Carregando o histórico…</p></div></div>
+          <div class="clipboard-load-more-wrap"><button class="outline-button hidden" id="clipboardLoadMore" type="button">Carregar mais</button></div>
+        </section>
+
+        <section class="view security-view" id="securityView">
+          <div class="hero compact"><div class="eyebrow">PRIVACIDADE LOCAL</div><h1>Segurança</h1><p>Ferramentas para criar segredos e proteger arquivos. O conteúdo é processado neste computador.</p></div>
+          <div class="security-tabs" role="tablist" aria-label="Ferramentas de segurança">
+            <button class="security-tab active" type="button" role="tab" aria-selected="true" data-security-tab="secrets">Senhas e códigos</button>
+            <button class="security-tab" type="button" role="tab" aria-selected="false" data-security-tab="metadata">Metadados</button>
+            <button class="security-tab" type="button" role="tab" aria-selected="false" data-security-tab="hash">Hash de arquivos</button>
+            <button class="security-tab" type="button" role="tab" aria-selected="false" data-security-tab="encryption">Criptografia</button>
+          </div>
+
+          <section class="security-panel active" role="tabpanel" data-security-panel="secrets">
+            <div class="security-card-grid">
+              <article class="security-card">
+                <div class="security-card-heading"><div><span class="eyebrow">ALEATÓRIA E FORTE</span><h2>Gerador de senhas</h2></div><span class="security-card-icon">✳</span></div>
+                <p>Use os grupos que quiser. A geração usa aleatoriedade criptográfica do sistema.</p>
+                <div class="security-fields security-fields-two">
+                  <label class="security-field"><span>Tamanho</span><div class="security-input-suffix"><input class="text-input" id="securityPasswordLength" type="number" min="8" max="256" value="24"><small>caracteres</small></div></label>
+                  <label class="security-field"><span>Quantidade</span><div class="security-input-suffix"><input class="text-input" id="securityPasswordCount" type="number" min="1" max="20" value="1"><small>senhas</small></div></label>
+                </div>
+                <div class="security-check-grid">
+                  <label><input type="checkbox" id="securityIncludeLower" checked> Minúsculas</label>
+                  <label><input type="checkbox" id="securityIncludeUpper" checked> Maiúsculas</label>
+                  <label><input type="checkbox" id="securityIncludeNumbers" checked> Números</label>
+                  <label><input type="checkbox" id="securityIncludeSymbols" checked> Símbolos</label>
+                </div>
+                <label class="security-check-option"><input type="checkbox" id="securityExcludeAmbiguous" checked> Evitar caracteres parecidos, como O/0 e I/1</label>
+                <button class="primary-button security-action" id="securityGeneratePassword" type="button">Gerar senha</button>
+                <div class="security-results hidden" id="securityPasswordResults" aria-live="polite"></div>
+              </article>
+
+              <article class="security-card">
+                <div class="security-card-heading"><div><span class="eyebrow">CHAVES E RECUPERAÇÃO</span><h2>Códigos seguros</h2></div><span class="security-card-icon">⌁</span></div>
+                <p>Crie chaves hexadecimais, tokens para sistemas ou códigos de recuperação.</p>
+                <label class="security-field"><span>Formato</span><select class="text-input" id="securityCodeFormat"><option value="hex">Chave hexadecimal</option><option value="base64url">Token Base64URL</option><option value="recovery">Códigos de recuperação</option></select></label>
+                <div class="security-fields security-fields-two" id="securityCodeBytesWrap"><label class="security-field"><span>Tamanho da chave</span><div class="security-input-suffix"><input class="text-input" id="securityCodeBytes" type="number" min="16" max="128" value="32"><small>bytes</small></div></label><div class="security-field-hint">256 bits por padrão</div></div>
+                <div class="security-fields security-fields-two hidden" id="securityRecoveryOptions"><label class="security-field"><span>Quantidade</span><div class="security-input-suffix"><input class="text-input" id="securityRecoveryCount" type="number" min="1" max="50" value="10"><small>códigos</small></div></label><label class="security-field"><span>Tamanho</span><div class="security-input-suffix"><input class="text-input" id="securityRecoveryLength" type="number" min="8" max="32" value="10"><small>caracteres</small></div></label></div>
+                <button class="primary-button security-action" id="securityGenerateCode" type="button">Gerar código</button>
+                <div class="security-results hidden" id="securityCodeResults" aria-live="polite"></div>
+              </article>
+            </div>
+            <div class="security-privacy-note security-secrets-note"><span aria-hidden="true">◈</span><span>Senhas e códigos ficam apenas nesta tela enquanto o app está aberto. Eles não são salvos pelo NTC nem enviados pela internet. Ao copiar, o conteúdo vai para a área de transferência do Windows e pode ser acessado por outros apps.</span></div>
+          </section>
+
+          <section class="security-panel" role="tabpanel" data-security-panel="metadata" hidden>
+            <article class="security-card security-wide-card">
+              <div class="security-card-heading"><div><span class="eyebrow">CÓPIAS LIMPAS</span><h2>Remover metadados</h2></div><span class="security-card-icon">▧</span></div>
+              <p>Retire dados como localização, autor, título, datas e informações da câmera sem alterar os arquivos originais. Compatível com imagens, áudio, vídeo e PDF.</p>
+              <div class="security-supported-formats"><span>JPG · PNG · WebP · TIFF</span><span>MP3 · M4A · WAV · FLAC · outros formatos de mídia</span><span>PDF</span></div>
+              <button class="primary-button security-action" id="securityCleanMetadata" type="button">Escolher arquivos e limpar</button>
+              <div class="security-operation-results hidden" id="securityMetadataResults" aria-live="polite"></div>
+            </article>
+            <div class="security-privacy-note"><span aria-hidden="true">◈</span><span>O NTC cria cópias numa pasta escolhida por você; os originais permanecem intactos. JPEGs são recomprimidos ao gerar a cópia.</span></div>
+          </section>
+
+          <section class="security-panel" role="tabpanel" data-security-panel="hash" hidden>
+            <article class="security-card security-wide-card">
+              <div class="security-card-heading"><div><span class="eyebrow">INTEGRIDADE</span><h2>Hash de arquivos</h2></div><span class="security-card-icon">#</span></div>
+              <p>Calcule uma impressão digital do arquivo para comparar cópias ou confirmar se um arquivo mudou. O arquivo não é modificado.</p>
+              <div class="security-fields security-fields-hash"><label class="security-field"><span>Algoritmo</span><select class="text-input" id="securityHashAlgorithm"><option value="sha256">SHA-256 — recomendado</option><option value="sha384">SHA-384</option><option value="sha512">SHA-512</option><option value="sha3-256">SHA3-256</option><option value="blake2b512">BLAKE2b-512</option></select></label><button class="primary-button security-action" id="securityHashFiles" type="button">Escolher arquivos</button></div>
+              <div class="security-operation-results hidden" id="securityHashResults" aria-live="polite"></div>
+            </article>
+          </section>
+
+          <section class="security-panel" role="tabpanel" data-security-panel="encryption" hidden>
+            <article class="security-card security-wide-card">
+              <div class="security-card-heading"><div><span class="eyebrow">PROTEÇÃO LOCAL</span><h2>Criptografar arquivos</h2></div><span class="security-card-icon">◇</span></div>
+              <p>Criptografe documentos, imagens, áudios e outros arquivos. Primeiro, arraste ou selecione o arquivo; depois, informe a senha. A cópia criptografada recebe a extensão <code>.ntcenc</code> e é salva na mesma pasta. Para restaurar o arquivo, selecione o <code>.ntcenc</code> e informe a senha original. O original permanece intacto.</p>
+              <div class="security-encryption-form">
+                <section class="security-file-select-section" aria-labelledby="securityFileSelectLabel">
+                  <span class="security-field-label" id="securityFileSelectLabel">1. Arquivo</span>
+                  <div class="security-file-dropzone" id="securityFileDropzone">
+                    <div class="security-file-drop-copy"><span class="security-file-drop-icon" aria-hidden="true">↥</span><div><strong>Arraste um arquivo para cá</strong><small>ou selecione no computador</small></div></div>
+                    <button class="outline-button" id="securityChooseFile" type="button">Selecionar arquivo</button>
+                  </div>
+                  <div class="security-selected-file hidden" id="securitySelectedFile"><span class="security-selected-file-icon" aria-hidden="true">▤</span><div class="security-selected-file-copy"><strong id="securitySelectedFileName"></strong><small id="securitySelectedFileMeta"></small></div><button class="ghost-button" id="securityChangeFile" type="button">Trocar</button></div>
+                </section>
+                <label class="security-field"><span>2. Senha de proteção</span><div class="security-password-input"><input class="text-input" id="securityEncryptionPassword" type="password" autocomplete="new-password" maxlength="1024" placeholder="Selecione um arquivo primeiro" disabled><button class="outline-button" id="securityTogglePassword" type="button" aria-pressed="false" disabled>Mostrar</button></div><small class="security-encryption-hint" id="securityEncryptionHint">Selecione ou arraste um arquivo para habilitar a senha.</small></label>
+                <div class="security-encryption-actions"><button class="primary-button" id="securityEncryptFile" type="button" disabled>Criptografar arquivo</button><button class="outline-button" id="securityDecryptFile" type="button" disabled>Descriptografar arquivo</button></div>
+              </div>
+              <div class="security-operation-results hidden" id="securityEncryptionResults" aria-live="polite"></div>
+            </article>
+            <div class="security-privacy-note security-warning-note"><span aria-hidden="true">!</span><span>Guarde a senha em um local seguro. Se esquecê-la, o app não consegue restaurar o arquivo.</span></div>
+          </section>
         </section>
 
         <section class="view media-tool-view music-player-view" id="musicPlayerView">
@@ -190,16 +475,31 @@
         </section>
 
         <section class="view rng-view" id="rngView">
-          <div class="rng-heading-row"><div class="hero compact"><div class="eyebrow">NTC RNG</div><h1>Além do Acaso</h1><p>Rode, descubra títulos raros e monte sua coleção de relíquias.</p></div><div class="rng-heading-actions"><button class="outline-button rng-debug-trigger hidden" id="rngDebugTrigger" type="button">Debug</button></div></div>
+          <div class="rng-heading-row"><div class="hero compact"><div class="eyebrow">NTC RNG</div><div class="rng-main-title-line"><h1>Além do Acaso</h1><button class="rng-info-button rng-main-info-button" id="rngOddsHelpButton" type="button" aria-label="Como funcionam a sorte e as rolagens" aria-haspopup="dialog" aria-controls="rngOddsHelpDialog" title="Como funciona a sorte"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.25"/><path d="M10 8.9v5.1"/><path d="M10 6.2v.1"/></svg></button></div><p>Rode, descubra títulos raros e monte sua coleção de relíquias.</p></div><div class="rng-heading-side"><div class="rng-account-level"><div class="rng-account-level-identity"><span class="rng-account-level-badge"><strong id="rngAccountLevel">1</strong></span><span class="rng-account-level-label">NÍVEL DA CONTA</span></div><div class="rng-account-level-progress"><div class="rng-account-level-track" id="rngAccountProgressBar" role="progressbar" aria-label="Experiência da conta para o próximo nível" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="0 de 10 XP"><span id="rngAccountProgressFill"></span></div><span class="rng-account-level-xp" id="rngAccountXp">0 / 10 XP</span></div><div class="rng-account-level-bottom"><span class="rng-fragment-wallet" id="rngFragmentWallet" hidden aria-label="Saldo de Fragmentos"><span aria-hidden="true">◆</span><strong id="rngFragmentBalance">0</strong><small>Fragmentos</small></span><span class="rng-account-feedback-copy"><span id="rngAccountXpFeedback" aria-live="polite"></span><small id="rngAccountUnlockDetail" hidden></small></span></div></div><div class="rng-heading-actions"><button class="outline-button rng-debug-trigger hidden" id="rngDebugTrigger" type="button">Ateliê</button></div></div></div>
+          <dialog class="rng-system-unlock" id="rngSystemUnlockNotice" aria-labelledby="rngSystemUnlockTitle" aria-describedby="rngSystemUnlockDetail" hidden>
+            <div class="rng-system-unlock-copy"><small id="rngSystemUnlockKicker">NOVO SISTEMA</small><span class="rng-system-unlock-mark" data-system-unlock-icon aria-hidden="true"></span><strong data-system-unlock-level></strong><h2 id="rngSystemUnlockTitle" data-system-unlock-title></h2><p id="rngSystemUnlockDetail" data-system-unlock-detail></p><button class="primary-button rng-system-unlock-continue" id="rngSystemUnlockContinue" type="button">Continuar</button></div>
+          </dialog>
           <div class="rng-overview">
             <section class="rng-roll-panel">
-              <div class="rng-roll-heading"><div><span class="eyebrow">TÍTULOS ENCONTRADOS</span><strong id="rngCollectionCount">0 / 200</strong></div><div class="rng-rolls-total"><span>Rolagens</span><strong id="rngRollCount">0</strong></div></div>
-              <div class="rng-progress-track" role="progressbar" aria-label="Progresso da coleção" aria-valuemin="0" aria-valuemax="200" aria-valuenow="0"><span id="rngProgressBar"></span></div>
-              <div class="rng-luck-line"><span>Sorte total</span><strong id="rngLuckValue">+0%</strong><span class="rng-luck-breakdown"><span id="rngCollectionLuck">+0% coleção</span><span id="rngAchievementLuck">+0% conquistas</span><span id="rngSecretLuck">+0% segredos</span><span id="rngUpgradeLuck">+0% loja</span><span id="rngRelicLuck">×1 relíquias</span></span></div>
-              <div class="rng-roll-actions"><button class="primary-button rng-roll-button" id="rngRollButton" type="button">Rolar</button><button class="outline-button rng-auto-button" id="rngAutoButton" type="button">Iniciar Auto-roll</button></div>
+              <div class="rng-roll-heading"><div><span class="eyebrow">CÂMARA DO ACASO</span><strong>Uma possibilidade entre todas.</strong></div><div class="rng-roll-heading-side"><div class="rng-rolls-total"><span>Rolagens</span><strong id="rngRollCount">0</strong></div></div></div>
+              <div class="rng-roll-experience" id="rngRollExperience" data-phase="idle" data-rank="0" aria-label="Selo do Acaso — apresentação da rolagem">
+                <div class="rng-roll-stage-meta"><span data-roll-phase-label>À espera do acaso</span><span data-roll-mode-label>INVOCAÇÃO MANUAL</span></div>
+                <canvas class="rng-roll-orbit" aria-hidden="true"></canvas>
+                <article class="rng-last-result rng-roll-outcome" id="rngLastResult" aria-live="polite"><span class="rng-result-icon">✧</span><div><small id="rngResultCaption">O SELO AGUARDA</small><strong id="rngResultTitle">Encontre o improvável</strong><span id="rngResultOdds">Cada rolagem deixa uma marca.</span></div></article>
+              </div>
+              <div class="rng-luck-line" role="group" aria-label="Sorte ativa e fontes do bônus" hidden>
+                <div class="rng-luck-total"><span>SORTE ATIVA</span><strong id="rngLuckValue">+0%</strong></div>
+                <div class="rng-luck-breakdown" aria-label="Fontes da sorte">
+                  <span class="rng-luck-source"><span>Coleção</span><strong id="rngCollectionLuck">+0%</strong></span>
+                  <span class="rng-luck-source"><span>Conquistas</span><strong id="rngAchievementLuck">+0%</strong></span>
+                  <span class="rng-luck-source"><span>Segredos</span><strong id="rngSecretLuck">+0%</strong></span>
+                  <span class="rng-luck-source"><span>Loja</span><strong id="rngUpgradeLuck">+0%</strong></span>
+                  <span class="rng-luck-source"><span>Relíquias</span><strong id="rngRelicLuck">×1</strong></span>
+                </div>
+              </div>
+              <div class="rng-roll-actions"><button class="primary-button rng-roll-button" id="rngRollButton" type="button" disabled>Rolar</button><button class="outline-button rng-auto-button is-locked" id="rngAutoButton" type="button" disabled title="Desbloqueia ao atingir o Nível 3" aria-label="Rolagem automática bloqueada até o Nível 3">Rolagem automática · Nível 3</button></div>
               <div class="rng-roll-info"><span id="rngRollBatchInfo">1 rolagem por ciclo</span><span id="rngBonusRollInfo">Rolagem bônus ×2 em 10 rolagens</span><span id="rngThousandBonusInfo">Mega bônus ×4 a cada 1.000 rolagens</span><span id="rngTenThousandBonusInfo">Bônus supremo ×10 a cada 10.000 rolagens</span></div>
               <div class="rng-clock-status" id="rngClockStatus" data-active="false" aria-live="off"><span class="rng-clock-indicator" aria-hidden="true"></span><span class="rng-clock-copy"><strong id="rngClockTitle">Bônus de horas iguais</strong><small id="rngClockDetail">Chance de títulos raros ×2 em horas e minutos iguais.</small></span><b>×2</b></div>
-              <article class="rng-last-result" id="rngLastResult" aria-live="polite"><span class="rng-result-icon">✧</span><div><small id="rngResultCaption">ÚLTIMO RESULTADO</small><strong id="rngResultTitle">Ainda sem rolagens</strong><span id="rngResultOdds">O título e a chance aparecem aqui.</span></div></article>
               <div class="rng-batch-results hidden" id="rngBatchResults" aria-live="polite"></div>
             </section>
             <section class="rng-profile-panel">
@@ -211,7 +511,76 @@
               </div>
             </section>
           </div>
-          <nav class="rng-section-tabs" aria-label="Áreas do NTC RNG"><button type="button" class="active" data-rng-section="history">Histórico</button><button type="button" data-rng-section="collection">Coleção</button><button type="button" data-rng-section="achievements">Conquistas</button><button type="button" data-rng-section="statistics">Estatísticas</button><button type="button" data-rng-section="events">Eventos</button><button type="button" data-rng-section="shop">Loja</button><button type="button" data-rng-section="inventory">Inventário</button><button type="button" data-rng-section="patch-notes">Atualizações</button></nav>
+          <nav class="rng-section-tabs" aria-label="Áreas do NTC RNG">
+            <button type="button" data-rng-section="profile"><span class="rng-section-tab-icon" aria-hidden="true"></span>Perfil</button>
+            <button type="button" data-rng-section="online"><span class="rng-section-tab-icon" aria-hidden="true"></span>Online</button>
+            <button type="button" class="active" data-rng-section="history"><span class="rng-section-tab-icon" id="rngHistoryTabIcon" aria-hidden="true"></span>Histórico</button>
+            <button type="button" data-rng-section="collection"><span class="rng-section-tab-icon" id="rngCollectionTabIcon" aria-hidden="true"></span>Coleção</button>
+            <button type="button" data-rng-section="achievements"><span class="rng-section-tab-icon" aria-hidden="true"></span>Conquistas</button>
+            <button type="button" data-rng-section="statistics"><span class="rng-section-tab-icon" aria-hidden="true"></span>Estatísticas</button>
+            <button type="button" data-rng-section="events"><span class="rng-section-tab-icon" aria-hidden="true"></span>Eventos</button>
+            <button type="button" data-rng-section="shop"><span class="rng-section-tab-icon" aria-hidden="true"></span>Loja</button>
+            <button type="button" data-rng-section="inventory"><span class="rng-section-tab-icon" aria-hidden="true"></span>Inventário</button>
+            <button type="button" data-rng-section="patch-notes"><span class="rng-section-tab-icon" aria-hidden="true"></span>Atualizações</button>
+          </nav>
+          <section class="rng-player-profile hidden" data-rng-panel="profile" aria-labelledby="rngPlayerProfileHeading">
+            <div class="rng-player-profile-hero" id="rngPlayerProfileHero" data-tier="basic">
+              <div class="rng-profile-hero-ornament" aria-hidden="true"></div>
+              <div class="rng-player-profile-art" id="rngPlayerProfileArt" aria-hidden="true"></div>
+              <div class="rng-player-profile-identity">
+                <span class="rng-profile-kicker">PERFIL DO JOGADOR</span>
+                <h2 id="rngPlayerProfileHeading">Viajante</h2>
+                <div class="rng-profile-equipped-line"><strong id="rngPlayerEquippedTitle">Nenhum título equipado</strong><span id="rngPlayerEquippedTier">SEM TÍTULO</span></div>
+                <div class="rng-profile-hero-actions"><button class="outline-button" id="rngChangeTitle" type="button">Trocar título</button><button class="primary-button" id="rngShareProfile" type="button">Compartilhar perfil</button></div>
+              </div>
+              <div class="rng-player-record" id="rngPlayerRecord" data-tier="basic">
+                <div class="rng-player-record-copy"><span class="rng-profile-kicker">MELHOR DESCOBERTA</span><h3 id="rngPlayerRecordTitle">Nenhum título descoberto ainda</h3><span id="rngPlayerRecordTier">Sua descoberta mais rara aparecerá aqui.</span><strong id="rngPlayerRecordOdds">—</strong></div>
+                <div class="rng-player-record-art" id="rngPlayerRecordArt" aria-hidden="true"></div>
+              </div>
+            </div>
+            <div class="rng-player-stats" aria-label="Progresso do jogador">
+              <article><strong id="rngProfileRolls">0</strong><span>Rolagens</span></article>
+              <article><strong id="rngProfileCollection">0 / 0</strong><span>Títulos descobertos</span></article>
+              <article><strong id="rngProfileCompletion">0%</strong><span>Coleção</span></article>
+              <article><strong id="rngProfileAchievements">0 / 0</strong><span>Conquistas</span></article>
+            </div>
+            <div class="rng-player-details">
+              <article class="rng-profile-detail-card rng-luck-index-card">
+                <header><span class="rng-profile-kicker">ÍNDICE DE SORTE</span><span class="rng-context-tip"><button type="button" aria-label="Como o Índice de Sorte é calculado" aria-describedby="rngProfileLuckTooltip">i</button><span id="rngProfileLuckTooltip" role="tooltip">A medição começa com as rolagens desta versão.</span></span></header>
+                <strong id="rngProfileLuckIndex">Calibrando</strong>
+                <span class="rng-luck-sample" id="rngProfileLuckRolls">0 rolls analisados</span>
+                <div class="rng-profile-meter" id="rngProfileLuckMeter" role="progressbar" aria-label="Calibração do Índice de Sorte" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="rngProfileLuckProgress"></span></div>
+                <small id="rngProfileLuckRemaining">Aguardando a primeira medição</small>
+              </article>
+              <article class="rng-profile-detail-card rng-milestones-card">
+                <header><span class="rng-profile-kicker">MARCOS</span><span class="rng-context-tip"><button type="button" aria-label="Sobre os marcos do perfil" aria-describedby="rngProfileMilestonesTooltip">i</button><span id="rngProfileMilestonesTooltip" role="tooltip">Marcos acumulados no save atual. Tempo aberto não representa tempo de jogo ativo.</span></span></header>
+                <div class="rng-profile-milestones" id="rngProfileMilestones">
+                  <span><strong id="rngMilestoneRelics">0</strong><small>Relíquias</small></span>
+                  <span><strong id="rngMilestoneSecrets">0</strong><small>Segredos</small></span>
+                  <span><strong id="rngMilestoneDrought">0</strong><small>Maior seca</small></span>
+                  <span><strong id="rngMilestoneAppTime">0h</strong><small>App aberto</small></span>
+                  <span class="is-secondary"><strong id="rngMilestoneEvents">0</strong><small>Eventos</small></span>
+                </div>
+              </article>
+              <article class="rng-profile-detail-card rng-outlier-card">
+                <header><span class="rng-profile-kicker">MELHOR OUTLIER</span><span class="rng-context-tip"><button type="button" aria-label="Sobre o melhor outlier" aria-describedby="rngProfileOutlierDetail">i</button><span id="rngProfileOutlierDetail" role="tooltip">A raridade individual será registrada a partir de agora.</span></span></header>
+                <strong id="rngProfileOutlier">Ainda não medido</strong>
+                <span class="rng-outlier-tier" id="rngProfileOutlierTier">SEM REGISTRO</span>
+                <b id="rngProfileOutlierOdds">—</b>
+              </article>
+            </div>
+            <section class="rng-profile-tier-breakdown"><div class="section-heading"><div><span class="rng-profile-kicker">PROGRESSÃO</span><h2>Descobertas por raridade</h2></div><span>Do comum ao impossível</span></div><div class="rng-profile-tier-rows" id="rngProfileTierRows"></div></section>
+          </section>
+          <section class="rng-online-section hidden" data-rng-panel="online" aria-labelledby="rngOnlineHeading">
+            <div class="rng-online-topline">
+              <div class="section-heading"><div><h2 id="rngOnlineHeading">NTC Online</h2><span>Perfis compartilhados entre jogadores.</span></div></div>
+              <div class="rng-online-connection" id="rngOnlineConnection" data-status="connecting" role="status" aria-live="polite"><span class="rng-online-dot" aria-hidden="true"></span><span id="rngOnlineStatusText">Conectando…</span><button class="ghost-button" id="rngOnlineRetry" type="button">Tentar novamente</button></div>
+            </div>
+            <p class="rng-online-feedback hidden" id="rngOnlineFeedback" aria-live="polite"></p>
+            <div class="rng-online-name-prompt hidden" id="rngOnlineNamePrompt"><span>Defina seu nome no Perfil para aparecer no ranking.</span><button class="outline-button" id="rngOnlineSetName" type="button">Definir nome</button></div>
+            <div class="section-heading rng-online-ranking-heading"><h3>Ranking global</h3><span id="rngOnlineRankingUpdated">Aguardando conexão</span></div>
+            <ol class="rng-online-leaderboard" id="rngOnlineLeaderboard" aria-label="Ranking global por total de rolagens"><li class="rng-online-empty">O ranking aparecerá quando o NTC Online conectar.</li></ol>
+          </section>
           <section class="rng-title-history-section" data-rng-panel="history">
             <div class="section-heading"><h2>Histórico de títulos</h2><span id="rngTitleHistoryCount">0 títulos obtidos</span></div>
             <div class="rng-title-history-tools">
@@ -221,29 +590,30 @@
             <div class="rng-title-history-list" id="rngTitleHistoryList" aria-live="polite"><div class="rng-discovery-empty">Os títulos obtidos e os detalhes de cada rolagem aparecerão aqui.</div></div>
           </section>
           <section class="rng-collection-section hidden" data-rng-panel="collection">
-            <div class="section-heading"><h2>Coleção</h2><span id="rngTierCount">20 títulos</span></div>
+            <div class="section-heading rng-collection-heading"><h2>Coleção</h2><span id="rngTierCount">20 títulos</span></div>
             <div class="rng-tier-filters" id="rngTierFilters" role="tablist" aria-label="Raridades"></div>
             <div class="rng-catalog" id="rngCatalog"></div>
           </section>
           <section class="rng-extra-section hidden" data-rng-panel="achievements"><div class="section-heading"><h2>Conquistas</h2></div><div class="rng-achievement-groups" id="rngAchievements"></div><div class="section-heading rng-subheading"><h2>Segredos descobertos</h2></div><div class="rng-extra-grid" id="rngSecrets"></div></section>
-          <section class="rng-extra-section hidden" data-rng-panel="statistics"><div class="section-heading"><h2>Estatísticas e recordes</h2></div><div class="rng-extra-grid" id="rngStatistics"></div><div class="section-heading rng-subheading"><h2>Tempo de uso</h2></div><div class="rng-profile-grid rng-time-grid"><div><span>Nesta sessão do app</span><strong id="rngAppSessionTime">00:00:00</strong></div><div><span>Tempo total no app</span><strong id="rngAppTotalTime">00:00:00</strong></div><div><span>Auto-roll nesta sessão</span><strong id="rngAutoSessionTime">00:00:00</strong></div><div><span>Auto-roll total</span><strong id="rngAutoTotalTime">00:00:00</strong></div></div></section>
+          <section class="rng-extra-section hidden" data-rng-panel="statistics"><div class="section-heading"><h2>Estatísticas e recordes</h2></div><div class="rng-extra-grid" id="rngStatistics"></div><div class="section-heading rng-subheading"><h2>Tempo de uso</h2></div><div class="rng-profile-grid rng-time-grid"><div><span>Nesta sessão do app</span><strong id="rngAppSessionTime">00:00:00</strong></div><div><span>Tempo total no app</span><strong id="rngAppTotalTime">00:00:00</strong></div><div><span>Rolagem automática nesta sessão</span><strong id="rngAutoSessionTime">00:00:00</strong></div><div><span>Rolagem automática no total</span><strong id="rngAutoTotalTime">00:00:00</strong></div></div></section>
           <section class="rng-extra-section hidden" data-rng-panel="events"><div class="section-heading"><h2>Eventos</h2></div><p class="rng-event-status" id="rngEventStatus">Verificando a conexão…</p><div class="rng-extra-grid" id="rngEventSchedule"></div><div class="section-heading rng-subheading"><h2>Títulos limitados obtidos</h2></div><div class="rng-extra-grid" id="rngLimitedTitles"></div></section>
           <section class="rng-extra-section rng-shop-section hidden" data-rng-panel="shop">
-            <div class="section-heading"><div><h2>Loja de Fragmentos</h2><span>Ganhe fragmentos em cada rolagem e troque por sorte permanente ou bônus.</span></div><strong class="rng-wallet" id="rngFragmentsBalance">0 Fragmentos</strong></div>
+            <div class="section-heading"><div><h2>Loja de Fragmentos</h2><span>A Reciclagem converte títulos repetidos em Fragmentos com base nas odds originais.</span></div><strong class="rng-wallet" id="rngFragmentsBalance" hidden>0 Fragmentos</strong></div>
             <div class="rng-shop-grid">
-              <article class="rng-shop-card rng-upgrade-card"><span class="rng-shop-kicker">MELHORIA PERMANENTE</span><h3>Sorte aprimorada</h3><p>Aumenta sua sorte em 5% por nível. O custo dobra a cada compra, sem limite de níveis.</p><div class="rng-shop-facts"><span>Nível <strong id="rngPermanentLevel">0</strong></span><span>Bônus <strong id="rngPermanentBonus">+0%</strong></span></div><button class="primary-button" id="rngBuyUpgrade" type="button">Comprar por 50.000</button></article>
-              <article class="rng-shop-card"><span class="rng-shop-kicker">CONSUMÍVEL · ROLAGENS</span><h3>Fortuna ×2</h3><p>Dobra a sorte nas próximas 600 rolagens. Pode se acumular com a Fortuna por tempo; ativações repetidas entram na fila.</p><div class="rng-shop-facts"><span>Duração <strong>600 rolagens</strong></span><span>Preço <strong>5.000</strong></span></div><button class="outline-button" id="rngBuyRollBoost" type="button">Comprar</button></article>
-              <article class="rng-shop-card"><span class="rng-shop-kicker">CONSUMÍVEL · TEMPO</span><h3>Fortuna ×2 por 10 min</h3><p>Dobra a sorte por 10 minutos de uso do app. Pode se acumular com a Fortuna por rolagens; o tempo pausa quando o app está fechado.</p><div class="rng-shop-facts"><span>Duração <strong>10 minutos</strong></span><span>Preço <strong>5.000</strong></span></div><button class="outline-button" id="rngBuyTimeBoost" type="button">Comprar</button></article>
+              <article class="rng-shop-card rng-upgrade-card"><div class="rng-shop-card-heading"><span class="rng-shop-art" id="rngShopEnhancedLuckIcon" aria-hidden="true"></span><div><span class="rng-shop-kicker">MELHORIA PERMANENTE</span><h3>Sorte Maculada</h3></div></div><p>Aumenta sua sorte em 5% por nível. O custo dobra a cada compra, sem limite de níveis.</p><div class="rng-shop-facts"><span>Nível <strong id="rngPermanentLevel">0</strong></span><span>Bônus <strong id="rngPermanentBonus">+0%</strong></span></div><button class="primary-button" id="rngBuyUpgrade" type="button">Comprar por 50.000</button></article>
+              <article class="rng-shop-card"><div class="rng-shop-card-heading"><span class="rng-shop-art" id="rngShopFortuneRollsIcon" aria-hidden="true"></span><div><span class="rng-shop-kicker">CONSUMÍVEL · ROLAGENS</span><h3>Tônico do Acaso ×2</h3></div></div><p>Dobra a sorte nas próximas 600 rolagens. Pode se acumular com a Ampulheta do Acaso; ativações repetidas entram na fila.</p><div class="rng-shop-facts"><span>Duração <strong>600 rolagens</strong></span><span>Preço <strong>5.000</strong></span></div><button class="outline-button" id="rngBuyRollBoost" type="button">Comprar</button></article>
+              <article class="rng-shop-card"><div class="rng-shop-card-heading"><span class="rng-shop-art" id="rngShopFortuneTimeIcon" aria-hidden="true"></span><div><span class="rng-shop-kicker">CONSUMÍVEL · TEMPO</span><h3>Ampulheta do Acaso ×2</h3></div></div><p>Dobra a sorte por 10 minutos de uso do app. Pode se acumular com o Tônico do Acaso; o tempo pausa quando o app está fechado.</p><div class="rng-shop-facts"><span>Duração <strong>10 minutos</strong></span><span>Preço <strong>5.000</strong></span></div><button class="outline-button" id="rngBuyTimeBoost" type="button">Comprar</button></article>
+              <article class="rng-shop-card rng-upgrade-card" id="rngEnhancedRecyclingCard"><div class="rng-shop-card-heading"><span class="rng-shop-art" id="rngEnhancedRecyclingIcon" aria-hidden="true"></span><div><span class="rng-shop-kicker">MELHORIA PERMANENTE</span><h3>Reciclagem Aprimorada</h3></div></div><p id="rngEnhancedRecyclingBonus">Duplicatas: +10% Fragmentos no próximo nível.</p><div class="rng-shop-facts"><span>Nível <strong id="rngEnhancedRecyclingLevel">0 / 5</strong></span><span>Custo <strong id="rngEnhancedRecyclingCost">25 Fragmentos</strong></span></div><small class="rng-enhanced-recycling-locked" id="rngEnhancedRecyclingLocked">Disponível no Nível 4</small><button class="primary-button" id="rngBuyEnhancedRecycling" type="button" disabled>Melhorar</button></article>
             </div>
             <div class="section-heading rng-subheading"><div><h2>Relíquias</h2><span>Peças permanentes com efeitos que se combinam quando equipadas.</span></div></div>
             <div class="rng-relic-grid" id="rngRelicShop"></div>
           </section>
           <section class="rng-extra-section rng-shop-section hidden" data-rng-panel="inventory">
-            <div class="section-heading"><div><h2>Inventário</h2><span>Fortunas por rolagens e por tempo podem ficar ativas juntas e multiplicar a sorte. Repetições do mesmo tipo entram na fila.</span></div></div>
+            <div class="section-heading"><div><h2>Inventário</h2><span>Tônicos por rolagens e ampulhetas por tempo podem ficar ativos juntos e multiplicar a sorte. Repetições do mesmo tipo entram na fila.</span></div></div>
             <article class="rng-boost-status"><div><span class="rng-shop-kicker">BÔNUS EM ANDAMENTO</span><strong id="rngActiveBoostLabel">Nenhum bônus ativo</strong></div><span id="rngBoostQueueLabel">Fila vazia</span></article>
             <div class="rng-shop-grid rng-inventory-grid">
-              <article class="rng-shop-card"><span class="rng-shop-kicker">CONSUMÍVEL · ROLAGENS</span><h3>Fortuna ×2</h3><p>Aplica o dobro de sorte nas próximas 600 rolagens.</p><div class="rng-shop-facts"><span>Disponíveis <strong id="rngRollBoostCount">0</strong></span></div><button class="outline-button" id="rngActivateRollBoost" type="button">Ativar</button></article>
-              <article class="rng-shop-card"><span class="rng-shop-kicker">CONSUMÍVEL · TEMPO</span><h3>Fortuna ×2 por 10 min</h3><p>O tempo conta enquanto o NTC está aberto e pausa quando ele é fechado.</p><div class="rng-shop-facts"><span>Disponíveis <strong id="rngTimeBoostCount">0</strong></span></div><button class="outline-button" id="rngActivateTimeBoost" type="button">Ativar</button></article>
+              <article class="rng-shop-card"><div class="rng-shop-card-heading"><span class="rng-shop-art" id="rngInventoryFortuneRollsIcon" aria-hidden="true"></span><div><span class="rng-shop-kicker">CONSUMÍVEL · ROLAGENS</span><h3>Tônico do Acaso ×2</h3></div></div><p>Aplica o dobro de sorte nas próximas 600 rolagens.</p><div class="rng-shop-facts"><span>Disponíveis <strong id="rngRollBoostCount">0</strong></span></div><button class="outline-button" id="rngActivateRollBoost" type="button">Ativar</button></article>
+              <article class="rng-shop-card"><div class="rng-shop-card-heading"><span class="rng-shop-art" id="rngInventoryFortuneTimeIcon" aria-hidden="true"></span><div><span class="rng-shop-kicker">CONSUMÍVEL · TEMPO</span><h3>Ampulheta do Acaso ×2</h3></div></div><p>O tempo conta enquanto o NTC está aberto e pausa quando ele é fechado.</p><div class="rng-shop-facts"><span>Disponíveis <strong id="rngTimeBoostCount">0</strong></span></div><button class="outline-button" id="rngActivateTimeBoost" type="button">Ativar</button></article>
             </div>
             <div class="section-heading rng-subheading"><div><h2>Relíquias equipadas</h2><span>Seis espaços para misturar peças e completar até dois sets.</span></div><strong class="rng-relic-count" id="rngRelicCount">0 / 9</strong></div>
             <div class="rng-relic-slots" id="rngRelicSlots"></div>
@@ -258,9 +628,21 @@
           </section>
         </section>
 
+        <section class="view rng-maintenance-view" id="rngMaintenanceView" aria-labelledby="rngMaintenanceTitle">
+          <div class="rng-maintenance-content">
+            <span class="rng-maintenance-mark" aria-hidden="true">
+              <svg viewBox="0 0 32 32" fill="none"><g transform="translate(1.75 0)"><path d="M19.7 6.1a8.2 8.2 0 0 0-9.8 10.3L4.2 22a3.1 3.1 0 0 0 4.4 4.4l5.6-5.7a8.2 8.2 0 0 0 10.3-9.8l-4.8 4.8-4-1.1-1.1-4 5.1-4.5Z"/><path d="m6.4 23.7 1.9 1.9"/></g></svg>
+            </span>
+            <span class="eyebrow">NTC RNG</span>
+            <h1 id="rngMaintenanceTitle">Em manutenção</h1>
+            <p>Estamos preparando uma nova versão do NTC RNG.</p>
+            <p class="rng-maintenance-detail">O jogo ficará temporariamente indisponível enquanto trabalhamos na próxima atualização.</p>
+          </div>
+        </section>
+
         <section class="view media-tool-view" id="compressorView">
           <div class="hero"><div class="eyebrow">COMPACTAR</div><h1>Compressor</h1><p>Reduza o tamanho de vídeos e áudios ajustando qualidade e formato.</p></div>
-          <section class="converter-import"><button class="primary-button" id="chooseCompression" type="button">Selecionar arquivos</button><div class="media-dropzone" id="compressionDropzone" tabindex="0"><strong>Arraste arquivos aqui</strong><span>Vídeos e áudios</span></div></section>
+          <section class="converter-import"><button class="primary-button" id="chooseCompression" type="button">Selecionar arquivos</button><div class="media-dropzone" id="compressionDropzone" tabindex="0" role="button" aria-label="Arraste vídeos ou áudios, ou pressione Enter para selecionar arquivos"><strong>Arraste arquivos aqui</strong><span>Vídeos e áudios</span></div></section>
           <section class="tool-options"><label class="hidden"><span class="field-label">Preset</span><select id="compressionPreset"><option value="manual">Manual</option></select></label><label class="compression-video-option"><span class="field-label">Resolução vídeo</span><select id="compressionResolution"><option value="original">Original</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option><option value="144">144p</option></select></label><label class="compression-video-option"><span class="field-label">FPS</span><input class="text-input" id="compressionFps" type="number" min="1" value="24" /></label><label class="compression-video-option"><span class="field-label">CRF vídeo</span><input class="text-input" id="compressionCrf" type="number" min="0" value="30" /></label><label><span class="field-label">Bitrate áudio (kbps)</span><input class="text-input" id="compressionBitrate" type="number" min="8" value="64" /></label><label class="compression-audio-option"><span class="field-label">Formato</span><select id="compressionAudioFormat"><option value="mp3">MP3</option><option value="opus">Opus</option></select></label><label class="compression-audio-option"><span class="field-label">Taxa de amostragem</span><select id="compressionSampleRate"><option value="44100">44.1 kHz</option><option value="22050">22.05 kHz</option><option value="11025">11.025 kHz</option><option value="8000">8 kHz</option></select></label><label class="compression-audio-option normalize-control"><input id="compressionMono" type="checkbox" /><span>Converter para mono</span></label></section>
           <div class="hidden" aria-hidden="true"><input id="compressionImageQuality" value="60" /><input id="compressionImageScale" value="60" /><div id="compressionPreviewCard"><img id="compressionPreviewOriginal" /><img id="compressionPreviewResult" /><strong id="compressionPreviewTitle"></strong><small id="compressionPreviewMeta"></small></div></div>
           <label class="tool-destination"><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="compressionFolderPath">Downloads</span><button type="button" id="chooseCompressionFolder">Alterar</button></div></label>
@@ -450,10 +832,20 @@
           <div class="hero">
             <div class="eyebrow">ÁUDIO</div>
             <h1>Editor de áudio</h1>
-            <p>Corte, ajuste metadados e converta arquivos de áudio e vídeo.</p>
+            <p>Monte e exporte projetos de áudio multifaixa. O conversor clássico continua disponível.</p>
           </div>
 
-          <section class="converter-import">
+          <div class="media-project-mode-switch" role="group" aria-label="Modo do editor de áudio"><button class="active" id="audioProjectMode" type="button">Projeto multifaixa</button><button id="audioLegacyMode" type="button">Editor clássico</button></div>
+          <section class="media-project-panel" id="audioProjectPanel">
+            <div class="media-project-heading"><div><span class="eyebrow">MIXAGEM</span><h2>Projeto de áudio</h2><p>Importe stems, organize as faixas e exporte um único mixdown.</p></div><label class="media-project-name"><span class="field-label">Projeto</span><input class="text-input" id="audioProjectName" maxlength="100" value="Novo projeto de áudio"></label></div>
+            <div class="media-project-toolbar"><button class="primary-button" id="audioProjectAddTracks" type="button">＋ Adicionar faixas de áudio</button><button class="ghost-button" id="audioProjectOpen" type="button">Abrir projeto</button><button class="ghost-button" id="audioProjectSave" type="button">Salvar projeto</button><span id="audioProjectAssetSummary">Nenhuma faixa adicionada</span></div>
+            <div class="media-project-transport"><button class="outline-button" id="audioProjectPlay" type="button">▶ Reproduzir mix</button><button class="ghost-button" id="audioProjectStop" type="button">Parar</button><input id="audioProjectSeek" type="range" min="0" max="1000" value="0" aria-label="Posição do projeto de áudio"><span id="audioProjectTime">00:00 / 00:00</span><label class="audio-project-zoom">Zoom <input id="audioProjectZoom" type="range" min="1" max="8" step="1" value="1" aria-label="Zoom da timeline de áudio"></label></div>
+            <div class="media-project-timeline" id="audioProjectTimeline"><div class="empty-state"><p>Adicione duas ou mais faixas para começar a mixar. Cada linha representa uma faixa independente.</p></div></div>
+            <div class="media-project-export"><label><span class="field-label">Formato do mixdown</span><select class="text-input" id="audioProjectFormat"><option value="wav">WAV · sem perdas</option><option value="mp3">MP3 · 192 kbps</option></select></label><label><span class="field-label">Nome do arquivo</span><input class="text-input" id="audioProjectOutputName" maxlength="150" value="Mix NTC"></label><div class="media-project-destination"><span class="field-label">Salvar em</span><span id="audioProjectFolderPath">Downloads</span><button class="ghost-button" id="audioProjectChooseFolder" type="button">Alterar</button></div><button class="primary-button" id="audioProjectExport" type="button" disabled>Exportar mixdown</button></div>
+            <section class="progress-card hidden media-project-progress" id="audioProjectProgress" aria-live="polite"><div class="progress-topline"><span class="status-pill" id="audioProjectStatus">RENDERIZANDO</span><span id="audioProjectPercent">0%</span></div><div class="media-info"><div class="media-thumbnail"><span>♫</span></div><div class="media-copy"><strong id="audioProjectProgressTitle">Preparando mixdown…</strong><small id="audioProjectProgressMeta">WAV</small></div><div class="media-project-progress-actions"><button class="ghost-button" id="audioProjectCancel" type="button">Cancelar</button><button class="outline-button" id="audioProjectOpenFolder" type="button" hidden>Abrir pasta</button><button class="outline-button" id="audioProjectRetry" type="button" hidden>Tentar novamente</button></div></div><div class="progress-track"><span id="audioProjectProgressBar"></span></div></section>
+          </section>
+
+          <section class="converter-import hidden" id="converterLegacyImport">
             <button class="primary-button" id="chooseMedia" type="button"><span class="button-icon">＋</span> Selecionar arquivos</button>
             <div class="media-dropzone" id="mediaDropzone" tabindex="0" role="button" aria-label="Arraste arquivos ou selecione arquivos"><strong>Arraste arquivos aqui</strong><span>ou selecione áudios e vídeos do computador</span></div>
           </section>
@@ -500,41 +892,45 @@
             <div class="converter-footer"><label><span class="field-label">Nome do novo arquivo</span><div class="filename-picker"><input class="text-input" id="converterOutputName" maxlength="150" aria-label="Nome do novo arquivo" /><span id="converterExtension">.mp3</span></div></label><label><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="converterFolderPath">Downloads</span><button type="button" id="chooseConverterFolder">Alterar</button></div></label><button class="outline-button" id="saveConversionEdits" type="button">Criar arquivo editado</button></div>
           </section>
 
-          <section class="queue-section converter-queue"><div class="section-heading"><h2>Fila de conversão</h2><div class="queue-heading-actions"><span id="conversionQueueCount">0 itens</span><button class="ghost-button abort-button" id="abortConversions" type="button" disabled>Parar tudo</button></div></div><div class="queue-list" id="conversionQueueList"><div class="empty-state"><p>Selecione arquivos para preparar conversões.</p></div></div><button class="primary-button" id="startConversions" type="button" disabled>Iniciar conversões</button></section>
+          <section class="queue-section converter-queue hidden" id="conversionQueueSection"><div class="section-heading"><h2>Fila de conversão</h2><div class="queue-heading-actions"><span id="conversionQueueCount">0 itens</span><button class="ghost-button abort-button" id="abortConversions" type="button" disabled>Parar tudo</button></div></div><div class="queue-list" id="conversionQueueList"><div class="empty-state"><p>Selecione arquivos para preparar conversões.</p></div></div><button class="primary-button" id="startConversions" type="button" disabled>Iniciar conversões</button></section>
 
           <section class="progress-card hidden" id="conversionProgress" aria-live="polite"><div class="progress-topline"><span class="status-pill" id="conversionStatus">CONVERTENDO</span><span id="conversionPercent">0%</span></div><div class="media-info"><div class="media-thumbnail"><span>♫</span></div><div class="media-copy"><strong id="conversionTitle">Preparando conversão…</strong><small id="conversionMeta">FFmpeg</small></div><button class="ghost-button" id="cancelConversion" type="button">Cancelar</button></div><div class="progress-track"><span id="conversionProgressBar"></span></div><div class="download-stats"><span><b id="conversionEta">—</b> restante</span></div></section>
         </section>
 
         <section class="view media-tool-view" id="videoView">
           <div class="hero"><div class="eyebrow">VÍDEO</div><h1>Conversor de vídeo</h1><p>Converta vídeos entre formatos, codecs e resoluções.</p></div>
-          <section class="converter-import"><button class="primary-button" id="chooseVideo" type="button">Selecionar vídeos</button><div class="media-dropzone" id="videoDropzone" tabindex="0"><strong>Arraste vídeos aqui</strong><span>MP4, MKV, MOV, AVI, WebM e mais</span></div></section>
+          <section class="converter-import"><button class="primary-button" id="chooseVideo" type="button">Selecionar vídeos</button><div class="media-dropzone" id="videoDropzone" tabindex="0" role="button" aria-label="Arraste vídeos, ou pressione Enter para selecionar vídeos"><strong>Arraste vídeos aqui</strong><span>MP4, MKV, MOV, AVI, WebM e mais</span></div></section>
           <section class="tool-options"><label><span class="field-label">Formato</span><select id="videoFormat"><option value="mp4">MP4</option><option value="mkv">MKV</option><option value="webm">WebM</option></select></label><label><span class="field-label">Codec</span><select id="videoCodec"><option value="h264">H.264</option><option value="h265">H.265</option><option value="vp9">VP9</option></select></label><label><span class="field-label">Resolução</span><select id="videoResolution"><option value="original">Original</option><option value="2160">2160p</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option></select></label><label><span class="field-label">Qualidade</span><select id="videoQuality"><option value="alta">Alta</option><option value="equilibrada" selected>Equilibrada</option><option value="economica">Econômica</option></select></label><label><span class="field-label">Áudio</span><select id="videoAudio"><option value="keep">Preservar</option><option value="mute">Remover</option></select></label></section>
           <label class="tool-destination"><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="videoFolderPath">Downloads</span><button type="button" id="chooseVideoFolder">Alterar</button></div></label>
           <section class="queue-section"><div class="section-heading"><h2>Fila de vídeo</h2><span id="videoQueueCount">0 itens</span></div><div class="queue-list" id="videoQueueList"><div class="empty-state"><p>Adicione vídeos para converter.</p></div></div><button class="primary-button" id="startVideos" type="button">Iniciar conversões</button></section><section class="progress-card hidden" id="videoProgress"><div class="progress-topline"><span class="status-pill" id="videoStatus">CONVERTENDO</span><span id="videoPercent">0%</span></div><div class="media-info"><div class="media-thumbnail"><span>▸</span></div><div class="media-copy"><strong id="videoTitle">Preparando vídeo…</strong><small id="videoMeta">FFmpeg</small></div><button class="ghost-button" id="cancelVideo" type="button">Cancelar</button></div><div class="progress-track"><span id="videoProgressBar"></span></div></section>
         </section>
 
-        <section class="view video-editor-view" id="videoEditorView">
-          <div class="hero"><div class="eyebrow">EDIÇÃO</div><h1>Editor de vídeo</h1><p>Corte trechos, misture áudios e exporte um novo vídeo.</p></div>
-          <section class="converter-import" id="videoEditorImport"><button class="primary-button" id="chooseVideoEditor" type="button">Selecionar vídeo</button><div class="media-dropzone" id="videoEditorDropzone" tabindex="0"><strong>Arraste um vídeo aqui</strong><span>MP4, MKV, MOV, AVI e WebM</span></div></section>
-          <section class="video-editor-workspace hidden" id="videoEditorWorkspace">
-            <div class="video-preview-shell"><video id="videoEditorPlayer" controls preload="metadata"></video><div class="video-preview-meta"><strong id="videoEditorName">—</strong><span id="videoEditorTime">00:00:00 / 00:00:00</span></div></div>
-            <section class="timeline-editor" id="videoTimelineEditor">
-              <div class="timeline-heading"><strong>Timeline</strong><span id="videoEditorDuration">—</span></div>
-              <div class="timeline-ruler" id="videoTimeline" role="slider" tabindex="0" aria-label="Timeline do vídeo"><canvas id="videoTimelineWaveform" aria-hidden="true"></canvas><span class="timeline-cuts" id="videoTimelineCuts"></span><span class="timeline-playhead" id="videoTimelinePlayhead"></span><span class="timeline-selection" id="videoTimelineSelection"></span></div>
-              <div class="timeline-actions"><button class="ghost-button" id="removeVideoCut" type="button">Remover trecho</button><button class="ghost-button" id="undoVideoCut" type="button">Desfazer corte</button><span id="videoCutSummary">Nenhum trecho removido</span></div>
-              <div class="audio-timeline-heading"><strong>Áudio original</strong><div><label class="inline-control">Volume <input class="text-input" id="videoOriginalVolume" type="number" min="0" max="300" value="100" />%</label><label class="inline-control"><input id="videoMuteOriginal" type="checkbox" /> Silenciar</label></div></div>
-              <div class="audio-timeline-track base-audio-track" id="videoOriginalTrack"></div>
-              <div class="audio-timeline-heading"><strong>Músicas e áudios</strong><button class="ghost-button" id="addVideoEditorAudio" type="button">Adicionar áudio</button></div>
-              <div id="videoEditorAudioTracks" class="video-audio-tracks"><div class="empty-state"><p>Adicione músicas ou áudios para misturar.</p></div></div>
-            </section>
-            <div class="video-editor-output"><label><span class="field-label">Nome do arquivo</span><input class="text-input" id="videoEditorOutputName" /></label><label class="tool-destination"><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="videoEditorFolderPath">Downloads</span><button type="button" id="chooseVideoEditorFolder">Alterar</button></div></label><button class="primary-button" id="exportVideoEdit" type="button">Exportar MP4</button></div>
-            <section class="progress-card hidden" id="videoEditorProgress" aria-live="polite"><div class="progress-topline"><span class="status-pill" id="videoEditorStatus">EXPORTANDO</span><span id="videoEditorPercent">0%</span></div><div class="media-info"><div class="media-thumbnail"><span>✂</span></div><div class="media-copy"><strong id="videoEditorProgressTitle">Preparando vídeo…</strong><small id="videoEditorProgressMeta">MP4 · H.264</small></div><button class="ghost-button" id="cancelVideoEdit" type="button">Cancelar</button></div><div class="progress-track"><span id="videoEditorProgressBar"></span></div></section>
+        <section class="view video-editor-view" id="videoEditorView" aria-label="Editor de vídeo">
+          <section class="media-project-panel video-project-workspace" id="videoProjectPanel">
+            <div class="ntcv-editor" id="ntcvEditor" aria-label="Editor de projeto de vídeo">
+              <header class="ntcv-toolbar">
+                <div class="ntcv-toolbar-group ntcv-project-actions"><strong class="ntcv-project-title" id="ntcvProjectTitle">Novo projeto</strong><button data-ntcv="new" title="Novo projeto">Novo</button><button data-ntcv="open" title="Abrir projeto (Ctrl+O)">Abrir</button><button data-ntcv="save" title="Salvar projeto (Ctrl+S)">Salvar</button><button class="ntcv-icon-button" data-ntcv="save-as" title="Salvar como (Ctrl+Shift+S)" aria-label="Salvar como">▾</button></div>
+                <div class="ntcv-toolbar-group ntcv-edit-actions"><button class="ntcv-icon-button" data-ntcv="undo" title="Desfazer (Ctrl+Z)" aria-label="Desfazer" disabled>↶</button><button class="ntcv-icon-button" data-ntcv="redo" title="Refazer (Ctrl+Y ou Ctrl+Shift+Z)" aria-label="Refazer" disabled>↷</button><span class="ntcv-toolbar-divider"></span><button data-ntcv="import" title="Importar vídeos, imagens ou áudio">＋ Importar mídia</button><button data-ntcv="add-text" title="Adicionar texto à timeline">T＋ Texto</button></div>
+                <div class="ntcv-toolbar-group ntcv-workspace-actions"><button class="ntcv-icon-button" data-ntcv="toggle-media" title="Mostrar ou recolher Mídia" aria-label="Mostrar ou recolher Mídia" aria-pressed="false">◧</button><button class="ntcv-icon-button" data-ntcv="toggle-inspector" title="Mostrar ou recolher Propriedades" aria-label="Mostrar ou recolher Propriedades" aria-pressed="false">◨</button><button class="ntcv-close-editor" id="closeVideoEditor" type="button" title="Fechar o editor e voltar ao início"><span aria-hidden="true">←</span> Fechar editor</button><button class="ntcv-icon-button" data-ntcv="reset-layout" title="Restaurar layout do editor" aria-label="Restaurar layout">↺</button><button class="ntcv-primary" data-ntcv="export" title="Exportar MP4">Exportar</button></div>
+              </header>
+              <div class="ntcv-stage">
+                <aside class="ntcv-media-panel" id="ntcvMediaDrop" aria-label="Mídia do projeto"><div class="ntcv-panel-head"><strong>MÍDIA</strong><div><button class="ntcv-icon-button" data-ntcv="media-view" id="ntcvMediaView" title="Alternar lista e grade" aria-label="Alternar lista e grade">▦</button><button class="ntcv-icon-button" data-ntcv="toggle-media" title="Recolher painel Mídia" aria-label="Recolher painel Mídia">‹</button></div></div><button class="ntcv-import-media" data-ntcv="import">＋ Importar mídia</button><label class="ntcv-media-search"><span aria-hidden="true">⌕</span><input id="ntcvMediaSearch" type="search" placeholder="Buscar mídia" aria-label="Buscar mídia por nome"></label><div class="ntcv-media-filters" role="group" aria-label="Filtrar mídia"><button data-filter="all" class="is-active">Tudo</button><button data-filter="video">Vídeo</button><button data-filter="image">Imagem</button><button data-filter="audio">Áudio</button></div><div class="ntcv-media-list" id="ntcvMediaList"></div><div class="ntcv-drop-hint">Solte arquivos para importar</div></aside>
+                <section class="ntcv-view-panel"><div class="ntcv-panel-head"><strong>PRÉVIA</strong><span id="ntcvPreviewFormat">16:9 · 1080p</span></div><div class="ntcv-preview-surround"><div class="ntcv-canvas" id="ntcvCanvas"><div class="ntcv-preview-layer" id="ntcvPreviewLayer"></div><div class="ntcv-preview-empty" id="ntcvPreviewEmpty"><strong>Nenhuma mídia na timeline</strong><span>Arraste uma imagem ou vídeo para começar.</span><button data-ntcv="import">Adicionar mídia</button></div><div class="ntcv-transform-overlay" id="ntcvTransformOverlay" hidden aria-label="Transformar camada selecionada"><div class="ntcv-selection-box"><button type="button" data-transform-handle="scale" class="ntcv-handle ntcv-handle-nw" aria-label="Redimensionar camada pelo canto superior esquerdo"></button><button type="button" data-transform-handle="scale" class="ntcv-handle ntcv-handle-ne" aria-label="Redimensionar camada pelo canto superior direito"></button><button type="button" data-transform-handle="scale" class="ntcv-handle ntcv-handle-sw" aria-label="Redimensionar camada pelo canto inferior esquerdo"></button><button type="button" data-transform-handle="scale" class="ntcv-handle ntcv-handle-se" aria-label="Redimensionar camada pelo canto inferior direito"></button><button type="button" data-transform-handle="scale" class="ntcv-handle ntcv-handle-n" aria-label="Redimensionar camada pela borda superior"></button><button type="button" data-transform-handle="scale" class="ntcv-handle ntcv-handle-s" aria-label="Redimensionar camada pela borda inferior"></button><button type="button" data-transform-handle="scale" class="ntcv-handle ntcv-handle-w" aria-label="Redimensionar camada pela borda esquerda"></button><button type="button" data-transform-handle="scale" class="ntcv-handle ntcv-handle-e" aria-label="Redimensionar camada pela borda direita"></button><button type="button" data-transform-handle="rotate" class="ntcv-rotate-handle" aria-label="Girar camada"></button></div></div></div></div><div class="ntcv-transport"><button data-ntcv="start" title="Ir ao início">|◀</button><button data-ntcv="play" id="ntcvPlay" title="Reproduzir ou pausar (Espaço)">▶</button><button data-ntcv="stop" title="Parar">■</button><span id="ntcvClock">00:00 / 00:00</span><input type="range" id="ntcvSeek" min="0" max="1000" value="0" aria-label="Posição da reprodução"></div></section>
+                <aside class="ntcv-inspector" aria-label="Propriedades"><div class="ntcv-panel-head"><strong>PROPRIEDADES</strong><button class="ntcv-icon-button" data-ntcv="toggle-inspector" title="Recolher Propriedades" aria-label="Recolher Propriedades">›</button></div><div id="ntcvInspector"></div></aside><div class="ntcv-resize-handle" id="ntcvResizeMedia" role="separator" aria-label="Redimensionar painel de mídia" title="Arraste para redimensionar"></div><div class="ntcv-resize-handle" id="ntcvResizeInspector" role="separator" aria-label="Redimensionar propriedades" title="Arraste para redimensionar"></div>
+              </div>
+              <section class="ntcv-timeline-panel" id="ntcvTimelineDrop"><div class="ntcv-timeline-resizer" id="ntcvResizeTimeline" role="separator" aria-label="Redimensionar altura da timeline" title="Arraste para redimensionar"></div><div class="ntcv-timeline-toolbar"><strong>TIMELINE</strong><button data-ntcv="split" title="Dividir no playhead (Ctrl+B)">Dividir</button><button data-ntcv="duplicate" title="Duplicar clipe (Ctrl+D)">Duplicar</button><button data-ntcv="delete" title="Remover clipe (Delete)">Remover</button><button data-ntcv="add-visual-track" title="Nova faixa visual">＋ Vídeo</button><button data-ntcv="add-audio-track" title="Nova faixa de áudio">＋ Áudio</button><button data-ntcv="track-density" id="ntcvTrackDensity" title="Alternar altura das faixas">Altura: normal</button><button data-ntcv="snap" id="ntcvSnap" aria-pressed="true" title="Ativar ou desativar encaixe">⌕ Snap</button><div class="ntcv-toolbar-spacer"></div><button class="ntcv-icon-button" data-ntcv="zoom-out" title="Reduzir zoom" aria-label="Reduzir zoom">−</button><input id="ntcvZoom" type="range" min="0.05" max="240" step="0.05" value="80" aria-label="Zoom da timeline"><button class="ntcv-icon-button" data-ntcv="zoom-in" title="Aumentar zoom" aria-label="Aumentar zoom">＋</button><button data-ntcv="fit" title="Enquadrar todo o projeto">Enquadrar</button></div><div class="ntcv-timeline-scroll" id="ntcvTimelineScroll"><div class="ntcv-timeline-content" id="ntcvTimelineContent"><div class="ntcv-ruler" id="ntcvRuler"></div><div class="ntcv-tracks" id="ntcvTracks"></div><div class="ntcv-timeline-empty" id="ntcvTimelineEmpty">Arraste mídia para a timeline para começar.</div><div class="ntcv-snap-guide" id="ntcvSnapGuide" hidden></div><div class="ntcv-drop-guide" id="ntcvDropGuide" hidden></div><div class="ntcv-playhead" id="ntcvPlayhead"></div></div></div></section>
+              <div class="ntcv-status" id="ntcvStatus" role="status" aria-live="polite">Importe arquivos para começar.</div>
+              <div class="ntcv-context-menu" id="ntcvClipMenu" hidden><button data-ntcv="layer-up">Mover camada para cima</button><button data-ntcv="layer-down">Mover camada para baixo</button><button data-ntcv="split"><span>Dividir no playhead</span><kbd>Ctrl+B</kbd></button><button data-ntcv="duplicate"><span>Duplicar</span><kbd>Ctrl+D</kbd></button><button data-ntcv="delete"><span>Remover da timeline</span><kbd>Del</kbd></button></div>
+              <div class="ntcv-context-menu" id="ntcvMediaMenu" hidden><button data-media-context="insert">Adicionar à timeline</button><button data-media-context="show">Mostrar no Explorer</button><button data-media-context="info">Informações</button><button data-media-context="remove">Remover do projeto</button></div>
+              <div class="ntcv-context-menu" id="ntcvTrackMenu" hidden><button data-track-context="rename">Renomear faixa</button><button data-track-context="before">Adicionar faixa acima</button><button data-track-context="after">Adicionar faixa abaixo</button><button data-track-context="remove">Remover faixa vazia</button></div>
+              <dialog class="ntcv-export-dialog" id="ntcvExportDialog"><form method="dialog" id="ntcvExportForm"><div class="ntcv-panel-head"><strong>EXPORTAR VÍDEO</strong><button type="button" data-ntcv="close-export" title="Fechar">×</button></div><label>Nome <input id="ntcvExportName" maxlength="150" required value="Vídeo NTC"></label><label>Destino <span id="ntcvExportFolder">Downloads</span><button type="button" data-ntcv="choose-folder">Alterar</button></label><div class="ntcv-export-grid"><label>Resolução <select id="ntcvExportResolution"><option value="1080">1080p</option><option value="720">720p</option></select></label><label>FPS <select id="ntcvExportFps"><option value="24">24</option><option value="25">25</option><option value="30">30</option><option value="50">50</option><option value="60">60</option></select></label><label>Qualidade <select id="ntcvExportQuality"><option value="medium">Média</option><option value="high">Alta</option><option value="low">Baixa</option></select></label></div><p>MP4 · H.264 · AAC · proporção do projeto</p><div class="ntcv-export-progress" id="ntcvExportProgress" hidden><strong id="ntcvExportState">EXPORTANDO</strong><span id="ntcvExportPercent">0%</span><div class="ntcv-progress-bar"><span id="ntcvExportBar"></span></div><small id="ntcvExportMessage"></small></div><div class="ntcv-export-actions"><button type="button" data-ntcv="cancel-render" id="ntcvCancelRender" hidden>Cancelar exportação</button><button type="button" data-ntcv="open-output" id="ntcvOpenOutput" hidden>Abrir arquivo</button><button type="button" data-ntcv="open-output-folder" id="ntcvOpenOutputFolder" hidden>Abrir pasta</button><button type="submit" value="export" class="ntcv-primary" id="ntcvConfirmExport">Exportar MP4</button></div></form></dialog>
+            </div>
           </section>
         </section>
 
         <section class="view media-tool-view" id="imageView">
           <div class="hero"><div class="eyebrow">IMAGENS</div><h1>Conversor de imagens</h1><p>Altere o formato, a qualidade e as dimensões das imagens.</p></div>
-          <section class="converter-import"><button class="primary-button" id="chooseImages" type="button">Selecionar imagens</button><div class="media-dropzone" id="imageDropzone" tabindex="0"><strong>Arraste imagens aqui</strong><span>JPG, PNG, WebP, BMP e TIFF</span></div></section>
+          <section class="converter-import"><button class="primary-button" id="chooseImages" type="button">Selecionar imagens</button><div class="media-dropzone" id="imageDropzone" tabindex="0" role="button" aria-label="Arraste imagens, ou pressione Enter para selecionar imagens"><strong>Arraste imagens aqui</strong><span>JPG, PNG, WebP, BMP e TIFF</span></div></section>
           <section class="tool-options image-options"><label><span class="field-label">Formato</span><select id="imageFormat"><option value="jpg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option></select></label><label><span class="field-label">Qualidade (1–100%)</span><input class="text-input" id="imageQuality" type="number" min="1" max="100" value="100" /></label><label><span class="field-label">Escala (%)</span><input class="text-input" id="imageScale" type="number" min="1" value="100" placeholder="100" /></label><label><span class="field-label">Largura</span><input class="text-input" id="imageWidth" type="number" min="1" placeholder="Original" /></label><label><span class="field-label">Altura</span><input class="text-input" id="imageHeight" type="number" min="1" placeholder="Original" /></label><label class="normalize-control"><input id="imageKeepRatio" type="checkbox" checked /><span>Manter proporção</span></label></section>
           <section class="image-preview-card hidden" id="imagePreviewCard"><div class="image-preview-comparison"><figure><img id="imagePreviewOriginal" alt="Imagem original" /><figcaption>Original</figcaption></figure><figure><img id="imagePreview" alt="Resultado com os ajustes selecionados" /><figcaption>Resultado</figcaption></figure></div><div><span class="field-label">Comparação de resultado</span><strong id="imagePreviewTitle">Imagem selecionada</strong><small id="imagePreviewMeta">Ajuste qualidade e tamanho para atualizar.</small></div></section>
           <label class="tool-destination"><span class="field-label">Salvar em</span><div class="folder-picker"><span class="folder-icon">□</span><span id="imageFolderPath">Downloads</span><button type="button" id="chooseImageFolder">Alterar</button></div></label>
@@ -637,11 +1033,19 @@
             <div class="setting-row"><div><strong>Modelo de nome</strong><p>Define o nome inicial dos novos downloads.</p></div><select id="filenameTemplate"><option value="title">Título</option><option value="channel-title">Canal - Título</option><option value="date-title">Data - Título</option></select></div>
             <div class="setting-row"><div><strong>Atalho do gravador</strong><p>Clique no campo e pressione a tecla ou combinação desejada.</p></div><input class="text-input shortcut-input" id="recordShortcut" value="" placeholder="Nenhum atalho" autocomplete="off" aria-label="Atalho do gravador" /></div>
             <div class="setting-row"><div><strong>Ao minimizar</strong><p>O NTC fica na bandeja do Windows. O NTC RNG continua rolando enquanto o app estiver aberto.</p></div><span class="tray-setting-state">Ativado</span></div>
-            <div class="setting-row"><div><strong>Iniciar com o Windows</strong><p>Abre o app ao entrar no Windows. O Auto-roll começa automaticamente quando o app abre.</p></div><label class="switch"><input id="launchAtLogin" type="checkbox" /><span></span></label></div>
+            <div class="setting-row"><div><strong>Iniciar com o Windows</strong><p>Abre o app ao entrar no Windows. A rolagem automática começa quando o app abre.</p></div><label class="switch"><input id="launchAtLogin" type="checkbox" /><span></span></label></div>
             <div class="setting-row"><div><strong>Ferramentas instaladas</strong><p id="toolVersions">Ainda não verificado.</p></div><button class="outline-button" type="button" id="checkTools">Verificar</button></div>
+          </div>
+          <div class="settings-card settings-card-secondary clipboard-settings-card">
+            <div class="settings-group-label">Área de transferência</div>
+            <div class="setting-row"><div><strong>Espaço reservado</strong><p>Usado pelo histórico local. Ao atingir a cota, itens não fixados são removidos primeiro.</p></div><div class="clipboard-setting-control"><input class="text-input" id="clipboardQuotaValue" type="number" step="any" inputmode="decimal" aria-label="Cota de armazenamento do histórico da área de transferência" /><select id="clipboardQuotaUnit" aria-label="Unidade da cota"><option value="MB">MB</option><option value="GB">GB</option></select></div></div>
+            <div class="setting-row"><div><strong>Prazo de retenção</strong><p>Itens fixados não expiram automaticamente.</p></div><div class="clipboard-setting-control"><input class="text-input" id="clipboardRetentionDays" type="number" min="1" max="9007199254740991" step="1" inputmode="numeric" aria-label="Prazo de retenção em dias" /><select id="clipboardRetentionMode" aria-label="Modo de retenção"><option value="days">dias</option><option value="never">Nunca</option></select></div></div>
+            <div class="setting-row"><div><strong>Uso atual</strong><p id="clipboardSettingsSummary">Consultando armazenamento…</p></div><button class="outline-button" type="button" data-open-tool="clipboardHistory">Abrir histórico</button></div>
           </div>
           <div class="settings-card settings-card-secondary">
             <div class="settings-group-label">Aplicativo</div>
+            <div class="setting-row"><div><strong>Revelação de raridades do NTC RNG</strong><p>Escolha a intensidade dos efeitos quando um título novo aparecer.</p></div><select id="rngRevealMotion" aria-label="Intensidade das animações de raridade"><option value="auto">Seguir o Windows</option><option value="reduced">Reduzida</option><option value="off">Desligada</option><option value="full">Completa</option></select></div>
+            <div class="setting-row"><div><strong>Animação da rolagem do NTC RNG</strong><p>Controla o movimento da Câmara do Acaso, separado das revelações.</p></div><select id="rngRollMotion" aria-label="Intensidade da animação de rolagem"><option value="full">Completa</option><option value="reduced">Reduzida</option><option value="off">Desligada</option><option value="auto">Seguir o Windows</option></select></div>
             <div class="setting-row"><div><strong>Versão instalada</strong><p id="appVersion">Consultando…</p></div><button class="outline-button" type="button" id="openChangelog">Ver changelog</button></div>
             <div class="setting-row"><div><strong>Atualizações</strong><p id="updateStatus">Verifique se existe uma nova versão disponível.</p></div><button class="outline-button" type="button" id="checkUpdates">Verificar agora</button></div>
             <div class="setting-row"><div><strong>Histórico de arquivos</strong><p>Downloads, gravações e conversões. O histórico de QR Codes é separado.</p></div><button class="outline-button" type="button" id="clearHistorySettings">Limpar histórico</button></div>
@@ -650,10 +1054,11 @@
         </section>
 
         <section class="view history-view" id="historyView">
-          <div class="hero compact history-hero"><div><div class="eyebrow">ARQUIVOS</div><h1>Histórico</h1><p>Downloads, gravações, capturas e conversões feitos nesta sessão.</p></div><div class="history-actions" id="filesHistoryActions"><select id="historyFilter" aria-label="Filtrar histórico"><option value="all">Tudo</option><option value="download">Downloads</option><option value="conversion">Conversões</option><option value="recording">Gravações</option><option value="screenshot">Capturas</option><option value="failed">Falhas</option></select><button class="outline-button" id="clearHistoryPage" type="button">Limpar histórico</button></div><div class="history-actions hidden" id="qrHistoryActions"><button class="outline-button" id="clearQrHistory" type="button">Limpar QR Codes</button></div></div>
-          <div class="history-tabs" role="tablist" aria-label="Tipo de histórico"><button class="history-tab active" id="filesHistoryTab" type="button" role="tab" aria-selected="true" aria-controls="filesHistoryPanel">Arquivos</button><button class="history-tab" id="qrHistoryTab" type="button" role="tab" aria-selected="false" aria-controls="qrHistoryPanel">QR Codes</button></div>
+          <div class="hero compact history-hero"><div><div class="eyebrow">ARQUIVOS</div><h1>Histórico</h1><p>Downloads, gravações, capturas, conversões e operações de segurança.</p></div><div class="history-actions" id="filesHistoryActions"><select id="historyFilter" aria-label="Filtrar histórico"><option value="all">Tudo</option><option value="download">Downloads</option><option value="conversion">Conversões</option><option value="recording">Gravações</option><option value="screenshot">Capturas</option><option value="failed">Falhas</option></select><button class="outline-button" id="clearHistoryPage" type="button">Limpar histórico</button></div><div class="history-actions hidden" id="qrHistoryActions"><button class="outline-button" id="clearQrHistory" type="button">Limpar QR Codes</button></div><div class="history-actions hidden" id="securityHistoryActions"><button class="outline-button" id="clearSecurityHistory" type="button">Limpar histórico</button></div></div>
+          <div class="history-tabs" role="tablist" aria-label="Tipo de histórico"><button class="history-tab active" id="filesHistoryTab" type="button" role="tab" aria-selected="true" aria-controls="filesHistoryPanel">Arquivos</button><button class="history-tab" id="qrHistoryTab" type="button" role="tab" aria-selected="false" aria-controls="qrHistoryPanel">QR Codes</button><button class="history-tab" id="securityHistoryTab" type="button" role="tab" aria-selected="false" aria-controls="securityHistoryPanel">Segurança</button></div>
           <div id="filesHistoryPanel" role="tabpanel" aria-labelledby="filesHistoryTab"><div class="all-history" id="allHistory"><div class="empty-state"><div class="empty-icon">◷</div><p>Nenhum arquivo concluído ainda.</p></div></div></div>
           <div id="qrHistoryPanel" class="hidden" role="tabpanel" aria-labelledby="qrHistoryTab"><div class="all-history" id="qrHistoryList"><div class="empty-state"><div class="empty-icon">▦</div><p>Nenhum QR Code gerado ainda.</p></div></div></div>
+          <div id="securityHistoryPanel" class="hidden" role="tabpanel" aria-labelledby="securityHistoryTab"><div class="all-history" id="securityHistoryList"><div class="empty-state"><div class="empty-icon">◇</div><p>Arquivos protegidos e restaurados aparecerão aqui.</p></div></div></div>
         </section>
         </div>
       </section>
@@ -699,22 +1104,55 @@
       <div class="update-notice-actions"><button class="ghost-button" id="dismissUpdate" type="button">Agora não</button><button class="primary-button" id="updateAction" type="button">Baixar atualização</button></div>
     </section>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <div class="rng-unlock-notice" id="rngUnlockNotice" aria-hidden="true" role="status" aria-live="polite">
-      <span class="rng-unlock-icon">✦</span>
-      <div><small>TÍTULO DESBLOQUEADO</small><strong id="rngUnlockTitle"></strong><span id="rngUnlockDetails"></span></div>
-    </div>
+    <dialog class="rng-odds-help" id="rngOddsHelpDialog" aria-labelledby="rngOddsHelpTitle" aria-describedby="rngOddsHelpIntro">
+      <section class="rng-odds-help-card">
+        <header class="rng-odds-help-heading">
+          <div><span class="eyebrow">NOTAS TÉCNICAS</span><h2 id="rngOddsHelpTitle">Como o RNG calcula cada resultado</h2><p id="rngOddsHelpIntro">Uma visão do orçamento de chances, da amostragem e dos modificadores do NTC RNG.</p></div>
+          <button class="rng-info-close" id="closeRngOddsHelp" type="button" aria-label="Fechar explicação"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button>
+        </header>
+        <div class="rng-odds-help-grid">
+          <article class="rng-odds-help-item"><span class="rng-odds-help-index">01</span><div><strong>Conjunto compartilhado de pesos e chances</strong><p>O conjunto total <code>POOL = 10⁸⁰</code> é distribuído entre os 200 títulos. Cada um recebe um peso inteiro positivo <code>wᵢ</code>, e a soma dos pesos é sempre igual ao conjunto total. As probabilidades exibidas na Coleção usam sorte neutra: representam o inverso aproximado da chance <code>wᵢ / POOL</code>, não uma previsão de quantas rolagens serão necessárias.</p><code class="rng-odds-formula">Σ wᵢ = POOL · chance ≈ wᵢ / POOL</code></div></article>
+          <article class="rng-odds-help-item"><span class="rng-odds-help-index">02</span><div><strong>Amostragem sem viés de módulo</strong><p>Cada rolagem gera um inteiro aleatório <code>r</code> no intervalo <code>[0, POOL)</code>. O gerador criptográfico usa amostragem por rejeição: valores fora do intervalo são descartados, em vez de usar o resto (%) e favorecer alguns resultados. Os pesos acumulados formam intervalos; vence o título que contém <code>r</code>.</p><code class="rng-odds-formula">[0, w₁) · [w₁, w₁+w₂) · …</code></div></article>
+          <article class="rng-odds-help-item"><span class="rng-odds-help-index">03</span><div><strong>Sorte e curva de compressão</strong><p>Fontes permanentes incluem coleção, melhorias, conquistas, segredos e relíquias; bônus temporários e eventos também entram no cálculo antes da curva. A sorte é combinada em pontos-base (<code>10.000 = 100%</code>). Para ajustar os pesos raros, a curva usa <code>f(b) = b / (b + 25.000)</code>: em <code>b = 25.000</code>, percorreu metade do caminho até sua assíntota. Depois, os pesos são normalizados de volta ao conjunto como inteiros positivos.</p><code class="rng-odds-formula">b = bônus efetivo · poções ×2 entram antes de f(b)</code></div></article>
+          <article class="rng-odds-help-item"><span class="rng-odds-help-index">04</span><div><strong>Modificadores e resultados múltiplos</strong><p>Uma ação pode gerar vários resultados conforme marcos de coleção e relíquias; a rolagem automática repete essa ação. A cada 10ª rolagem aplica-se um multiplicador ajustado pela coleção; horas e minutos iguais, os marcos de 1.000/10.000 rolagens, consumíveis e eventos também podem modificá-la. O Histórico registra a chance efetiva no instante da obtenção.</p><code class="rng-odds-formula">Coleção = referência · Histórico = rolagem realizada</code></div></article>
+          <article class="rng-odds-help-item rng-odds-help-limit"><span class="rng-odds-help-index">05</span><div><strong>Sem garantia por sequência</strong><p>A soma das chances do tier Além do NTC permanece abaixo de <code>1 / 10.000.000</code> por rolagem. O limite vale para o tier inteiro, não para cada título isolado. A curva preserva a ordem das raridades e mantém os pesos positivos. A seca é apenas uma estatística: não aumenta a sorte, não acumula garantia e nenhuma quantidade de rolagens assegura um título.</p></div></article>
+        </div>
+        <footer class="rng-odds-help-footer"><button class="primary-button" id="acknowledgeRngOddsHelp" type="button">Entendi</button></footer>
+      </section>
+    </dialog>
+    <dialog class="rng-title-reveal" id="rngUnlockNotice" aria-hidden="true" aria-labelledby="rngUnlockTitle" aria-describedby="rngUnlockCaption rngUnlockDetails">
+      <section class="rng-reveal-card">
+        <header class="rng-reveal-topline"><span class="rng-reveal-brand">NTC <span>RNG</span></span><span class="rng-reveal-tier" id="rngUnlockTier"></span></header>
+        <div class="rng-reveal-visual" aria-hidden="true">
+          <span class="rng-reveal-particles rng-reveal-particles-back" aria-hidden="true"><i hidden></i><i hidden></i></span>
+          <span class="rng-reveal-particles rng-reveal-particles-mid" aria-hidden="true"><i hidden></i><i hidden></i><i hidden></i><i hidden></i></span>
+          <span class="rng-reveal-crystal-frame"><span class="rng-reveal-art-host"></span><span class="rng-reveal-icon-shimmer"></span></span>
+          <span class="rng-reveal-particles rng-reveal-particles-front" aria-hidden="true"><i hidden></i><i hidden></i></span>
+        </div>
+        <div class="rng-reveal-copy"><small class="rng-reveal-label">NOVA DESCOBERTA</small><h2 id="rngUnlockTitle">Título desbloqueado</h2><p class="rng-reveal-caption" id="rngUnlockCaption">Um novo título agora faz parte da sua coleção.</p><span class="rng-reveal-odds" id="rngUnlockDetails"></span></div>
+        <footer class="rng-reveal-footer"><span class="rng-reveal-footer-status"><span class="rng-reveal-footnote"><span aria-hidden="true">◆</span><span id="rngUnlockFootnoteText">Conquista registrada</span></span><span class="rng-reveal-queue-count" id="rngUnlockQueueCount" aria-live="polite" hidden></span></span><button class="primary-button rng-reveal-continue" id="rngUnlockContinue" type="button">Continuar <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 10h12m-5-5 5 5-5 5"/></svg></button></footer>
+      </section>
+      <span class="rng-reveal-ntc-fracture" aria-hidden="true"><i></i><i></i><i></i></span>
+    </dialog>
     <div class="rng-unlock-notice rng-achievement-notice" id="rngAchievementNotice" aria-hidden="true" role="status" aria-live="polite">
-      <span class="rng-unlock-icon">🏆</span>
+      <span class="rng-unlock-icon" aria-hidden="true"></span>
       <div><small>CONQUISTA CONCLUÍDA</small><strong id="rngAchievementTitle"></strong><span id="rngAchievementDetails"></span></div>
     </div>
     <audio id="rngTitleUnlockSound" src="./assets/rng-title-deep.mp3" preload="auto" aria-hidden="true"></audio>
     <div class="rng-debug-backdrop hidden" id="rngDebugDialog" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="rngDebugTitle">
       <section class="rng-debug-card">
-        <header class="rng-debug-heading"><div><span class="eyebrow">SOMENTE DESENVOLVIMENTO</span><h2 id="rngDebugTitle">Debug de títulos</h2></div><button class="suggestion-close" id="closeRngDebug" type="button" aria-label="Fechar debug">×</button></header>
-        <p class="rng-debug-note">Adicionar ou remover títulos altera apenas o perfil local de desenvolvimento; não consome rolagens.</p>
+        <header class="rng-debug-heading"><div><span class="eyebrow">SOMENTE DESENVOLVIMENTO</span><h2 id="rngDebugTitle">Ateliê de títulos</h2></div><button class="suggestion-close" id="closeRngDebug" type="button" aria-label="Fechar ateliê">×</button></header>
+        <p class="rng-debug-note">Adicionar ou remover títulos altera apenas o perfil local de desenvolvimento; não consome rolagens. Escolha uma raridade e simule para conferir a revelação.</p>
         <label class="rng-debug-field"><span>Título</span><select id="rngDebugTitleSelect" aria-label="Título para testar"></select></label>
         <div class="rng-debug-selection" id="rngDebugSelectionState"></div>
-        <div class="rng-debug-actions"><button class="outline-button" id="rngDebugSimulate" type="button">Simular animação</button><button class="outline-button" id="rngDebugSoundTest" type="button">Testar som</button><button class="primary-button" id="rngDebugAdd" type="button">Adicionar título</button><button class="outline-button" id="rngDebugRemove" type="button">Remover título</button></div>
+        <div class="rng-debug-actions"><button class="outline-button" id="rngDebugSimulate" type="button">Prévia da revelação</button><button class="outline-button" id="rngDebugSoundTest" type="button">Testar som</button><button class="primary-button" id="rngDebugAdd" type="button">Adicionar título</button><button class="outline-button" id="rngDebugRemove" type="button">Remover título</button></div>
+        <section class="rng-debug-icon-lab" aria-label="Testar ícones e animações">
+          <div><h3>Ateliê de ícones</h3><p>Teste uma arte e qualquer efeito sem alterar coleção, sorte ou progresso.</p></div>
+          <label class="rng-debug-field"><span>Ícone</span><select id="rngDebugIconSelect" aria-label="Ícone para testar"></select></label>
+          <label class="rng-debug-field"><span>Animação</span><select id="rngDebugIconMotion" aria-label="Animação para testar"><option value="none">Estático</option><option value="hover">Destaque ao passar o mouse</option><option value="entry">Entrada</option><option value="float">Flutuação</option><option value="pulse">Pulsação</option><option value="glow">Brilho</option><option value="sparkle">Reflexo</option><option value="rotate">Rotação</option><option value="reveal">Revelação</option><option value="legendary">Lendária</option></select></label>
+          <div class="rng-debug-icon-preview-row"><span id="rngDebugIconPreview" aria-hidden="true"></span><label><input id="rngDebugIconLoop" type="checkbox"> Repetir efeito contínuo</label><button class="outline-button" id="rngDebugIconPlay" type="button">Reproduzir</button></div>
+          <small class="rng-debug-icon-status" id="rngDebugIconStatus" role="status" aria-live="polite"></small>
+        </section>
         <section class="rng-debug-progression" aria-label="Testar progressão">
           <h3>Testar progressão</h3>
           <div class="rng-debug-tier-row"><label class="rng-debug-field"><span>Raridade</span><select id="rngDebugTierSelect" aria-label="Raridade para completar"></select></label><label class="rng-debug-field"><span>Marco</span><select id="rngDebugMilestone" aria-label="Quantidade para marco"><option value="5">5 títulos</option><option value="10">10 títulos</option><option value="20">20 títulos</option></select></label></div>
@@ -723,11 +1161,21 @@
           <div class="rng-debug-actions rng-debug-progression-actions"><button class="outline-button" id="rngDebugBonus" type="button">Preparar rolagem bônus</button></div>
         </section>
         <div class="rng-debug-danger-zone"><span>Limpar a coleção de desenvolvimento</span><button class="outline-button rng-debug-danger" id="rngDebugClearAll" type="button">Remover todos</button></div>
+        <div class="rng-debug-danger-zone rng-debug-account-reset"><div><strong>Resetar conta do NTC RNG</strong><small>Apaga o progresso local e o perfil desta instalação no Online. Exige conexão.</small></div><button class="outline-button rng-debug-danger" id="rngDebugResetStart" type="button">Preparar reset total</button></div>
+        <section class="rng-debug-reset-confirm hidden" id="rngDebugResetConfirm" aria-label="Confirmação de reset da conta">
+          <strong>RESETAR CONTA</strong>
+          <p>Isso apagará todo o progresso local, substituirá o backup do save e removerá do Online somente o perfil e o histórico de descobertas vinculados à sessão atualmente conectada. A conta de autenticação e os perfis dos demais jogadores serão preservados. É necessário estar Online; se a remoção remota não for confirmada, o save local não será resetado.</p>
+          <label class="rng-debug-field"><span>Digite RESETAR CONTA para confirmar</span><input id="rngDebugResetPhrase" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+          <div class="rng-debug-reset-actions"><button class="outline-button" id="rngDebugResetCancel" type="button">Cancelar</button><button class="primary-button rng-debug-danger" id="rngDebugResetConfirmButton" type="button" disabled>Apagar local e Online</button></div>
+        </section>
         <div class="rng-debug-status" id="rngDebugStatus" role="status" aria-live="polite"></div>
       </section>
     </div>
     <div class="confirm-backdrop hidden" id="confirmDialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
       <div class="confirm-card"><h2 id="confirmTitle">Confirmar ação</h2><p id="confirmMessage"></p><div class="confirm-actions"><button class="ghost-button" id="confirmCancel" type="button">Cancelar</button><button class="primary-button" id="confirmAccept" type="button">Confirmar</button></div></div>
+    </div>
+    <div class="clipboard-preview-backdrop hidden" id="clipboardPreviewDialog" role="dialog" aria-modal="true" aria-labelledby="clipboardPreviewTitle">
+      <section class="clipboard-preview-card"><header class="clipboard-preview-heading"><h2 id="clipboardPreviewTitle">Prévia</h2><button class="suggestion-close" id="closeClipboardPreview" type="button" aria-label="Fechar prévia">×</button></header><div class="clipboard-preview-content"><img class="hidden" id="clipboardPreviewImage" alt="Imagem copiada da área de transferência"><pre class="hidden" id="clipboardPreviewText"></pre><small class="hidden" id="clipboardPreviewMoreText">Prévia limitada. Copiar ainda recupera o texto completo.</small></div><footer class="clipboard-preview-footer"><button class="outline-button" id="clipboardPreviewCloseFooter" type="button">Fechar</button></footer></section>
     </div>
     <div class="changelog-backdrop hidden" id="changelogDialog" role="dialog" aria-modal="true" aria-labelledby="changelogTitle">
       <section class="changelog-card"><div class="changelog-heading"><div><span class="eyebrow">NTC UTILITIES</span><h2 id="changelogTitle">O que mudou</h2></div><button class="suggestion-close" id="closeChangelog" type="button" aria-label="Fechar changelog">×</button></div><div class="changelog-list" id="changelogList"></div></section>
@@ -735,6 +1183,28 @@
     <div class="changelog-backdrop rng-patch-changelog-backdrop hidden" id="rngPatchNotesDialog" role="dialog" aria-modal="true" aria-labelledby="rngPatchNotesDialogTitle">
       <section class="changelog-card rng-patch-changelog-card"><div class="changelog-heading"><div><span class="eyebrow">NTC RNG</span><h2 id="rngPatchNotesDialogTitle">Novidades do jogo</h2></div><button class="suggestion-close" id="closeRngPatchNotesDialog" type="button" aria-label="Fechar notas do NTC RNG">×</button></div><div class="changelog-list" id="rngPatchNotesDialogList"></div></section>
     </div>
+    <dialog class="rng-profile-name-dialog" id="rngProfileNameDialog" aria-labelledby="rngProfileNameTitle">
+      <form class="rng-profile-name-card" id="rngProfileNameForm" method="dialog">
+        <span class="rng-profile-kicker">INICIAR REGISTRO</span>
+        <h2 id="rngProfileNameTitle">Como você quer ser conhecido?</h2>
+        <p>Este nome fará parte da sua identidade no NTC RNG e não poderá ser alterado normalmente depois.</p>
+        <label><span>Nome do jogador</span><input class="text-input" id="rngProfileNameSetupInput" maxlength="32" autocomplete="nickname" placeholder="Digite seu nome" aria-describedby="rngProfileNameHelp" autofocus></label>
+        <div class="rng-profile-name-meta"><span id="rngProfileNameHelp">Use de 1 a 32 caracteres.</span><span id="rngProfileNameCount">0 / 32</span></div>
+        <p class="rng-profile-name-error" id="rngProfileNameError" role="alert"></p>
+        <button class="primary-button" id="rngProfileNameConfirm" type="submit">Confirmar identidade</button>
+      </form>
+    </dialog>
+    <dialog class="rng-title-picker-dialog" id="rngTitlePickerDialog" aria-labelledby="rngTitlePickerTitle">
+      <section class="rng-title-picker-card">
+        <header><div><span class="rng-profile-kicker">SUA COLEÇÃO</span><h2 id="rngTitlePickerTitle">Escolha seu título</h2><p>Selecione a relíquia que representa seu perfil.</p></div><button class="suggestion-close" id="rngTitlePickerClose" type="button" aria-label="Fechar seletor">×</button></header>
+        <div class="rng-title-picker-tools"><input class="text-input" id="rngTitlePickerSearch" type="search" placeholder="Buscar título" aria-label="Buscar título possuído"><select class="text-input" id="rngTitlePickerTier" aria-label="Filtrar por raridade"><option value="all">Todas as raridades</option></select></div>
+        <div class="rng-title-picker-results" id="rngTitlePickerResults"></div>
+        <footer><span id="rngTitlePickerCount">0 títulos disponíveis</span><button class="outline-button" id="rngTitlePickerClear" type="button">Remover título</button></footer>
+      </section>
+    </dialog>
+    <dialog class="rng-profile-share-dialog" id="rngProfileShareDialog" aria-labelledby="rngProfileShareTitle">
+      <section class="rng-profile-share-card"><header><div><span class="rng-profile-kicker">NTC RNG · FICHA DO JOGADOR</span><h2 id="rngProfileShareTitle">Prévia para compartilhar</h2></div><button class="suggestion-close" id="rngProfileShareClose" type="button" aria-label="Fechar prévia">×</button></header><div class="rng-profile-share-formats" role="group" aria-label="Formato da ficha"><button type="button" class="active" data-profile-format="landscape">Paisagem · 16:9</button><button type="button" data-profile-format="portrait">Retrato · 4:5</button></div><div class="rng-profile-share-preview"><img id="rngProfileShareImage" alt="Prévia da ficha compartilhável do NTC RNG"><span id="rngProfileShareLoading">Preparando a ficha…</span></div><p class="rng-profile-share-status" id="rngProfileShareStatus" role="status" aria-live="polite"></p><footer><button class="outline-button" id="rngProfileCopyImage" type="button">Copiar imagem</button><button class="primary-button" id="rngProfileSaveImage" type="button">Salvar PNG</button></footer></section>
+    </dialog>
     <script src="./changelog.js"></script>
     <script src="./rng-changelog.js"></script>
     <script src="./screenshot-editor.js"></script>
@@ -746,6 +1216,30 @@
     <script src="./music-playlists.js"></script>
     <script src="./music-player.js"></script>
     <script src="./world-clock.js"></script>
+    <script src="./clipboard-history-ui.js"></script>
+    <script src="./security-ui.js"></script>
+    <script src="./documents-ui.js"></script>
+    <script src="./study-ui.js"></script>
+    <script type="module" src="./documents-pdf.mjs"></script>
+    <script src="./rng-icons.js"></script>
+    <script src="./rng-availability.js"></script>
+    <script src="./rng-reveal-queue.js"></script>
+    <script src="./rng-roll-experience.js"></script>
+    <script src="./media-project.js"></script>
+    <script src="./media-project-playback-clock.js"></script>
+    <script src="./video-project.js"></script>
+    <script src="./video-project-history.js"></script>
+    <script src="./video-project-layout.js"></script>
+    <script src="./video-project-timeline.js"></script>
+    <script src="./video-project-transform.js"></script>
     <script src="./app.js"></script>
+    <script src="./media-project-ui.js"></script>
+    <script src="./video-project-ui.js"></script>
+    <script src="./catalog.js"></script>
+    <script src="./utility-converters.js"></script>
+    <script src="./utility-generators.js"></script>
+    <script src="./utility-engine.js"></script>
+    <script src="./mini-games.js"></script>
+    <script src="./utility-ui.js"></script>
   </body>
 </html>

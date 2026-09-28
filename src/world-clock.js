@@ -86,6 +86,7 @@
     worldSettingsHydrated = true;
     mirrorWorldSettingsToLocalStorage();
     renderClockCities(); renderAlarms(); renderTimer(); renderStopwatch(); setTimeTab(activeTimeTab, false);
+    if ($('#timeToolsView')?.classList.contains('active')) void refreshWeather();
     persistWorldSettings();
   }
 
@@ -189,7 +190,7 @@
       const url = new URL('https://api.open-meteo.com/v1/forecast');
       url.search = new URLSearchParams({ latitude: city.latitude, longitude: city.longitude, current: 'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m', timezone: 'auto' }).toString();
       try {
-        const response = await fetch(url, { headers: { Accept: 'application/json' } });
+        const response = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(12000) });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         if (!data.current) throw new Error('Dados de clima indisponíveis');
@@ -416,11 +417,12 @@
   }));
 
   function startWeatherUpdates() {
-    if (weatherStarted) return;
+    if (weatherStarted) { void refreshWeather(); return; }
     weatherStarted = true;
     void refreshWeather();
     weatherTimer = setInterval(() => { if ($('#timeToolsView')?.classList.contains('active')) void refreshWeather(); }, 15 * 60 * 1000);
   }
+  window.ntcWorldClock = { open: startWeatherUpdates };
   $$('[data-view="timeTools"], [data-open-tool="timeTools"]').forEach(button => button.addEventListener('click', startWeatherUpdates));
 
   renderClockCities();

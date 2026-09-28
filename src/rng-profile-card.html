@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NTC RNG · Perfil</title>
+  <link rel="stylesheet" href="./rng-icons.css">
+  <link rel="stylesheet" href="./rng-profile-card.css">
+</head>
+<body>
+  <main class="profile-card" id="profileCard" data-format="landscape" data-tier="basic">
+    <div class="profile-card-atmosphere" aria-hidden="true"><span></span><span></span></div>
+    <header class="profile-card-header"><span class="profile-card-brand">NTC <i>RNG</i><small>PLAYER PROFILE</small></span><span class="profile-card-tier" id="cardTierLabel">BÁSICO</span></header>
+    <section class="profile-card-identity">
+      <div class="profile-card-crystal" id="cardCrystal" aria-hidden="true"></div>
+      <div class="profile-card-copy"><span class="profile-card-kicker">PERFIL DO JOGADOR</span><h1 id="cardPlayerName">Viajante</h1><strong id="cardEquippedTitle">Nenhum título equipado</strong><span id="cardEquippedTier">Uma jornada começa com a primeira descoberta.</span></div>
+      <section class="profile-card-record" id="cardRecord" hidden><div class="profile-card-record-copy"><span class="profile-card-kicker">MELHOR DESCOBERTA</span><h2 id="cardRecordTitle"></h2><span id="cardRecordTier"></span><strong id="cardRecordOdds"></strong><small id="cardRecordRoll"></small></div></section>
+    </section>
+    <section class="profile-card-stats" aria-label="Progresso"><article><strong id="cardRolls">0</strong><span>ROLAGENS</span></article><article><strong id="cardCollection">0 / 0</strong><span>TÍTULOS</span></article><article><strong id="cardCompletion">0%</strong><span>COLEÇÃO</span></article><article><strong id="cardAppTime">0 h</strong><span>APP ABERTO</span></article></section>
+    <footer class="profile-card-footer"><div class="profile-card-luck"><span class="profile-card-kicker">ÍNDICE DE SORTE</span><strong id="cardLuckIndex">Calibrando</strong><small id="cardLuckDetail">Amostra em formação</small></div><div class="profile-card-mark"><span>NTC UTILITIES</span><b>ALÉM DO ACASO</b></div></footer>
+  </main>
+  <script src="./rng-icons.js"></script>
+  <script src="./rng-profile-card.js"></script>
+</body>
+</html>

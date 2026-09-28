@@ -18,7 +18,12 @@ const RNG_RELIC_COST = 50_000n;
 const RNG_DUPLICATE_RELIC_REWARD = 25_000n;
 const RNG_RELIC_SHOP_PRICES = Object.freeze({ 'echo-spring': 100_000n });
 const RNG_EQUIPMENT_SLOTS = 6;
-const RNG_RELIC_DROUGHT_PROGRESS_VERSION = 2;
+const RNG_RELIC_REMOVAL_VERSION = 3;
+const RNG_SAVE_SCHEMA_VERSION = 1;
+const RNG_LUCK_METRIC_VERSION = 1;
+const RNG_NTC_ODDS_CEILING_DENOMINATOR = 10_000_000n;
+const RNG_ALIGNMENT_HALF_LIFE_BPS = 25_000n;
+const REMOVED_MISFORTUNE_RELIC_IDS = new Set(['misfortune-mark', 'cracked-die', 'drought-heart']);
 const RNG_MANUAL_TIME_ACHIEVEMENT_SECONDS = 100 * 60 * 60;
 const RNG_AUTO_TIME_ACHIEVEMENT_SECONDS = 1_000 * 60 * 60;
 const RNG_RARE_RELIC_DROP_DENOMINATOR = 1_000n;
@@ -26,28 +31,24 @@ const RANDOM_RELIC_MIN_ROLLS = 8_000;
 const RANDOM_RELIC_MAX_ROLLS = 12_000;
 
 const RELICS = Object.freeze([
-  { id: 'solar-clock', setId: 'celestial', name: 'Relógio Solar', icon: '☀', effect: 'Sorte ×1,12 entre 06h e 18h.', source: 'shop', luckMultiplierBps: 11_200 },
-  { id: 'lunar-clock', setId: 'celestial', name: 'Relógio Lunar', icon: '☾', effect: 'Sorte ×1,12 entre 18h e 06h.', source: 'shop', luckMultiplierBps: 11_200 },
-  { id: 'astrolabe', setId: 'celestial', name: 'Astrolábio', icon: '✧', effect: 'Sorte ×1,10 o tempo todo.', source: 'shop', luckMultiplierBps: 11_000 },
-  { id: 'twin-core', setId: 'echoes', name: 'Núcleo Gêmeo', icon: '◈', effect: 'Dobra os resultados de cada ação.', source: 'random-drop', rare: true, resultMultiplier: 2 },
+  { id: 'solar-clock', setId: 'celestial', name: 'Relógio da Vigília', icon: '☀', effect: 'Sorte ×1,12 entre 06h e 18h.', source: 'shop', luckMultiplierBps: 11_200 },
+  { id: 'lunar-clock', setId: 'celestial', name: 'Relógio das Horas Mortas', icon: '☾', effect: 'Sorte ×1,12 entre 18h e 06h.', source: 'shop', luckMultiplierBps: 11_200 },
+  { id: 'astrolabe', setId: 'celestial', name: 'Astrolábio de Ferro', icon: '✧', effect: 'Sorte ×1,10 o tempo todo.', source: 'shop', luckMultiplierBps: 11_000 },
+  { id: 'twin-core', setId: 'echoes', name: 'Coração em Par', icon: '◈', effect: 'Dobra os resultados de cada ação.', source: 'random-drop', rare: true, resultMultiplier: 2 },
   { id: 'echo-spring', setId: 'echoes', name: 'Mola de Eco', icon: '↟', effect: 'Concede +1 resultado a cada 100 resultados.', source: 'shop', resultBonusEvery: 100, resultBonus: 1 },
   { id: 'fragment-pouch', setId: 'echoes', name: 'Bolsa de Fragmentos', icon: '◆', effect: 'Fragmentos recebidos ×1,25.', source: 'shop', fragmentMultiplierBps: 12_500 },
   { id: 'lucky-feather', name: 'Pena do Acaso', icon: '❧', effect: 'Sorte ×1,05 o tempo todo.', source: 'random-drop', luckMultiplierBps: 10_500 },
   { id: 'loose-gear', name: 'Engrenagem Solta', icon: '⚙', effect: '+1 resultado a cada 500 rolagens.', source: 'random-drop', resultBonusEvery: 500, resultBonus: 1 },
   { id: 'torn-pouch', name: 'Bolsa Remendada', icon: '▱', effect: 'Fragmentos recebidos ×1,10.', source: 'random-drop', fragmentMultiplierBps: 11_000 },
-  { id: 'rain-comet', name: 'Cometa de Fragmentos', icon: '☄', effect: 'Fragmentos recebidos ×1,20.', source: 'event', eventId: 'fragments', fragmentMultiplierBps: 12_000 },
-  { id: 'new-moon-seal', name: 'Selo da Lua Nova', icon: '◐', effect: 'Sorte ×1,10 o tempo todo.', source: 'event', eventId: 'fragments', luckMultiplierBps: 11_000 },
-  { id: 'eclipse-prism', name: 'Prisma do Eclipse', icon: '◉', effect: 'Sorte ×1,25 o tempo todo.', source: 'event', eventId: 'eclipse', luckMultiplierBps: 12_500 },
+  { id: 'rain-comet', name: 'Estilhaço da Queda', icon: '☄', effect: 'Fragmentos recebidos ×1,20.', source: 'event', eventId: 'fragments', fragmentMultiplierBps: 12_000 },
+  { id: 'new-moon-seal', name: 'Selo das Horas Mortas', icon: '◐', effect: 'Sorte ×1,10 o tempo todo.', source: 'event', eventId: 'fragments', luckMultiplierBps: 11_000 },
+  { id: 'eclipse-prism', name: 'Prisma de Ônix', icon: '◉', effect: 'Sorte ×1,25 o tempo todo.', source: 'event', eventId: 'eclipse', luckMultiplierBps: 12_500 },
   { id: 'cartographers-medal', name: 'Medalha do Cartógrafo', icon: '⌖', effect: '+1 resultado em cada ação.', source: 'achievement', achievementId: 'unique-50', achievementGoal: 50, flatResults: 1 },
-  { id: 'atlas-of-possibilities', name: 'Atlas das Possibilidades', icon: '▤', effect: 'Sorte ×1,50 o tempo todo.', source: 'achievement', achievementId: 'unique-200', achievementGoal: 200, luckMultiplierBps: 15_000 },
-  { id: 'misfortune-mark', setId: 'misfortune', name: 'Marca do Azar', icon: '♠', effect: 'Sorte ×1,25.', source: 'drought', droughtGoal: 15_000, luckMultiplierBps: 12_500 },
-  { id: 'cracked-die', setId: 'misfortune', name: 'Dado Trincado', icon: '⚄', effect: '+1 resultado em cada ação.', source: 'drought', droughtGoal: 25_000, flatResults: 1 },
-  { id: 'drought-heart', setId: 'misfortune', name: 'Coração da Seca', icon: '♥', effect: 'Fragmentos recebidos ×1,25.', source: 'drought', droughtGoal: 40_000, fragmentMultiplierBps: 12_500 }
+  { id: 'atlas-of-possibilities', name: 'Atlas das Rotas Perdidas', icon: '▤', effect: 'Sorte ×1,50 o tempo todo.', source: 'achievement', achievementId: 'unique-200', achievementGoal: 200, luckMultiplierBps: 15_000 }
 ]);
 const RELIC_SETS = Object.freeze([
-  { id: 'celestial', name: 'Relógios Celestes', effect: 'Solar e Lunar permanecem ativos durante todo o dia.' },
-  { id: 'echoes', name: 'Ecos', effect: 'Dobra novamente os resultados de cada ação.' },
-  { id: 'misfortune', name: 'Tríade do Azar', effect: 'A cada 1.000 rolls secos, a sorte dobra; a cada 5.000, +1 resultado por ação.' }
+  { id: 'celestial', name: 'Relógios da Penitência', effect: 'Relógio da Vigília e Relógio das Horas Mortas permanecem ativos durante todo o dia.' },
+  { id: 'echoes', name: 'Ecos', effect: 'Dobra novamente os resultados de cada ação.' }
 ]);
 const relicById = new Map(RELICS.map(relic => [relic.id, relic]));
 const PURCHASABLE_RELIC_IDS = RELICS.filter(relic => relic.source === 'shop').map(relic => relic.id);
@@ -55,69 +56,12 @@ const RANDOM_RELIC_IDS = RELICS.filter(relic => relic.source === 'random-drop').
 const COMMON_RANDOM_RELIC_IDS = RANDOM_RELIC_IDS.filter(id => !relicById.get(id).rare);
 const EVENT_RELIC_IDS_BY_EVENT = new Map(['fragments', 'eclipse'].map(eventId => [eventId, RELICS.filter(relic => relic.source === 'event' && relic.eventId === eventId).map(relic => relic.id)]));
 const ACHIEVEMENT_RELICS = RELICS.filter(relic => relic.source === 'achievement');
-const DROUGHT_RELIC_IDS = RELICS.filter(relic => relic.source === 'drought').map(relic => relic.id);
-const DROUGHT_RELIC_GOALS = RELICS.filter(relic => relic.source === 'drought').map(relic => relic.droughtGoal);
 const relicShopPrice = relicId => RNG_RELIC_SHOP_PRICES[relicId] ?? RNG_RELIC_COST;
 
-const TIERS = [
-  { id: 'basic', label: 'Básico' },
-  { id: 'epic', label: 'Épico' },
-  { id: 'unique', label: 'Singular' },
-  { id: 'legendary', label: 'Lendário' },
-  { id: 'mythic', label: 'Mítico' },
-  { id: 'exalted', label: 'Exaltado' },
-  { id: 'glorious', label: 'Glorioso' },
-  { id: 'transcendent', label: 'Transcendente' },
-  { id: 'dimensional', label: 'Dimensional' },
-  { id: 'ntc', label: 'Além do NTC' }
-];
-
-const TITLE_NAMES = {
-  basic: [
-    'Primeira Faísca', 'Passos Suaves', 'Pequeno Encanto', 'Pedra Serena', 'Fio da Manhã', 'Coração de Brasa', 'Amanhecer de Bolso', 'Corrente Serena', 'Sino Distante', 'Garoa Âmbar',
-    'Cometa de Papel', 'Gota de Veludo', 'Pequena Órbita', 'Hora Azul', 'Luz de Amora-do-Céu', 'Estática Suave', 'Pó de Devaneio', 'Canção Acobreada', 'Luz da Maré Baixa', 'Quase uma Estrela'
-  ],
-  epic: [
-    'Lanterna do Crepúsculo', 'Cometa de Cobre', 'Deriva de Safira', 'Circuito Lunar', 'Nova de Veludo', 'Halo Vazio', 'Sinal de Geada', 'Asa de Cinzas', 'Temporal de Opala', 'Aurora Errante',
-    'Resplendor de Prata', 'Flor de Vidro Noturno', 'Salmo Incandescente', 'Marés Índigo', 'Motor Estelar', 'Miragem Lúcida', 'Eclipse de Ouro Rosado', 'Pétala Trovejante', 'Guardião Astral', 'Coroa da Aurora'
-  ],
-  unique: [
-    'Estática Lunar', 'Cometa de Cristal', 'Réquiem Solar', 'Paralaxe Violeta', 'A Nona Brasa', 'Luz Estelar Partida', 'Espectro Prismático', 'Lucky Lad', 'Peregrino de Néon', 'Amanhecer Congelado',
-    'Devaneio de Cobalto', 'A Supernova Silenciosa', 'Porto-Fantasma', 'Órbita de Cinzas', 'Coroa de Fogo Azul', 'Singularidade de Veludo', 'O Meridiano Oculto', 'Aurora sem Fim', 'Canção de Ninar Obsidiana', 'Luckiest Lad'
-  ],
-  legendary: [
-    'Ruína Celeste', 'Coroa do Ocaso', 'Monarca sem Estrelas', 'Tempestade de Éter', 'Meridiano em Chamas', 'Motor da Queda Celeste', 'Soberano do Eclipse', 'Trono de Cometas', 'Ermos Infinitos', 'Domínio Solar',
-    'A Última Constelação', 'Fenda Empírea', 'Fonte da Noite', 'Coroa Além do Tempo', 'Veredito Astral', 'Luz que Parte Mundos', 'Rainha da Longa Aurora', 'Céu por Escrever', 'Titã da Quietude', 'Arquiteto da Noite Eterna'
-  ],
-  mythic: [
-    'Florescer da Singularidade', 'Andarilho da Fenda Empírea', 'O Primeiro Firmamento', 'Êxtase das Estrelas', 'Astro do Abismo', 'Jardim Cósmico', 'Sonho do Vazio', 'Estrutura Eterna', 'Zênite Estilhaçado', 'Santo da Gravidade',
-    'Aurora Milenar', 'Cometa Indomável', 'Colosso Noturno', 'Soberano do Além', 'Coração Forjado em Estrelas', 'Universo de Vidro Negro', 'Correnteza Celeste', 'Miríade de Fogo Solar', 'Juramento do Infinito', 'Herdeiro do Cosmos'
-  ],
-  exalted: [
-    'Coroa do Desfazer', 'Modelo do Silêncio', 'O Grande Celéstio', 'Rompedor de Axiomas', 'Majestade do Céu Profundo', 'Trono Imarcescível', 'Monarca Tecelão do Destino', 'Fogo Estelar Absoluto', 'Horizonte Sagrado', 'Além da Primeira Luz',
-    'Paralaxe Perene', 'Império Astral', 'Colapso Magnífico', 'Vontade do Firmamento', 'Regente Infinito', 'Catedral da Centelha Divina', 'A Última Grande Órbita', 'Equação Soberana', 'Céu Inumerável', 'O Desconhecido Exaltado'
-  ],
-  glorious: [
-    'Glória no Vazio', 'O Desfazer Radiante', 'Grão-Rei do Silêncio', 'Mil Sóis sem Fim', 'Majestade no Limite', 'O Além Brilhante', 'Pós-Mundo Glorioso', 'Luz sem Origem', 'Juramento do Devorador de Estrelas', 'Primeiro entre Eternidades',
-    'Infinito Áureo', 'Zênite Imortal', 'Colosso da Criação', 'Coroa de Todos os Amanhãs', 'Singularidade Dourada', 'Resplendor Livre', 'Imperador da Costa Distante', 'Firmamento sem Rival', 'Glória Incomensurável', 'Absoluto Sempre Radiante'
-  ],
-  transcendent: [
-    'Além do Véu', 'Maré Transcendente', 'Eternidade em Flor', 'Aurora Inalcançável', 'Ascensão sem Nome', 'Origem da Última Luz', 'Criador Invisível', 'Devaneio sem Limites', 'Nenhum Céu Acima', 'Paradoxo Sublime',
-    'O Ascendente Final', 'Para Sempre por Escrever', 'Um Universo à Parte', 'Chama Incognoscível', 'Silêncio Infinito', 'O Grande Além', 'Depois de Todo Horizonte', 'Ascensão sem Fim', 'O Primeiro Depois de Tudo', 'Ápice do Invisível'
-  ],
-  dimensional: [
-    'Coroa Dimensional', 'Aquele sem Lugar', 'Além de Todos os Eixos', 'Fenda Chamada Eternidade', 'A Nona Realidade', 'Arquiteto do Além', 'Infinito Dobrado', 'Mundo Incontável', 'Monarca do Multiverso', 'Coordenada Final',
-    'Em Todo Lugar ao Mesmo Tempo', 'Contínuo Impossível', 'Mundos entre Mundos', 'Dobra sem Limites', 'Guardião de Todos os Reinos', 'Axioma de Tudo', 'O Lado de Fora Infinito', 'Trono entre Dimensões', 'Além sem Fim', 'Realidade sem Bordas'
-  ],
-  ntc: [
-    'NTC: Princípio Primeiro', 'NTC: Nada Absoluto', 'NTC: Fim da Probabilidade', 'NTC: Último Impossível', 'NTC: O Nunca Criado', 'NTC: Além da Última Rolagem', 'NTC: Silêncio Infinito', 'NTC: Ponto Zero Eterno', 'NTC: Fim dos Mundos', 'NTC: O Inalcançável',
-    'NTC: Tudo que Nunca Existiu', 'NTC: Para Sempre Inencontrável', 'NTC: Luz sem Origem', 'NTC: Última Exceção', 'NTC: Nada Além Disto', 'NTC: Absoluto por Escrever', 'NTC: Um em Toda a Eternidade', 'NTC: Fora da Existência', 'NTC: Constante Final', 'NTC: Além de Tudo'
-  ]
-};
+const CATALOG_DATA = require('../content/rng-title-catalog.json');
+const TIERS = CATALOG_DATA.tiers.map(({ id, label, rank }) => ({ id, label, rank }));
 
 const POOL = 10n ** 80n;
-const RARITY_STARTS = [250n, 100_000n, 40_000_000n, 15_000_000_000n, 10_000_000_000_000n, 1_000_000_000_000_000_000n, 10n ** 21n, 10n ** 24n, 10n ** 27n];
-const RARITY_RATIOS = [[132n, 100n], [130n, 100n], [130n, 100n], [134n, 100n], [130n, 100n], [130n, 100n], [130n, 100n], [130n, 100n], [150n, 100n]];
 const CATEGORY_MILESTONES = [
   { count: 5, bonusBps: 250 },
   { count: 10, bonusBps: 500 },
@@ -142,7 +86,7 @@ const ACHIEVEMENT_LUCK_REWARDS = Object.freeze({
   'manual-rolls-1000000': 150,
   'unique-200': 100,
   'streak-repeat-7': 50,
-  'drought-10000': 50,
+  'drought-10000': 0,
   'multiplier-100': 50,
   'events-10': 50,
   'limited-title': 50,
@@ -150,8 +94,6 @@ const ACHIEVEMENT_LUCK_REWARDS = Object.freeze({
   'time-auto-1000h': 2_500
 });
 const CATEGORY_TIER_IDS = new Set(TIERS.map(tier => tier.id));
-const BASIC_ODDS_SHAPES = [35n, 32n, 30n, 28n, 26n, 24n, 22n, 20n, 19n, 18n, 17n, 16n, 15n, 14n, 13n, 12n, 11n, 10n, 8n];
-const BASIC_ODDS_SHAPE_TOTAL = BASIC_ODDS_SHAPES.reduce((sum, weight) => sum + weight, 0n);
 const wholeOddsFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
 const brazilClock = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const SECRETS = [
@@ -163,66 +105,47 @@ const SECRETS = [
   { id: 'secret-autohour', name: 'Vigília Automática', hint: 'Uma hora sem pausa.' }
 ];
 
-function geometricOdds(start, numerator, denominator, index) {
-  let value = start;
-  for (let step = 0; step < index; step++) value = (value * numerator + denominator / 2n) / denominator;
-  return value;
+const { version: CATALOG_VERSION, bootstrapExpectedCount: BOOTSTRAP_EXPECTED_COUNT, titles } = CATALOG_DATA;
+if (!Number.isSafeInteger(CATALOG_VERSION) || CATALOG_VERSION < 1 || !Number.isSafeInteger(BOOTSTRAP_EXPECTED_COUNT) || BOOTSTRAP_EXPECTED_COUNT < 1) throw new Error('Versão ou metadado de bootstrap do catálogo inválido.');
+if (CATALOG_VERSION === 1 && titles.length !== BOOTSTRAP_EXPECTED_COUNT) throw new Error(`Bootstrap v1 deve conter ${BOOTSTRAP_EXPECTED_COUNT} títulos.`);
+if (!Array.isArray(TIERS) || !TIERS.length || new Set(TIERS.map(tier => tier.id)).size !== TIERS.length || new Set(TIERS.map(tier => tier.rank)).size !== TIERS.length || TIERS.some(tier => !Number.isSafeInteger(tier.rank) || tier.rank < 0 || !String(tier.label || '').trim())) throw new Error('Catálogo de tiers inválido.');
+const tierById = new Map(TIERS.map(tier => [tier.id, tier]));
+const titleIds = new Set();
+for (const title of titles) {
+  if (!/^[a-z0-9][a-z0-9._-]{0,95}$/i.test(title.id) || titleIds.has(title.id)) throw new Error(`ID de título ausente ou duplicado: ${title.id}`);
+  if (!String(title.name || '').trim() || !tierById.has(title.tier)) throw new Error(`Título inválido no catálogo: ${title.id}`);
+  if (!['normal', 'event', 'limited', 'exclusive', 'unobtainable'].includes(title.acquisition)) throw new Error(`Aquisição inválida: ${title.id}`);
+  if (title.eventId !== null && title.eventId !== undefined && (typeof title.eventId !== 'string' || title.eventId.length > 96)) throw new Error(`eventId inválido: ${title.id}`);
+  if (title.acquisition === 'event' && !String(title.eventId || '').trim()) throw new Error(`Título de evento sem eventId: ${title.id}`);
+  if (title.active !== undefined && typeof title.active !== 'boolean') throw new Error(`Estado active inválido: ${title.id}`);
+  if (title.collectionEligible !== undefined && typeof title.collectionEligible !== 'boolean') throw new Error(`collectionEligible inválido: ${title.id}`);
+  if (typeof title.description !== 'string' || title.description.length > 2_000) throw new Error(`Descrição inválida: ${title.id}`);
+  if (!/^\d+$/.test(String(title.baseWeight)) || BigInt(title.baseWeight) <= 0n) throw new Error(`Peso-base inválido: ${title.id}`);
+  if (title.baseDenominator !== null && (!/^\d+$/.test(String(title.baseDenominator)) || BigInt(title.baseDenominator) <= 0n)) throw new Error(`Odds-base inválida: ${title.id}`);
+  titleIds.add(title.id);
+  title.tierLabel = tierById.get(title.tier).label;
+  title.tierRank = tierById.get(title.tier).rank;
+  title.baseWeight = BigInt(title.baseWeight);
+  title.denominator = title.baseDenominator === null ? null : BigInt(title.baseDenominator);
+  title.sortOrder = Number.isSafeInteger(title.sortOrder) ? title.sortOrder : 0;
+  title.active = title.active !== false;
+  Object.freeze(title);
 }
-
-const titles = [];
-for (let tierIndex = 0; tierIndex < TIERS.length; tierIndex++) {
-  const tier = TIERS[tierIndex];
-  for (let index = 0; index < 20; index++) {
-    const denominator = tierIndex === 0 ? null : geometricOdds(RARITY_STARTS[tierIndex - 1], ...RARITY_RATIOS[tierIndex - 1], index);
-    titles.push({
-      id: `${tier.id}-${String(index + 1).padStart(2, '0')}`,
-      name: TITLE_NAMES[tier.id][index],
-      tier: tier.id,
-      tierLabel: tier.label,
-      index,
-      denominator
-    });
-  }
-}
-
+const normalRollTitles = titles.filter(title => title.active && title.acquisition === 'normal');
+if (!normalRollTitles.length) throw new Error('O catálogo precisa ter ao menos um título disponível no RNG normal.');
 const titleById = new Map(titles.map(title => [title.id, title]));
-function moveTitleToTier(id, tierId) {
-  const title = titleById.get(id);
-  const tierIndex = TIERS.findIndex(tier => tier.id === tierId);
-  title.tier = tierId;
-  title.tierLabel = TIERS[tierIndex].label;
-  title.denominator = geometricOdds(RARITY_STARTS[tierIndex - 1], ...RARITY_RATIOS[tierIndex - 1], title.index);
-}
-
-// These two outcomes sit in the legendary odds range; exchange their slots with
-// two existing titles so every rarity continues to contain exactly 20 titles.
-moveTitleToTier('unique-08', 'legendary');
-moveTitleToTier('unique-20', 'legendary');
-moveTitleToTier('legendary-08', 'unique');
-moveTitleToTier('legendary-20', 'unique');
-
-// This named result anchors the example shown in the design: at +100% passive luck,
-// a 1-in-750-million outcome becomes exactly twice as likely.
-titleById.get('legendary-12').denominator = 750_000_000n;
-titleById.get('unique-08').denominator = 278_000_000n;
-titleById.get('unique-20').denominator = 777_777_777n;
-
-const basicTitles = titles.filter(title => title.tier === 'basic');
-const rareTitles = titles.filter(title => title.tier !== 'basic');
-for (const title of rareTitles) title.baseWeight = POOL / title.denominator;
-const rarePoolWeight = rareTitles.reduce((sum, title) => sum + title.baseWeight, 0n);
-const basicRemainder = POOL - rarePoolWeight - POOL / 2n;
-basicTitles[0].baseWeight = POOL / 2n;
-let assignedBasicRemainder = 0n;
-for (let index = 1; index < basicTitles.length; index++) {
-  const weight = index === basicTitles.length - 1
-    ? basicRemainder - assignedBasicRemainder
-    : basicRemainder * BASIC_ODDS_SHAPES[index - 1] / BASIC_ODDS_SHAPE_TOTAL;
-  basicTitles[index].baseWeight = weight;
-  assignedBasicRemainder += weight;
-}
-
 const basePoolWeight = titles.reduce((sum, title) => sum + title.baseWeight, 0n);
+if (CATALOG_VERSION === 1 && (normalRollTitles.length !== BOOTSTRAP_EXPECTED_COUNT || basePoolWeight !== POOL)) throw new Error('O catálogo de bootstrap v1 precisa preservar o pool de odds original.');
+const normalBaseWeightSum = normalRollTitles.reduce((sum, title) => sum + title.baseWeight, 0n);
+const normalBaseWeights = normalBaseWeightSum === POOL
+  ? new Map(normalRollTitles.map(title => [title.id, title.baseWeight]))
+  : allocatePositiveWeights(normalRollTitles, POOL, title => title.baseWeight);
+for (const title of titles) {
+  if (title.acquisition === 'normal' && !title.active) throw new Error(`Título inativo não pode estar no RNG normal: ${title.id}`);
+  if (title.acquisition === 'unobtainable' && title.eventId) throw new Error(`Título unobtainable não pode manter evento ativo: ${title.id}`);
+  if (title.assetId && !/^[a-z0-9][a-z0-9._/-]{0,127}$/i.test(title.assetId)) throw new Error(`assetId inválido: ${title.id}`);
+  if (title.presentationId && !/^[a-z0-9][a-z0-9._/-]{0,127}$/i.test(title.presentationId)) throw new Error(`presentationId inválido: ${title.id}`);
+}
 
 function nonNegativeInteger(value, fallback = 0) {
   const number = Number(value);
@@ -233,6 +156,108 @@ function nonNegativeBigIntString(value, fallback = '0') {
   if (typeof value === 'bigint') return value >= 0n ? value.toString() : fallback;
   if (typeof value === 'number') return Number.isSafeInteger(value) && value >= 0 ? String(value) : fallback;
   return /^\d+$/.test(String(value ?? '')) ? String(value) : fallback;
+}
+
+function normalizeProfileDisplayName(value) {
+  return [...String(value ?? '').normalize('NFKC').replace(/[\u0000-\u001f\u007f-\u009f]/g, '').replace(/\s+/g, ' ').trim()].slice(0, 32).join('');
+}
+
+function validateProfileDisplayName(value) {
+  const cleaned = String(value ?? '').normalize('NFKC').replace(/[\u0000-\u001f\u007f-\u009f]/g, '').replace(/\s+/g, ' ').trim();
+  const length = [...cleaned].length;
+  if (!length) return { ok: false, reason: 'name-empty', value: '' };
+  if (length > 32) return { ok: false, reason: 'name-too-long', value: normalizeProfileDisplayName(cleaned) };
+  return { ok: true, reason: null, value: cleaned };
+}
+
+function emptyLuckMetrics() {
+  return {
+    version: RNG_LUCK_METRIC_VERSION,
+    measuredRolls: 0,
+    singularPlusObserved: 0,
+    singularPlusExpectedWeight: '0',
+    singularPlusVarianceWeight: '0',
+    byTier: Object.fromEntries(TIERS.map(tier => [tier.id, { observed: 0, expectedWeight: '0', varianceWeight: '0' }])),
+    oddsBands: Array.from({ length: 81 }, (_, exponent) => ({ exponent, observed: 0, expectedWeight: '0', varianceWeight: '0' })),
+    bestOutlier: null
+  };
+}
+
+function normalizeLuckMetrics(value = {}) {
+  const empty = emptyLuckMetrics();
+  if (!value || value.version !== RNG_LUCK_METRIC_VERSION) return empty;
+  const byTier = Object.fromEntries(TIERS.map(tier => {
+    const band = value.byTier?.[tier.id] || {};
+    return [tier.id, {
+      observed: nonNegativeInteger(band.observed),
+      expectedWeight: nonNegativeBigIntString(band.expectedWeight),
+      varianceWeight: nonNegativeBigIntString(band.varianceWeight)
+    }];
+  }));
+  const sourceBands = Array.isArray(value.oddsBands) ? value.oddsBands : [];
+  const sourceBandsByExponent = new Map(sourceBands.filter(item => Number.isInteger(item?.exponent)).map(item => [item.exponent, item]));
+  const oddsBands = empty.oddsBands.map(band => {
+    const source = sourceBandsByExponent.get(band.exponent) || {};
+    return { exponent: band.exponent, observed: nonNegativeInteger(source.observed), expectedWeight: nonNegativeBigIntString(source.expectedWeight), varianceWeight: nonNegativeBigIntString(source.varianceWeight) };
+  });
+  const outlier = value.bestOutlier;
+  const bestOutlier = outlier && titleById.has(outlier.titleId) && nonNegativeInteger(outlier.roll) > 0 && /^\d+$/.test(String(outlier.weight || ''))
+    ? { titleId: outlier.titleId, roll: nonNegativeInteger(outlier.roll), weight: String(outlier.weight) }
+    : null;
+  return {
+    version: RNG_LUCK_METRIC_VERSION,
+    measuredRolls: nonNegativeInteger(value.measuredRolls),
+    singularPlusObserved: nonNegativeInteger(value.singularPlusObserved),
+    singularPlusExpectedWeight: nonNegativeBigIntString(value.singularPlusExpectedWeight),
+    singularPlusVarianceWeight: nonNegativeBigIntString(value.singularPlusVarianceWeight),
+    byTier,
+    oddsBands,
+    bestOutlier
+  };
+}
+
+function accumulateLuckMetrics(state, weights, selected, rollNumber) {
+  const metrics = state.luckMetrics;
+  const tierWeights = Object.fromEntries(TIERS.map(tier => [tier.id, 0n]));
+  const oddsBandWeights = Array(81).fill(0n);
+  for (const title of normalRollTitles) {
+    const weight = weights.get(title.id);
+    tierWeights[title.tier] += weight;
+    const weightText = weight.toString();
+    const digits = weightText.length;
+    const exponent = Math.max(0, Math.min(80, 80 - digits + (/^10*$/.test(weightText) ? 1 : 0)));
+    oddsBandWeights[exponent] += weight;
+  }
+
+  metrics.measuredRolls++;
+  const selectedTierIndex = TIERS.findIndex(tier => tier.id === selected.tier);
+  if (selectedTierIndex >= 2) metrics.singularPlusObserved++;
+  let singularPlusWeight = 0n;
+  for (let index = 2; index < TIERS.length; index++) singularPlusWeight += tierWeights[TIERS[index].id];
+  const addExpectedVariance = (band, weight) => {
+    band.expectedWeight = (BigInt(band.expectedWeight) + weight).toString();
+    band.varianceWeight = (BigInt(band.varianceWeight) + weight * (POOL - weight) / POOL).toString();
+  };
+  metrics.singularPlusExpectedWeight = (BigInt(metrics.singularPlusExpectedWeight) + singularPlusWeight).toString();
+  metrics.singularPlusVarianceWeight = (BigInt(metrics.singularPlusVarianceWeight) + singularPlusWeight * (POOL - singularPlusWeight) / POOL).toString();
+  for (const tier of TIERS) {
+    const band = metrics.byTier[tier.id];
+    if (tier.id === selected.tier) band.observed++;
+    addExpectedVariance(band, tierWeights[tier.id]);
+  }
+  const selectedWeight = weights.get(selected.id);
+  const digits = selectedWeight.toString().length;
+  const selectedExponent = Math.max(0, Math.min(80, 80 - digits + (/^10*$/.test(selectedWeight.toString()) ? 1 : 0)));
+  for (let exponent = 0; exponent < 81; exponent++) {
+    const band = metrics.oddsBands[exponent];
+    const weight = oddsBandWeights[exponent];
+    if (weight === 0n) continue;
+    if (exponent === selectedExponent) band.observed++;
+    addExpectedVariance(band, weight);
+  }
+  if (!metrics.bestOutlier || selectedWeight < BigInt(metrics.bestOutlier.weight)) {
+    metrics.bestOutlier = { titleId: selected.id, roll: rollNumber, weight: String(selectedWeight) };
+  }
 }
 
 function normalizeBoost(value) {
@@ -296,14 +321,10 @@ function relicEffects(value = {}, { localHour } = {}) {
     }
     if (relic.resultBonusEvery && relic.resultBonus) {
       periodicResultBonuses.push({ every: relic.resultBonusEvery, amount: relic.resultBonus });
-      activeEffects.push(`${relic.name} · +${relic.resultBonus} a cada ${new Intl.NumberFormat('pt-BR').format(relic.resultBonusEvery)} rolls`);
+      activeEffects.push(`${relic.name} · +${relic.resultBonus} a cada ${new Intl.NumberFormat('pt-BR').format(relic.resultBonusEvery)} rolagens`);
     }
   }
-  const droughtSteps = completeSets.has('misfortune') ? Math.floor((state.sinceSingular || 0) / 1_000) : 0;
-  if (droughtSteps > 0) { luckMultiplierBps *= 2n ** BigInt(droughtSteps); activeEffects.push(`Tríade do Azar ×2^${droughtSteps}`); }
-  if (completeSets.has('echoes')) { resultMultiplier *= 2; activeEffects.push('Set Ecos · resultados ×2'); }
-  const droughtExtraResults = completeSets.has('misfortune') ? Math.floor((state.sinceSingular || 0) / 5_000) : 0;
-  if (droughtExtraResults > 0) { flatResults += droughtExtraResults; activeEffects.push(`Tríade do Azar · +${droughtExtraResults} resultados por ação`); }
+  if (completeSets.has('echoes')) { resultMultiplier *= 2; activeEffects.push('Conjunto Ecos · resultados ×2'); }
   return { completeSetIds: [...completeSets], luckMultiplierBps, fragmentMultiplierBps, resultMultiplier, flatResults, periodicResultBonuses, activeEffects };
 }
 
@@ -325,6 +346,11 @@ function normalizeState(value = {}) {
     })
     .map(discovery => ({
       titleId: discovery.titleId,
+      titleNameAtDiscovery: String(discovery.titleNameAtDiscovery || titleById.get(discovery.titleId)?.name || '').slice(0, 100),
+      tierAtDiscovery: tierById.has(discovery.tierAtDiscovery) ? discovery.tierAtDiscovery : titleById.get(discovery.titleId)?.tier,
+      tierLabelAtDiscovery: String(discovery.tierLabelAtDiscovery || titleById.get(discovery.titleId)?.tierLabel || '').slice(0, 40),
+      tierRankAtDiscovery: Number.isSafeInteger(discovery.tierRankAtDiscovery) && discovery.tierRankAtDiscovery >= 0 ? discovery.tierRankAtDiscovery : titleById.get(discovery.titleId)?.tierRank,
+      catalogVersionAtDiscovery: nonNegativeInteger(discovery.catalogVersionAtDiscovery, CATALOG_VERSION),
       roll: nonNegativeInteger(discovery.roll),
       currentOdds: String(discovery.currentOdds || '').slice(0, 80),
       isBonusRoll: Boolean(discovery.isBonusRoll),
@@ -349,12 +375,6 @@ function normalizeState(value = {}) {
   const sinceSingular = value.sinceSingular === null || value.sinceSingular === undefined ? null : nonNegativeInteger(value.sinceSingular);
   const ownedRelicIds = [...new Set((Array.isArray(value.ownedRelicIds) ? value.ownedRelicIds : []).filter(id => relicById.has(id)))];
   const equippedRelicIds = [...new Set((Array.isArray(value.equippedRelicIds) ? value.equippedRelicIds : []).filter(id => ownedRelicIds.includes(id)))].slice(0, RNG_EQUIPMENT_SLOTS);
-  const inferredDroughtStage = DROUGHT_RELIC_IDS.findIndex(id => !ownedRelicIds.includes(id));
-  const minimumDroughtStage = inferredDroughtStage === -1 ? DROUGHT_RELIC_IDS.length : inferredDroughtStage;
-  const savedDroughtStage = Math.min(DROUGHT_RELIC_IDS.length, nonNegativeInteger(value.droughtRelicStage));
-  const droughtRelicStage = Math.max(minimumDroughtStage, savedDroughtStage);
-  const isDroughtRelicProgressCurrent = nonNegativeInteger(value.droughtRelicProgressVersion) >= RNG_RELIC_DROUGHT_PROGRESS_VERSION;
-  const migratedDroughtProgress = isDroughtRelicProgressCurrent ? nonNegativeInteger(value.droughtRelicProgress) : 0;
   const achievementRelicRewardedIds = [...new Set((Array.isArray(value.achievementRelicRewardedIds) ? value.achievementRelicRewardedIds : []).filter(id => ACHIEVEMENT_RELICS.some(relic => relic.achievementId === id)))];
   const randomRelicTarget = Number.isInteger(value.randomRelicTarget) && value.randomRelicTarget >= RANDOM_RELIC_MIN_ROLLS && value.randomRelicTarget <= RANDOM_RELIC_MAX_ROLLS ? value.randomRelicTarget : 0;
   let activeBoost = normalizeBoost(value.activeBoost);
@@ -367,6 +387,12 @@ function normalizeState(value = {}) {
     if (nextDifferentType >= 0) parallelBoost = boostQueue.splice(nextDifferentType, 1)[0];
   }
   return {
+    schemaVersion: RNG_SAVE_SCHEMA_VERSION,
+    profile: {
+      displayName: normalizeProfileDisplayName(value.profile?.displayName),
+      equippedTitleId: collectedIds.includes(value.profile?.equippedTitleId) ? value.profile.equippedTitleId : null
+    },
+    luckMetrics: normalizeLuckMetrics(value.luckMetrics),
     collectedIds,
     bonusRollCounter: nonNegativeInteger(value.bonusRollCounter) % 10,
     totalRolls,
@@ -397,6 +423,7 @@ function normalizeState(value = {}) {
     unlockedSecrets: [...new Set((Array.isArray(value.unlockedSecrets) ? value.unlockedSecrets : []).filter(id => SECRETS.some(secret => secret.id === id)))],
     limitedTitles: [...new Set((Array.isArray(value.limitedTitles) ? value.limitedTitles : []).filter(id => LIMITED_REWARDS.some(reward => reward.titleId === id)))],
     fragmentBalance: nonNegativeBigIntString(value.fragmentBalance),
+    fragmentRewardRemainderBps: Math.min(9_999, nonNegativeInteger(value.fragmentRewardRemainderBps)),
     permanentUpgradeLevels: nonNegativeInteger(value.permanentUpgradeLevels),
     nextPermanentUpgradeCost: nonNegativeBigIntString(value.nextPermanentUpgradeCost, RNG_UPGRADE_INITIAL_COST.toString()),
     consumableInventory: {
@@ -408,9 +435,7 @@ function normalizeState(value = {}) {
     boostQueue,
     ownedRelicIds,
     equippedRelicIds,
-    droughtRelicStage,
-    droughtRelicProgressVersion: RNG_RELIC_DROUGHT_PROGRESS_VERSION,
-    droughtRelicProgress: droughtRelicStage >= DROUGHT_RELIC_IDS.length ? 0 : migratedDroughtProgress,
+    relicRemovalVersion: RNG_RELIC_REMOVAL_VERSION,
     achievementRelicRewardedIds,
     randomRelicProgress: randomRelicTarget ? Math.min(nonNegativeInteger(value.randomRelicProgress), randomRelicTarget - 1) : 0,
     randomRelicTarget,
@@ -424,17 +449,34 @@ function normalizeState(value = {}) {
   };
 }
 
-function migrateDroughtRelicProgress(value) {
+function migrateRemovedMisfortuneRelics(value, fallbackValue = null) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
-  if (nonNegativeInteger(value.droughtRelicProgressVersion) >= RNG_RELIC_DROUGHT_PROGRESS_VERSION) return value;
-  const droughtRelicIds = new Set(DROUGHT_RELIC_IDS);
+  const versionOf = state => Math.max(
+    nonNegativeInteger(state?.relicRemovalVersion),
+    nonNegativeInteger(state?.droughtRelicProgressVersion)
+  );
+  if (versionOf(value) >= RNG_RELIC_REMOVAL_VERSION) return value;
+
+  const legacyOwnedIds = new Set([
+    ...(Array.isArray(value.ownedRelicIds) ? value.ownedRelicIds : []),
+    ...(Array.isArray(value.equippedRelicIds) ? value.equippedRelicIds : [])
+  ].filter(id => REMOVED_MISFORTUNE_RELIC_IDS.has(id)));
+  if (fallbackValue && versionOf(fallbackValue) < RNG_RELIC_REMOVAL_VERSION) {
+    for (const id of [
+      ...(Array.isArray(fallbackValue.ownedRelicIds) ? fallbackValue.ownedRelicIds : []),
+      ...(Array.isArray(fallbackValue.equippedRelicIds) ? fallbackValue.equippedRelicIds : [])
+    ]) {
+      if (REMOVED_MISFORTUNE_RELIC_IDS.has(id)) legacyOwnedIds.add(id);
+    }
+  }
+  const fragmentBalance = BigInt(nonNegativeBigIntString(value.fragmentBalance)) + RNG_DUPLICATE_RELIC_REWARD * BigInt(legacyOwnedIds.size);
+  const { droughtRelicStage, droughtRelicProgress, droughtRelicProgressVersion, ...preserved } = value;
   return {
-    ...value,
-    ownedRelicIds: (Array.isArray(value.ownedRelicIds) ? value.ownedRelicIds : []).filter(id => !droughtRelicIds.has(id)),
-    equippedRelicIds: (Array.isArray(value.equippedRelicIds) ? value.equippedRelicIds : []).filter(id => !droughtRelicIds.has(id)),
-    droughtRelicStage: 0,
-    droughtRelicProgress: 0,
-    droughtRelicProgressVersion: RNG_RELIC_DROUGHT_PROGRESS_VERSION
+    ...preserved,
+    ownedRelicIds: (Array.isArray(value.ownedRelicIds) ? value.ownedRelicIds : []).filter(id => !REMOVED_MISFORTUNE_RELIC_IDS.has(id)),
+    equippedRelicIds: (Array.isArray(value.equippedRelicIds) ? value.equippedRelicIds : []).filter(id => !REMOVED_MISFORTUNE_RELIC_IDS.has(id)),
+    fragmentBalance: fragmentBalance.toString(),
+    relicRemovalVersion: RNG_RELIC_REMOVAL_VERSION
   };
 }
 
@@ -474,18 +516,50 @@ function unlockedSecretLuckBps(state) {
   return SECRETS.reduce((bonusBps, secret) => state.unlockedSecrets.includes(secret.id) ? bonusBps + (secret.luckBonusBps || 0) : bonusBps, 0);
 }
 
+function alignmentLuckScoreBps(state, { bonusRoll = false, equalHourBonus = false, thousandRollBonus = false, tenThousandRollBonus = false, eventMultiplier = 1, focusTierId = '', focusMultiplier = 1, consumableMultiplier = 1, localHour } = {}) {
+  const nonNtcCollected = state.collectedIds.filter(id => titleById.get(id)?.tier !== 'ntc').length;
+  const passiveBps = Math.min(10_000, Math.floor(nonNtcCollected / 2) * 100 + categoryBonusBps(state, 'basic'));
+  let achievementBps = unlockedAchievementLuckBps(state);
+  if (state.collectedIds.length >= 200) achievementBps -= ACHIEVEMENT_LUCK_REWARDS['unique-200'];
+  if (state.collectedIds.some(id => titleById.get(id)?.tier === 'ntc')) achievementBps -= ACHIEVEMENT_LUCK_REWARDS['tier-ntc'];
+  const categoryBps = TIERS.filter(tier => tier.id !== 'basic' && tier.id !== 'ntc')
+    .reduce((total, tier) => total + categoryBonusBps(state, tier.id), 0);
+  const upgradeBps = BigInt(state.permanentUpgradeLevels) * BigInt(RNG_UPGRADE_LUCK_BPS);
+  const relicState = state.equippedRelicIds.includes('atlas-of-possibilities')
+    ? { ...state, equippedRelicIds: state.equippedRelicIds.filter(id => id !== 'atlas-of-possibilities') }
+    : state;
+  const relicMultiplierBps = relicEffects(relicState, { localHour }).luckMultiplierBps;
+  let luckBps = (10_000n + BigInt(passiveBps + achievementBps + unlockedSecretLuckBps(state) + categoryBps) + upgradeBps)
+    * relicMultiplierBps / 10_000n;
+  const milestones = luckForState(state, { localHour });
+  const globalEventMultiplier = BigInt(Math.max(1, Math.min(5, nonNegativeInteger(eventMultiplier, 1))));
+  const hasFocus = TIERS.some(tier => tier.id === focusTierId);
+  const rarityFocusMultiplier = BigInt(hasFocus ? Math.max(1, Math.min(3, nonNegativeInteger(focusMultiplier, 1))) : 1);
+  const temporaryMultiplier = BigInt(bonusRoll ? milestones.bonusMultiplier : 1)
+    * BigInt(equalHourBonus ? 2 : 1)
+    * BigInt(thousandRollBonus ? THOUSAND_ROLL_BONUS_MULTIPLIER : 1)
+    * BigInt(tenThousandRollBonus ? TEN_THOUSAND_ROLL_BONUS_MULTIPLIER : 1)
+    * BigInt([2, 4].includes(consumableMultiplier) ? consumableMultiplier : 1)
+    * globalEventMultiplier
+    * rarityFocusMultiplier;
+  luckBps = luckBps * temporaryMultiplier;
+  return luckBps > 10_000n ? luckBps - 10_000n : 0n;
+}
+
 function luckForState(value = {}, options = {}) {
   const state = normalizeState(value);
   const passiveBps = Math.min(10_000, Math.floor(state.collectedIds.length / 2) * 100 + categoryBonusBps(state, 'basic'));
   const achievementBonusBps = unlockedAchievementLuckBps(state);
   const secretBonusBps = unlockedSecretLuckBps(state);
-  const permanentLuckBps = state.permanentUpgradeLevels * RNG_UPGRADE_LUCK_BPS;
+  const permanentLuckBpsExact = BigInt(state.permanentUpgradeLevels) * BigInt(RNG_UPGRADE_LUCK_BPS);
+  const permanentLuckBps = permanentLuckBpsExact > BigInt(Number.MAX_SAFE_INTEGER) ? Number.MAX_SAFE_INTEGER : Number(permanentLuckBpsExact);
   const collected = state.collectedIds.length;
   const rollMilestone = ROLL_MILESTONES.filter(item => collected >= item.count).at(-1);
   const bonusMilestone = BONUS_MILESTONES.filter(item => collected >= item.count).at(-1);
   const relics = relicEffects(state, options);
-  const baseTotalBps = 10_000 + passiveBps + achievementBonusBps + secretBonusBps + permanentLuckBps;
-  const exactTotalBps = BigInt(baseTotalBps) * relics.luckMultiplierBps / 10_000n;
+  const baseTotalBpsExact = 10_000n + BigInt(passiveBps + achievementBonusBps + secretBonusBps) + permanentLuckBpsExact;
+  const baseTotalBps = baseTotalBpsExact > BigInt(Number.MAX_SAFE_INTEGER) ? Number.MAX_SAFE_INTEGER : Number(baseTotalBpsExact);
+  const exactTotalBps = baseTotalBpsExact * relics.luckMultiplierBps / 10_000n;
   return {
     passiveBps,
     achievementBonusBps,
@@ -519,51 +593,47 @@ function allocatePositiveWeights(items, total, getRawWeight) {
   return assigned;
 }
 
-function currentWeights(value = {}, { bonusRoll = false, equalHourBonus = false, thousandRollBonus = false, tenThousandRollBonus = false, eventMultiplier = 1, focusTierId = '', focusMultiplier = 1, consumableMultiplier = 1, localHour } = {}) {
+function collectionCatalogCount(value = {}) {
+  const collected = new Set(Array.isArray(value.collectedIds) ? value.collectedIds : []);
+  return titles.filter(title => title.collectionEligible !== false && ((title.active && title.acquisition !== 'unobtainable') || collected.has(title.id))).length;
+}
+
+function currentWeights(value = {}, options = {}) {
   const state = normalizeState(value);
-  const luck = luckForState(state, { localHour });
-  const relics = relicEffects(state, { localHour });
-  const activeLuckBps = BigInt(luck.baseTotalBps) * relics.luckMultiplierBps / 10_000n
-    * BigInt(bonusRoll ? luck.bonusMultiplier : 1)
-    * BigInt(equalHourBonus ? 2 : 1)
-    * BigInt(thousandRollBonus ? THOUSAND_ROLL_BONUS_MULTIPLIER : 1)
-    * BigInt(tenThousandRollBonus ? TEN_THOUSAND_ROLL_BONUS_MULTIPLIER : 1)
-    * BigInt([2, 4].includes(consumableMultiplier) ? consumableMultiplier : 1);
-  const tierBonuses = new Map(TIERS.map(tier => [tier.id, categoryBonusBps(state, tier.id)]));
-  const weights = new Map();
-  let boostedRareTotal = 0n;
-  for (const title of rareTitles) {
-    const categoryBonus = tierBonuses.get(title.tier) || 0;
-    const categoryMultiplierBps = 10_000 + categoryBonus;
-    const weight = title.baseWeight * activeLuckBps * BigInt(categoryMultiplierBps) / 100_000_000n;
-    weights.set(title.id, weight);
-    boostedRareTotal += weight;
+  const baseWeights = normalBaseWeights;
+  const alignmentLuckBps = alignmentLuckScoreBps(state, options);
+  if (alignmentLuckBps === 0n) return baseWeights;
+
+  const basicTitles = normalRollTitles.filter(title => title.tier === 'basic');
+  const rareTitles = normalRollTitles.filter(title => title.tier !== 'basic');
+  const ntcTitles = normalRollTitles.filter(title => title.tier === 'ntc');
+  if (!basicTitles.length || !rareTitles.length) return baseWeights;
+  const rareAnchorWeight = rareTitles.reduce((largest, title) => baseWeights.get(title.id) > largest ? baseWeights.get(title.id) : largest, 0n);
+  const rareBaseWeight = rareTitles.reduce((sum, title) => sum + baseWeights.get(title.id), 0n);
+  const ntcBaseWeight = ntcTitles.reduce((sum, title) => sum + baseWeights.get(title.id), 0n);
+  const rareLiftDelta = BigInt(rareTitles.length) * rareAnchorWeight - rareBaseWeight;
+  const ntcLiftDelta = BigInt(ntcTitles.length) * rareAnchorWeight - ntcBaseWeight;
+  const ntcOddsCeilingNumerator = POOL - ntcBaseWeight * RNG_NTC_ODDS_CEILING_DENOMINATOR;
+  const ntcOddsCeilingDenominator = ntcLiftDelta * RNG_NTC_ODDS_CEILING_DENOMINATOR - rareLiftDelta;
+  if (ntcOddsCeilingNumerator <= 0n || ntcOddsCeilingDenominator <= 0n) return baseWeights;
+  const alignmentDenominator = alignmentLuckBps + RNG_ALIGNMENT_HALF_LIFE_BPS;
+  const lambdaNumerator = ntcOddsCeilingNumerator * alignmentLuckBps;
+  const lambdaDenominator = ntcOddsCeilingDenominator * alignmentDenominator;
+  const rawWeights = new Map(normalRollTitles.map(title => {
+    const baseWeight = baseWeights.get(title.id);
+    if (title.tier === 'basic') return [title.id, baseWeight];
+    const lift = (rareAnchorWeight - baseWeight) * lambdaNumerator / lambdaDenominator;
+    return [title.id, baseWeight + lift];
+  }));
+  const weights = allocatePositiveWeights(normalRollTitles, POOL, title => rawWeights.get(title.id));
+  const maxNtcWeight = POOL / RNG_NTC_ODDS_CEILING_DENOMINATOR;
+  const ntcWeight = ntcTitles.reduce((total, title) => total + weights.get(title.id), 0n);
+  if (ntcTitles.length && ntcWeight >= maxNtcWeight) {
+    const excess = ntcWeight - (maxNtcWeight - 1n);
+    const strongestNtc = ntcTitles[0];
+    weights.set(strongestNtc.id, weights.get(strongestNtc.id) - excess);
+    weights.set(basicTitles[0].id, weights.get(basicTitles[0].id) + excess);
   }
-  const baselineRareTotal = boostedRareTotal;
-  const globalEventMultiplier = Math.max(1, Math.min(5, nonNegativeInteger(eventMultiplier, 1)));
-  const rarityFocusMultiplier = Math.max(1, Math.min(3, nonNegativeInteger(focusMultiplier, 1)));
-  if (globalEventMultiplier > 1 || (focusTierId && rarityFocusMultiplier > 1)) {
-    let eventRareTotal = 0n;
-    for (const title of rareTitles) {
-      const focused = title.tier === focusTierId ? BigInt(rarityFocusMultiplier) : 1n;
-      const eventWeight = weights.get(title.id) * BigInt(globalEventMultiplier) * focused;
-      weights.set(title.id, eventWeight);
-      eventRareTotal += eventWeight;
-    }
-    const rareChanceCap = baselineRareTotal > POOL / 2n ? baselineRareTotal : POOL / 2n;
-    const cappedTotal = eventRareTotal < rareChanceCap ? eventRareTotal : rareChanceCap;
-    for (const title of rareTitles) weights.set(title.id, weights.get(title.id) * cappedTotal / (eventRareTotal || 1n));
-    boostedRareTotal = rareTitles.reduce((sum, title) => sum + weights.get(title.id), 0n);
-  }
-  const maximumRareWeight = POOL - BigInt(basicTitles.length);
-  if (boostedRareTotal > maximumRareWeight) {
-    const scaled = allocatePositiveWeights(rareTitles, maximumRareWeight, title => weights.get(title.id));
-    for (const title of rareTitles) weights.set(title.id, scaled.get(title.id));
-    boostedRareTotal = rareTitles.reduce((sum, title) => sum + weights.get(title.id), 0n);
-  }
-  const remainingBasicWeight = POOL - boostedRareTotal;
-  const basicWeights = allocatePositiveWeights(basicTitles, remainingBasicWeight, title => title.baseWeight);
-  for (const title of basicTitles) weights.set(title.id, basicWeights.get(title.id));
   return weights;
 }
 
@@ -728,8 +798,8 @@ function rollTitle(value = {}, randomValue = secureRandomBelow(POOL), { rolledAt
   const roll = BigInt(randomValue);
   if (roll < 0n || roll >= POOL) throw new RangeError('O valor de sorteio está fora da distribuição.');
   let cumulative = 0n;
-  let selected = titles[titles.length - 1];
-  for (const title of titles) {
+  let selected = normalRollTitles[normalRollTitles.length - 1];
+  for (const title of normalRollTitles) {
     cumulative += weights.get(title.id);
     if (roll < cumulative) { selected = title; break; }
   }
@@ -740,6 +810,7 @@ function rollTitle(value = {}, randomValue = secureRandomBelow(POOL), { rolledAt
   state.lastTitleId = selected.id;
   state.bonusRollCounter = bonusRoll ? 0 : nextRoll;
   const odds = (POOL * 2n + weights.get(selected.id)) / (weights.get(selected.id) * 2n);
+  accumulateLuckMetrics(state, weights, selected, state.totalRolls);
   const appliedFocusMultiplier = selected.tier === eventFocusTierId ? eventFocusMultiplier : 1;
   const multiplier = rollBonusMultiplier * equalHourBonus.multiplier * (thousandRollBonus ? 4 : 1) * (tenThousandRollBonus ? 10 : 1) * eventMultiplier * appliedFocusMultiplier * consumableMultiplier;
   state.trackedRolls++;
@@ -752,7 +823,6 @@ function rollTitle(value = {}, randomValue = secureRandomBelow(POOL), { rolledAt
   const singularPlus = TIERS.findIndex(tier => tier.id === selected.tier) >= 2;
   state.sinceSingular = singularPlus ? 0 : (state.sinceSingular ?? 0) + 1;
   state.longestSingularDrought = Math.max(state.longestSingularDrought, state.sinceSingular || 0);
-  state.droughtRelicProgress = singularPlus || state.droughtRelicStage >= DROUGHT_RELIC_IDS.length ? 0 : state.droughtRelicProgress + 1;
   state.sameTitleStreak = previousTitleId === selected.id ? state.sameTitleStreak + 1 : 1;
   state.longestSameTitleStreak = Math.max(state.longestSameTitleStreak, state.sameTitleStreak);
   state.singularStreak = TIERS.findIndex(tier => tier.id === selected.tier) >= 2 ? state.singularStreak + 1 : 0;
@@ -777,12 +847,6 @@ function rollTitle(value = {}, randomValue = secureRandomBelow(POOL), { rolledAt
   }
   const newlyLimited = LIMITED_REWARDS.filter(reward => !priorLimited.has(reward.titleId) && state.limitedTitles.includes(reward.titleId));
   const relicUnlocks = [];
-  if (state.droughtRelicStage < DROUGHT_RELIC_IDS.length && state.droughtRelicProgress >= DROUGHT_RELIC_GOALS[state.droughtRelicStage]) {
-    const relicId = DROUGHT_RELIC_IDS[state.droughtRelicStage];
-    relicUnlocks.push(grantRelic(state, relicId, 'drought'));
-    state.droughtRelicStage += 1;
-    state.droughtRelicProgress = 0;
-  }
   if (!state.randomRelicTarget) state.randomRelicTarget = nextRandomRelicTarget(randomRelicTargetValue);
   state.randomRelicProgress += 1;
   if (state.randomRelicProgress >= state.randomRelicTarget) {
@@ -804,9 +868,10 @@ function rollTitle(value = {}, randomValue = secureRandomBelow(POOL), { rolledAt
     state.achievementRelicRewardedIds.push(relic.achievementId);
   }
   const baseFragmentReward = BigInt(RNG_FRAGMENT_REWARDS[selected.tier] || 0) * (isNew ? 2n : 1n) + LIMITED_TITLE_FRAGMENT_REWARD * BigInt(newlyLimited.length);
-  const boostedFragmentReward = baseFragmentReward * BigInt(relicsBeforeRoll.fragmentMultiplierBps) / 10_000n;
   const duplicateRelicReward = relicUnlocks.reduce((sum, unlock) => sum + BigInt(unlock.fragmentReward || 0), 0n);
-  const fragmentReward = boostedFragmentReward + duplicateRelicReward;
+  const fragmentRewardNumerator = (baseFragmentReward + duplicateRelicReward) * BigInt(relicsBeforeRoll.fragmentMultiplierBps) + BigInt(state.fragmentRewardRemainderBps);
+  const fragmentReward = fragmentRewardNumerator / 10_000n;
+  state.fragmentRewardRemainderBps = Number(fragmentRewardNumerator % 10_000n);
   state.fragmentBalance = (BigInt(state.fragmentBalance) + fragmentReward).toString();
   const specialUnlocks = [
     ...SECRETS.filter(secret => !priorSecrets.has(secret.id) && state.unlockedSecrets.includes(secret.id)).map(secret => ({ id: secret.id, name: secret.name, tierLabel: 'Segredo', luckBonusBps: secret.luckBonusBps || 0 })),
@@ -816,6 +881,11 @@ function rollTitle(value = {}, randomValue = secureRandomBelow(POOL), { rolledAt
   if (isNew) {
     const discovery = {
       titleId: selected.id,
+      titleNameAtDiscovery: selected.name,
+      tierAtDiscovery: selected.tier,
+      tierLabelAtDiscovery: selected.tierLabel,
+      tierRankAtDiscovery: selected.tierRank,
+      catalogVersionAtDiscovery: CATALOG_VERSION,
       roll: state.totalRolls,
       currentOdds: oddsLabel(weights.get(selected.id)),
       isBonusRoll: bonusRoll,
@@ -938,8 +1008,14 @@ function publicCatalog(value = {}, options = {}) {
     name: collected.has(title.id) ? title.name : '???',
     tier: title.tier,
     tierLabel: title.tierLabel,
-    baseOdds: oddsLabel(title.baseWeight),
-    currentOdds: oddsLabel(odds.get(title.id)),
+    description: title.description || '',
+    acquisition: title.acquisition,
+    active: title.active,
+    eventId: title.eventId || null,
+    assetId: title.assetId || null,
+    presentationId: title.presentationId || title.tier,
+    baseOdds: title.acquisition === 'normal' ? oddsLabel(normalBaseWeights.get(title.id)) : '',
+    currentOdds: odds.has(title.id) ? oddsLabel(odds.get(title.id)) : '',
     collected: collected.has(title.id),
     categoryBonusBps: categoryBonusBps(state, title.tier)
   }));
@@ -952,7 +1028,7 @@ function publicProgress(value = {}, options = {}) {
     const count = titles.reduce((total, title) => total + (title.tier === tier.id && collected.has(title.id) ? 1 : 0), 0);
     const achieved = CATEGORY_MILESTONES.filter(milestone => count >= milestone.count).map(milestone => milestone.count);
     const next = CATEGORY_MILESTONES.find(milestone => count < milestone.count) || null;
-    return { id: tier.id, label: tier.label, count, total: 20, bonusBps: categoryBonusBps(state, tier.id), achieved, nextCount: next?.count || null, nextBonusBps: next?.bonusBps || null };
+    return { id: tier.id, label: tier.label, count, total: titles.filter(title => title.tier === tier.id && title.collectionEligible !== false && ((title.active && title.acquisition !== 'unobtainable') || collected.has(title.id))).length, bonusBps: categoryBonusBps(state, tier.id), achieved, nextCount: next?.count || null, nextBonusBps: next?.bonusBps || null };
   });
   const luck = luckForState(state, options);
   return {
@@ -991,7 +1067,7 @@ function publicRelicState(value = {}, options = {}) {
 function debugGrantTierTitles(value = {}, tierId, count = 5) {
   if (!CATEGORY_TIER_IDS.has(tierId)) throw new RangeError('A raridade escolhida não existe.');
   const state = normalizeState(value);
-  const target = Math.max(0, Math.min(20, nonNegativeInteger(count)));
+  const target = Math.max(0, Math.min(titles.filter(title => title.tier === tierId).length, nonNegativeInteger(count)));
   const currentCount = state.collectedIds.reduce((total, id) => total + (titleById.get(id)?.tier === tierId ? 1 : 0), 0);
   const needed = Math.max(0, target - currentCount);
   const newTitles = titles.filter(title => title.tier === tierId && !state.collectedIds.includes(title.id)).slice(0, needed);
@@ -1045,6 +1121,8 @@ function debugClearTitles(value = {}) {
 
 module.exports = {
   POOL,
+  RNG_SAVE_SCHEMA_VERSION,
+  RNG_LUCK_METRIC_VERSION,
   THOUSAND_ROLL_BONUS_EVERY,
   THOUSAND_ROLL_BONUS_MULTIPLIER,
   TEN_THOUSAND_ROLL_BONUS_EVERY,
@@ -1059,12 +1137,16 @@ module.exports = {
   RNG_RELIC_COST,
   RNG_DUPLICATE_RELIC_REWARD,
   RNG_EQUIPMENT_SLOTS,
-  RNG_RELIC_DROUGHT_PROGRESS_VERSION,
+  RNG_RELIC_REMOVAL_VERSION,
+  RNG_NTC_ODDS_CEILING_DENOMINATOR,
+  RNG_ALIGNMENT_HALF_LIFE_BPS,
   RNG_MANUAL_TIME_ACHIEVEMENT_SECONDS,
   RNG_AUTO_TIME_ACHIEVEMENT_SECONDS,
   RANDOM_RELIC_MIN_ROLLS,
   RANDOM_RELIC_MAX_ROLLS,
   TIERS,
+  CATALOG_VERSION,
+  BOOTSTRAP_EXPECTED_COUNT,
   CATEGORY_MILESTONES,
   ROLL_MILESTONES,
   BONUS_MILESTONES,
@@ -1075,7 +1157,10 @@ module.exports = {
   basePoolWeight,
   equalHourBonusAt,
   normalizeState,
-  migrateDroughtRelicProgress,
+  normalizeProfileDisplayName,
+  validateProfileDisplayName,
+  normalizeLuckMetrics,
+  migrateRemovedMisfortuneRelics,
   achievementLuckRewardBps,
   luckForState,
   currentWeights,
@@ -1093,6 +1178,7 @@ module.exports = {
   rollBatch,
   publicCatalog,
   publicProgress,
+  collectionCatalogCount,
   publicRelicState,
   oddsLabel,
   debugGrantTitle,

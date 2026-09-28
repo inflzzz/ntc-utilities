@@ -1,0 +1,39 @@
+{
+  "backendId": "ntc-mpfr-gmp-wasm",
+  "backendVersion": "1.3.2",
+  "gmpWasmVersion": "1.3.2",
+  "gmpVersion": "6.3.0",
+  "mpfrVersion": "4.2.1",
+  "runtimePath": "dist/index.umd.js",
+  "runtimeSha256": "76af404a6521699a9f2a0dd3fc34a48368b470cc5044e1fa8e5e480a3deae55a",
+  "runtimeLicense": "LGPL-3.0-only",
+  "formulaVersion": "luck2-b-infinity-balanced-v1",
+  "manualPowerVersion": "manual-power-v1",
+  "manualPowerFactor": { "numerator": "199", "denominator": "200" },
+  "precisionPolicy": {
+    "defaultBits": 128,
+    "minimumBits": 32,
+    "maximumBits": 16384,
+    "directedRounding": ["RNDD", "RNDU"],
+    "intervalEndpointEncoding": "signed-dyadic-significand-times-2^binaryExponent"
+  },
+  "capabilities": [
+    "mpfr_add", "mpfr_clear", "mpfr_cmp", "mpfr_div", "mpfr_get_version",
+    "mpfr_get_z_2exp", "mpfr_init2", "mpfr_log10", "mpfr_mul", "mpfr_pow",
+    "mpfr_set", "mpz_t", "mpz_t_free", "mpz_to_string"
+  ],
+  "sourceMaterials": {
+    "gmpWasmNpmTarball": {
+      "path": "source/gmp-wasm-1.3.2.tgz",
+      "sha256": "a98fc53625a2aaa0804ba69d17e84a98425bde52e2eb7064778b324eb41a8720"
+    },
+    "gmpSourceArchive": {
+      "path": "source/gmp-6.3.0.tar.xz",
+      "sha256": "a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898"
+    },
+    "mpfrSourceArchive": {
+      "path": "source/mpfr-4.2.1.tar.xz",
+      "sha256": "277807353a6726978996945af13e52829e3abd7a9a5b7fb2793894e18f1fcbb2"
+    }
+  }
+}

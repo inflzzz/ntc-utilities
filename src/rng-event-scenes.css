@@ -1,0 +1,741 @@
+/* Discovery scenes for the upper rarities.
+   The existing dialog still owns focus, dismissal and the presentation queue. */
+
+/* Epic remains a compact result, but gives the relic enough visual weight. */
+.rng-title-reveal[data-tier="epic"][data-reveal-mode="result"] .rng-reveal-card {
+  width: min(660px, calc(100vw - 32px));
+  grid-template-columns: 172px minmax(0, 1fr);
+}
+.rng-title-reveal[data-tier="epic"][data-reveal-mode="result"] .rng-reveal-visual {
+  width: 150px;
+  height: 150px;
+  margin: 9px 0 9px 15px;
+  left: 42px;
+}
+.rng-title-reveal[data-tier="epic"][data-reveal-mode="result"] .rng-reveal-crystal-frame { width: 128px; height: 128px; }
+.rng-title-reveal[data-tier="epic"][data-reveal-mode="result"] .rng-reveal-copy { padding-block: 16px; }
+.rng-title-reveal[data-tier="epic"][data-reveal-mode="result"] #rngUnlockTitle { font-size: clamp(20px, 2.2vw, 25px); }
+
+/* Singular keeps its established modal; the larger artifact uses the empty
+   space in its left half without changing the information hierarchy. */
+.rng-title-reveal[data-tier="unique"][data-reveal-mode="discovery"] .rng-reveal-card {
+  grid-template-columns: minmax(315px, .9fr) minmax(0, 1.1fr);
+}
+.rng-title-reveal[data-tier="unique"][data-reveal-mode="discovery"] .rng-reveal-visual {
+  width: clamp(250px, 32vw, 310px);
+  height: clamp(250px, 32vw, 310px);
+  margin-block: 12px;
+}
+.rng-title-reveal[data-tier="unique"][data-reveal-mode="discovery"] .rng-reveal-crystal-frame { width: 90%; height: 90%; }
+.rng-title-reveal[data-tier="unique"][data-reveal-mode="discovery"] .rng-reveal-copy { padding-block: 22px; }
+
+.rng-title-reveal.show[data-tier="epic"][data-reveal-mode="result"] .rng-reveal-crystal-frame .ntc-rng-icon > img {
+  animation: rng-epic-relic-idle 9s ease-in-out infinite;
+}
+.rng-title-reveal.show[data-tier="unique"][data-reveal-mode="discovery"] .rng-reveal-crystal-frame .ntc-rng-icon > img {
+  animation: rng-singular-relic-idle 11s ease-in-out infinite;
+}
+@keyframes rng-epic-relic-idle {
+  0%, 100% { filter: brightness(1) contrast(1); }
+  50% { filter: brightness(1.075) contrast(1.025); }
+}
+@keyframes rng-singular-relic-idle {
+  0%, 100% { filter: brightness(1.02) contrast(1.01); }
+  48% { filter: brightness(1.12) contrast(1.045) drop-shadow(0 0 7px rgba(155,106,111,.15)); }
+}
+@media (max-width: 700px) {
+  .rng-title-reveal[data-tier="epic"][data-reveal-mode="result"] .rng-reveal-card { grid-template-columns: clamp(122px, 21.5vw, 150px) minmax(0, 1fr); }
+  .rng-title-reveal[data-tier="epic"][data-reveal-mode="result"] .rng-reveal-visual { width: clamp(116px, 19.8vw, 138px); height: clamp(116px, 19.8vw, 138px); margin-left: 7px; left: 18px; }
+  .rng-title-reveal[data-tier="epic"][data-reveal-mode="result"] .rng-reveal-crystal-frame { width: clamp(100px, 16.7vw, 116px); height: clamp(100px, 16.7vw, 116px); }
+  .rng-title-reveal[data-tier="unique"][data-reveal-mode="discovery"] .rng-reveal-card { grid-template-columns: clamp(125px, 28vw, 195px) minmax(0, 1fr); }
+  .rng-title-reveal[data-tier="unique"][data-reveal-mode="discovery"] .rng-reveal-visual { width: clamp(124px, 26.3vw, 184px); height: clamp(140px, 27.7vw, 194px); margin-block: 10px; }
+  .rng-title-reveal[data-tier="unique"][data-reveal-mode="discovery"] .rng-reveal-crystal-frame { width: 90%; height: 90%; }
+}
+@media (max-width: 430px) {
+  .rng-title-reveal[data-tier="epic"][data-reveal-mode="result"] .rng-reveal-card { grid-template-columns: 122px minmax(0, 1fr); }
+  .rng-title-reveal[data-tier="epic"][data-reveal-mode="result"] .rng-reveal-visual { width: 116px; height: 116px; margin-left: 3px; left: 8px; }
+  .rng-title-reveal[data-tier="epic"][data-reveal-mode="result"] .rng-reveal-crystal-frame { width: 100px; height: 100px; }
+  .rng-title-reveal[data-tier="unique"][data-reveal-mode="discovery"] .rng-reveal-card { grid-template-columns: 125px minmax(0, 1fr); }
+  .rng-title-reveal[data-tier="unique"][data-reveal-mode="discovery"] .rng-reveal-visual { width: 124px; height: 140px; margin-block: 8px; }
+  .rng-title-reveal[data-tier="unique"][data-reveal-mode="discovery"] .rng-reveal-crystal-frame { width: 93%; height: 93%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal:not(.debug-force-motion):is([data-tier="epic"],[data-tier="unique"]) .rng-reveal-crystal-frame .ntc-rng-icon > img {
+    animation: none !important;
+  }
+}
+
+/* Card-scale hierarchy: rarity odds should read immediately after the title. */
+.rng-title-reveal[data-reveal-mode="result"][data-tier="basic"] .rng-reveal-card {
+  width: min(680px, calc(100vw - 28px));
+  min-height: 278px;
+  grid-template-columns: 168px minmax(0, 1fr);
+  grid-template-rows: 52px minmax(164px, 1fr) 62px;
+  background: radial-gradient(ellipse 54% 74% at 19% 53%, rgba(133,114,92,.12), transparent 75%), linear-gradient(145deg, #181719, #101012 74%);
+}
+.rng-title-reveal[data-reveal-mode="result"][data-tier="basic"] .rng-reveal-visual { width: 154px; height: 154px; margin: 5px 0 5px 10px; }
+.rng-title-reveal[data-reveal-mode="result"][data-tier="basic"] .rng-reveal-crystal-frame { width: 126px; height: 126px; }
+.rng-title-reveal[data-reveal-mode="result"][data-tier="basic"] .rng-reveal-copy { gap: 8px; padding: 15px 25px 15px 0; }
+.rng-title-reveal[data-reveal-mode="result"][data-tier="basic"] .rng-reveal-label { font-size: 10px; }
+.rng-title-reveal[data-reveal-mode="result"][data-tier="basic"] #rngUnlockTitle { font-size: clamp(21px, 2.5vw, 26px); }
+.rng-title-reveal[data-reveal-mode="result"][data-tier="basic"] .rng-reveal-caption { font-size: 12px; }
+.rng-title-reveal[data-reveal-mode="result"][data-tier="basic"] #rngUnlockDetails,
+.rng-title-reveal[data-reveal-mode="result"][data-tier="epic"] #rngUnlockDetails {
+  margin-top: 6px;
+  padding: 7px 12px;
+  border-color: color-mix(in srgb, var(--rng-reveal-accent) 29%, #30292a);
+  color: #ded4cf;
+  background: color-mix(in srgb, var(--rng-reveal-accent) 8%, #181516);
+  font-size: 13px;
+  font-weight: 650;
+}
+.rng-title-reveal[data-reveal-mode="discovery"] #rngUnlockDetails {
+  margin-top: 10px;
+  padding: 8px 14px;
+  border-color: color-mix(in srgb, var(--rng-reveal-accent) 30%, #30292a);
+  color: #e0d2d0;
+  background: color-mix(in srgb, var(--rng-reveal-accent) 7%, #181516);
+  font: 650 clamp(17px, 1.8vw, 22px)/1.25 var(--mono, monospace);
+  letter-spacing: .025em;
+}
+.rng-title-reveal[data-reveal-mode="discovery"][data-tier="legendary"] .rng-reveal-card {
+  grid-template-columns: minmax(350px, 1fr) minmax(0, 1.2fr);
+}
+.rng-title-reveal[data-reveal-mode="discovery"][data-tier="legendary"] .rng-reveal-visual {
+  width: clamp(300px, 33vw, 350px);
+  height: clamp(300px, 33vw, 350px);
+}
+.rng-title-reveal[data-reveal-mode="discovery"][data-tier="legendary"] .rng-reveal-crystal-frame { width: 94%; height: 94%; }
+
+/* A special relic reward is one composition, not an icon parked away from its copy. */
+.rng-title-reveal[data-reveal-mode="result"][data-event-kind="special"] .rng-reveal-card {
+  grid-template-columns: 112px minmax(0, 1fr);
+}
+.rng-title-reveal[data-reveal-mode="result"][data-event-kind="special"] .rng-reveal-visual {
+  width: 104px;
+  height: 104px;
+  margin: 8px 0 8px 6px;
+}
+.rng-title-reveal[data-reveal-mode="result"][data-event-kind="special"] .rng-reveal-crystal-frame { width: 96px; height: 96px; }
+.rng-title-reveal[data-reveal-mode="result"][data-event-kind="special"] .rng-reveal-copy { gap: 7px; padding: 13px 18px 13px 2px; }
+
+/* Every RNG section gets a real, consistently aligned navigation mark. */
+.rng-section-tabs button { min-height: 38px; gap: 9px; padding-inline: 13px; font-size: 12px; }
+.rng-section-tab-icon { width: 25px; height: 25px; flex-basis: 25px; }
+.rng-section-tab-icon > .ntc-rng-icon { width: 25px; height: 25px; }
+.rng-section-tab-icon > .ntc-rng-icon > svg { width: 100%; height: 100%; stroke-width: 1.7; }
+@media (max-width: 700px) {
+  .rng-title-reveal[data-reveal-mode="result"][data-tier="basic"] .rng-reveal-card { grid-template-columns: 126px minmax(0, 1fr); }
+  .rng-title-reveal[data-reveal-mode="result"][data-tier="basic"] .rng-reveal-visual { width: 122px; height: 132px; margin-left: 4px; }
+  .rng-title-reveal[data-reveal-mode="result"][data-tier="basic"] .rng-reveal-crystal-frame { width: 112px; height: 112px; }
+  .rng-title-reveal[data-reveal-mode="result"][data-tier="basic"] .rng-reveal-copy { padding-right: 15px; }
+  .rng-title-reveal[data-reveal-mode="result"][data-event-kind="special"] .rng-reveal-card { grid-template-columns: 100px minmax(0, 1fr); }
+  .rng-title-reveal[data-reveal-mode="result"][data-event-kind="special"] .rng-reveal-visual { width: 94px; height: 100px; margin-left: 2px; }
+  .rng-title-reveal[data-reveal-mode="result"][data-event-kind="special"] .rng-reveal-crystal-frame { width: 88px; height: 88px; }
+  .rng-title-reveal[data-reveal-mode="discovery"][data-tier="legendary"] .rng-reveal-card { grid-template-columns: minmax(150px, 40%) minmax(0, 1fr); }
+  .rng-title-reveal[data-reveal-mode="discovery"][data-tier="legendary"] .rng-reveal-visual { width: clamp(150px, 38vw, 230px); height: clamp(170px, 40vw, 245px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal.show[data-reveal-mode="scene"] .rng-reveal-visual,
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal.show[data-reveal-mode="event"] .rng-reveal-art-host,
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal.show[data-reveal-mode="event"] .rng-reveal-ntc-fracture { animation: none !important; }
+}
+
+/* Mítico, Exaltado and Glorioso share the game's stage language without
+   borrowing the exclusive full-screen signatures of the final rarities. */
+.rng-title-reveal[data-reveal-mode="scene"] {
+  --rng-scene-ease: cubic-bezier(.23, 1, .32, 1);
+  --rng-copy-delay: 180ms;
+  --rng-settled-surface: brightness(1.04) contrast(1.03) drop-shadow(0 0 9px rgba(135,84,90,.2));
+  --rng-scene-ink: #100c0e;
+  --rng-scene-trace: rgba(178,131,134,.23);
+  isolation: isolate;
+  overflow: hidden;
+  padding: 0;
+  background: linear-gradient(115deg, #070709, var(--rng-scene-ink) 47%, #070709);
+}
+.rng-title-reveal[data-reveal-mode="scene"][data-reveal-identity="exalted"] {
+  --rng-scene-ink: #0e0d10;
+  --rng-scene-trace: rgba(172,161,166,.25);
+}
+.rng-title-reveal[data-reveal-mode="scene"][data-reveal-identity="glorious"] {
+  --rng-scene-ink: #110d0d;
+  --rng-scene-trace: rgba(190,151,132,.26);
+}
+.rng-title-reveal[data-reveal-mode="scene"]::before {
+  z-index: 0;
+  background: linear-gradient(125deg, transparent 21%, var(--rng-scene-trace) 50%, transparent 77%);
+  opacity: .28;
+}
+.rng-title-reveal.show[data-reveal-mode="scene"]::before {
+  animation: rng-upper-room-arrive 1.5s var(--rng-scene-ease) 1 both;
+}
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-card,
+.rng-title-reveal.show[data-reveal-mode="scene"] .rng-reveal-card {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+.rng-title-reveal.show[data-reveal-phase="reveal"][data-reveal-mode="scene"] .rng-reveal-card { animation: none; }
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-card::before { content: none; }
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-topline {
+  position: absolute;
+  z-index: 6;
+  top: clamp(22px, 5dvh, 55px);
+  left: 50%;
+  display: flex;
+  width: auto;
+  min-height: 0;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  transform: translateX(-50%);
+}
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-brand { display: none; }
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-tier {
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: #c4aaa8;
+  background: none;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .32em;
+  text-shadow: 0 0 18px rgba(134,83,88,.25);
+}
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-visual,
+.rng-title-reveal.show[data-reveal-mode="scene"] .rng-reveal-visual {
+  position: absolute;
+  z-index: 3;
+  top: 39%;
+  left: 50%;
+  width: min(38dvh, 390px);
+  height: min(38dvh, 390px);
+  margin: 0;
+  opacity: 1;
+  transform: translate(-50%,-50%) scale(1.025);
+  transition: none;
+}
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-visual::before,
+.rng-title-reveal.show[data-reveal-mode="scene"] .rng-reveal-visual::before { display: none; animation: none; }
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-crystal-frame {
+  width: 88%;
+  height: 88%;
+  filter: none;
+}
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-crystal-frame .ntc-rng-icon > img {
+  filter: var(--rng-settled-surface);
+}
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-icon-shimmer { display: none; }
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-copy {
+  position: absolute;
+  z-index: 5;
+  top: 61%;
+  left: 50%;
+  display: grid;
+  width: min(800px, calc(100vw - 48px));
+  justify-items: center;
+  gap: clamp(8px, 1.2dvh, 13px);
+  padding: 0;
+  text-align: center;
+  transform: translateX(-50%);
+}
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-label {
+  color: #a78689;
+  font-size: 10px;
+  letter-spacing: .25em;
+}
+.rng-title-reveal[data-reveal-mode="scene"] #rngUnlockTitle {
+  max-width: min(23ch, 100%);
+  color: #f1eceb;
+  font-size: clamp(32px, 4.3vw, 58px);
+  font-weight: 760;
+  line-height: 1.06;
+  letter-spacing: -.04em;
+  text-wrap: balance;
+  text-shadow: 0 2px 22px rgba(0,0,0,.55);
+}
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.rng-title-reveal[data-reveal-mode="scene"] #rngUnlockDetails {
+  display: block;
+  max-width: 100%;
+  margin: 2px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: #d2b8b6;
+  background: none;
+  box-shadow: none;
+  font: 650 clamp(17px, 1.7vw, 23px)/1.25 var(--mono, monospace);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .045em;
+  overflow-wrap: anywhere;
+  text-shadow: 0 0 20px rgba(154,100,107,.18);
+}
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-footer {
+  position: absolute;
+  z-index: 6;
+  right: auto;
+  bottom: clamp(17px, 3.5dvh, 40px);
+  left: 50%;
+  display: flex;
+  width: auto;
+  min-height: 0;
+  align-items: center;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  transform: translateX(-50%);
+}
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-continue {
+  order: -1;
+  min-width: 146px;
+  min-height: 42px;
+  border: 1px solid rgba(197,168,165,.42);
+  border-radius: 9px;
+  color: #f3e9e7;
+  background: linear-gradient(150deg, rgba(65,44,48,.89), rgba(31,25,28,.97));
+  box-shadow: inset 0 1px rgba(255,255,255,.11);
+}
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-continue:focus-visible { outline: 2px solid #ead8d6; outline-offset: 4px; }
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-footer-status { justify-items: center; gap: 3px; opacity: .63; }
+.rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-footnote { font-size: 10px; }
+.rng-title-reveal.show[data-reveal-mode="scene"] .rng-reveal-visual {
+  animation: rng-upper-object-arrive 1.6s var(--rng-scene-ease) 1 both;
+}
+.rng-title-reveal.show[data-reveal-mode="scene"] .rng-reveal-crystal-frame .ntc-rng-icon > img {
+  animation: rng-relic-light-idle 7.2s ease-in-out infinite;
+}
+@keyframes rng-upper-room-arrive { 0% { opacity: .12; } 45% { opacity: .42; } 100% { opacity: .28; } }
+@keyframes rng-upper-object-arrive {
+  0% { opacity: .68; }
+  48% { opacity: .94; }
+  100% { opacity: 1; }
+}
+
+/* Reveal fades the artwork wrapper; the raster's geometry remains fixed. */
+.rng-title-reveal.show[data-reveal-band="1"] .rng-reveal-art-host { animation: rng-art-materialize .46s cubic-bezier(.23,1,.32,1) both; }
+.rng-title-reveal.show[data-reveal-band="2"] .rng-reveal-art-host { animation: rng-art-materialize .78s cubic-bezier(.23,1,.32,1) both; }
+.rng-title-reveal.show[data-reveal-band="3"] .rng-reveal-art-host { animation: rng-art-materialize 1.15s cubic-bezier(.23,1,.32,1) both; }
+.rng-title-reveal.show[data-reveal-mode="scene"] .rng-reveal-art-host { animation: rng-art-materialize 1.25s cubic-bezier(.23,1,.32,1) both; }
+.rng-title-reveal.show[data-reveal-mode="event"] .rng-reveal-art-host { animation: rng-art-materialize 1.5s cubic-bezier(.23,1,.32,1) both; }
+.rng-title-reveal.show[data-reveal-mode="scene"] .rng-reveal-visual { animation: rng-upper-object-arrive 1.6s cubic-bezier(.23,1,.32,1) both; }
+@keyframes rng-art-materialize {
+  0% { opacity: 0; }
+  18% { opacity: .46; }
+  58% { opacity: .91; }
+  100% { opacity: 1; }
+}
+
+/* One-shot particle paths are renewed individually and continue through idle. */
+.rng-reveal-particles-back i { filter: blur(.35px); }
+.rng-reveal-particles-front i { box-shadow: 0 0 7px color-mix(in srgb, var(--rng-reveal-accent) 46%, transparent); }
+
+html:is([data-rng-reveal-motion="reduced"], [data-rng-reveal-motion="off"]) .rng-title-reveal:not(.debug-force-motion) .rng-reveal-art-host,
+html:is([data-rng-reveal-motion="reduced"], [data-rng-reveal-motion="off"]) .rng-title-reveal:not(.debug-force-motion) .rng-reveal-art-host .ntc-rng-icon > img { animation: none !important; opacity: 1 !important; }
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal:not(.debug-force-motion) .rng-reveal-art-host,
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal:not(.debug-force-motion) .rng-reveal-art-host .ntc-rng-icon > img { animation: none !important; opacity: 1 !important; }
+}
+
+/* Beyond keeps a unique, stationary rupture; only its light breathes. */
+.rng-title-reveal.show[data-reveal-mode="event"][data-reveal-identity="beyond"] .rng-reveal-ntc-fracture {
+  animation: rng-beyond-rupture 14s ease-in-out 900ms infinite;
+}
+@keyframes rng-beyond-rupture {
+  0%, 100% { opacity: .08; }
+  23% { opacity: .24; }
+  53% { opacity: .31; }
+  78% { opacity: .18; }
+}
+.rng-title-reveal[data-reveal-mode="event"] {
+  --rng-scene-ease: cubic-bezier(.23, 1, .32, 1);
+  --rng-copy-delay: 620ms;
+  --rng-settled-surface: brightness(1.05) contrast(1.02) drop-shadow(0 0 10px rgba(125,76,86,.18));
+  isolation: isolate;
+  overflow: hidden;
+  padding: 0;
+  background: #09080a;
+}
+.rng-title-reveal[data-reveal-mode="event"]::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  opacity: 1;
+  animation: none;
+}
+.rng-title-reveal.show[data-reveal-mode="event"]::before {
+  opacity: 1;
+  animation: none;
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-card,
+.rng-title-reveal.show[data-reveal-mode="event"] .rng-reveal-card {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  max-height: none;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+.rng-title-reveal.show[data-reveal-phase="reveal"][data-reveal-mode="event"] .rng-reveal-card {
+  /* The old full-screen card animation painted a second backdrop, then
+     removed it abruptly when the phase changed. The scene owns its backdrop. */
+  animation: none;
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-card::before { content: none; }
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-topline {
+  position: absolute;
+  z-index: 6;
+  top: clamp(23px, 6dvh, 68px);
+  left: 50%;
+  display: flex;
+  width: auto;
+  min-height: 0;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  transform: translateX(-50%);
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-brand { display: none; }
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-tier {
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: #c9aaa9;
+  background: none;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .36em;
+  text-shadow: 0 0 22px rgba(127,75,81,.4);
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-visual,
+.rng-title-reveal.show[data-reveal-mode="event"] .rng-reveal-visual {
+  position: absolute;
+  z-index: 3;
+  top: 40%;
+  left: 50%;
+  width: min(44dvh, 440px);
+  height: min(44dvh, 440px);
+  margin: 0;
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1.035);
+  transition: none;
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-visual::before {
+  display: none;
+}
+.rng-title-reveal.show[data-reveal-mode="event"][data-reveal-band="5"] .rng-reveal-visual::before {
+  animation: none;
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-crystal-frame {
+  width: 88%;
+  height: 88%;
+  filter: none;
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-crystal-frame .ntc-rng-icon > img {
+  filter: var(--rng-settled-surface);
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-icon-shimmer { display: none; }
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-copy {
+  position: absolute;
+  z-index: 5;
+  top: 62%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  display: grid;
+  width: min(900px, calc(100vw - 48px));
+  justify-items: center;
+  gap: clamp(8px, 1.3dvh, 14px);
+  padding: 0;
+  text-align: center;
+  transform: translateX(-50%);
+  transition: none;
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-label { display: none; }
+.rng-title-reveal[data-reveal-mode="event"] #rngUnlockTitle {
+  max-width: min(21ch, 100%);
+  margin: 0;
+  color: #f2eeee;
+  font-size: clamp(38px, 5vw, 68px);
+  font-weight: 760;
+  line-height: 1.04;
+  letter-spacing: -.045em;
+  overflow-wrap: break-word;
+  text-shadow: 0 3px 28px rgba(0,0,0,.7), 0 0 36px rgba(126,79,84,.12);
+  text-wrap: balance;
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.rng-title-reveal[data-reveal-mode="event"] #rngUnlockDetails {
+  display: block;
+  max-width: 100%;
+  margin: clamp(4px, 1dvh, 12px) 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  color: #decac8;
+  background: none;
+  box-shadow: none;
+  font: 650 clamp(18px, 2vw, 26px)/1.25 var(--mono, monospace);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .045em;
+  overflow-wrap: anywhere;
+  text-shadow: 0 0 26px rgba(170,105,108,.32);
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-footer {
+  position: absolute;
+  z-index: 6;
+  right: auto;
+  bottom: clamp(18px, 3.8dvh, 44px);
+  left: 50%;
+  display: flex;
+  width: auto;
+  min-height: 0;
+  align-items: center;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  transform: translateX(-50%);
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-continue {
+  order: -1;
+  min-width: 155px;
+  min-height: 43px;
+  border: 1px solid rgba(215,184,181,.51);
+  border-radius: 9px;
+  color: #f4eae8;
+  background: linear-gradient(150deg, rgba(78,52,57,.86), rgba(38,29,32,.95));
+  box-shadow: inset 0 1px rgba(255,255,255,.14);
+  font-size: 13px;
+  letter-spacing: .02em;
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-continue:hover { background: linear-gradient(150deg, #69464b, #3d3034); }
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-continue:focus-visible { outline: 2px solid #ead8d6; outline-offset: 4px; }
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-footer-status {
+  justify-items: center;
+  gap: 3px;
+  opacity: .66;
+}
+.rng-title-reveal[data-reveal-mode="event"] .rng-reveal-footnote { font-size: 10px; }
+.rng-title-reveal.show[data-reveal-mode="event"] .rng-reveal-crystal-frame .ntc-rng-icon > img {
+  animation: rng-relic-light-idle 8.4s ease-in-out infinite;
+}
+@keyframes rng-relic-light-idle {
+  0%, 100% { filter: brightness(1.025) contrast(1.015) saturate(1); }
+  50% { filter: brightness(1.18) contrast(1.04) saturate(1.06) drop-shadow(0 0 11px rgba(157,79,88,.28)); }
+}
+
+/* Abissal: a profundidade e as cinzas são absorvidas pelo núcleo. */
+.rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="abyssal"] {
+  --rng-settled-surface: brightness(1.05) contrast(1.02) drop-shadow(0 0 12px rgba(125,69,82,.2));
+  background: linear-gradient(90deg, #130e12, #08090b 27% 73%, #130e12);
+}
+.rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="abyssal"]::before {
+  background: linear-gradient(90deg, rgba(89,50,59,.09), transparent 30% 70%, rgba(81,44,53,.1)), linear-gradient(180deg, rgba(9,9,12,.3), transparent 30% 66%, rgba(2,2,4,.4));
+}
+/* Inominável: inscrições e planos da relíquia quase se encaixam. */
+.rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="unnamable"] {
+  --rng-copy-delay: 760ms;
+  --rng-settled-surface: brightness(1.04) contrast(1.02) drop-shadow(0 0 10px rgba(125,76,86,.18));
+  background: linear-gradient(115deg, #100b0e, #1a1016 49%, #080709 76%, #0d090c);
+}
+.rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="unnamable"]::before {
+  background: linear-gradient(137deg, rgba(115,67,75,.11), transparent 33% 60%, rgba(97,57,67,.09) 84%, transparent), linear-gradient(42deg, transparent 31%, rgba(160,116,119,.035) 49%, transparent 51%);
+}
+.rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="unnamable"] .rng-reveal-visual { left: 50%; }
+.rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="unnamable"] .rng-reveal-copy { left: 50%; }
+/* Além do NTC: an exclusive discontinuous tear precedes the object. */
+.rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="beyond"] {
+  --rng-copy-delay: 1180ms;
+  --rng-settled-surface: brightness(1.05) contrast(1.02) drop-shadow(0 0 10px rgba(143,80,101,.17));
+  background: #050506;
+}
+.rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="beyond"]::before {
+  background: linear-gradient(106deg, transparent 44%, rgba(63,39,47,.06) 49%, transparent 54%);
+  opacity: 1;
+}
+.rng-title-reveal[data-reveal-identity="beyond"] .rng-reveal-tier {
+  color: #d7b7be;
+  letter-spacing: .43em;
+}
+.rng-title-reveal[data-reveal-identity="beyond"] #rngUnlockTitle { color: #faf3f2; }
+.rng-title-reveal[data-reveal-identity="beyond"] #rngUnlockDetails {
+  color: #f1dce0;
+  font-size: clamp(20px, 2.3vw, 29px);
+}
+.rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="beyond"] .rng-reveal-ntc-fracture {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  opacity: .24;
+  pointer-events: none;
+}
+.rng-title-reveal[data-reveal-identity="beyond"] .rng-reveal-ntc-fracture::before {
+  position: absolute;
+  top: -12%;
+  left: 50%;
+  width: clamp(22px, 5vw, 78px);
+  height: 125%;
+  background: linear-gradient(90deg, transparent 0 17%, rgba(207,157,172,.38) 19%, rgba(12,7,10,.92) 25% 65%, rgba(220,183,191,.3) 71%, transparent 78%);
+  clip-path: polygon(42% 0, 68% 13%, 34% 26%, 75% 41%, 38% 55%, 63% 70%, 27% 86%, 54% 100%, 5% 100%, 8% 82%, 0 70%, 15% 53%, 4% 40%, 20% 22%, 9% 9%);
+  content: "";
+  filter: drop-shadow(0 0 26px rgba(165,94,115,.2));
+  transform: translateX(-50%) rotate(13deg);
+}
+.rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="beyond"] .rng-reveal-ntc-fracture i {
+  position: absolute;
+  display: block;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(228,183,192,.38), transparent);
+  transform-origin: center;
+}
+.rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="beyond"] .rng-reveal-ntc-fracture i:first-child {
+  --rng-beam-angle: -25deg;
+  top: 34%; left: 39%; width: 32vw; transform: rotate(var(--rng-beam-angle));
+}
+.rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="beyond"] .rng-reveal-ntc-fracture i:nth-child(2) {
+  --rng-beam-angle: 37deg;
+  top: 58%; left: 49%; width: 22vw; transform: rotate(var(--rng-beam-angle));
+}
+.rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="beyond"] .rng-reveal-ntc-fracture i:nth-child(3) {
+  --rng-beam-angle: -11deg;
+  top: 73%; left: 36%; width: 13vw; transform: rotate(var(--rng-beam-angle));
+}
+@media (max-width: 700px) {
+  .rng-title-reveal[data-reveal-mode="event"] .rng-reveal-card { width: 100%; height: 100dvh; max-height: none; padding: 0; overflow: hidden; }
+  .rng-title-reveal[data-reveal-mode="event"] .rng-reveal-topline { top: 4.2dvh; }
+  .rng-title-reveal[data-reveal-mode="event"] .rng-reveal-visual,
+  .rng-title-reveal.show[data-reveal-mode="event"] .rng-reveal-visual { top: 36%; width: min(36dvh, 72vw, 310px); height: min(36dvh, 72vw, 310px); margin: 0; }
+  .rng-title-reveal[data-reveal-mode="event"] .rng-reveal-copy { top: 59%; width: calc(100vw - 30px); gap: 7px; }
+  .rng-title-reveal[data-reveal-mode="event"] #rngUnlockTitle { max-width: 19ch; font-size: clamp(30px, 7.4vw, 46px); }
+  .rng-title-reveal[data-reveal-mode="event"] #rngUnlockDetails { font-size: clamp(17px, 4.2vw, 21px); }
+  .rng-title-reveal[data-reveal-mode="event"] .rng-reveal-footer { bottom: 3dvh; }
+  .rng-title-reveal[data-reveal-mode="event"] .rng-reveal-continue { min-width: 135px; min-height: 40px; }
+  .rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="unnamable"] .rng-reveal-visual { left: 50%; }
+  .rng-title-reveal[data-reveal-mode="event"][data-reveal-identity="unnamable"] .rng-reveal-copy { left: 50%; }
+}
+@media (max-height: 660px) {
+  .rng-title-reveal[data-reveal-mode="event"] .rng-reveal-topline { top: 3.5dvh; }
+  .rng-title-reveal[data-reveal-mode="event"] .rng-reveal-visual,
+  .rng-title-reveal.show[data-reveal-mode="event"] .rng-reveal-visual { top: 35%; width: min(32dvh, 72vw, 270px); height: min(32dvh, 72vw, 270px); }
+  .rng-title-reveal[data-reveal-mode="event"] .rng-reveal-copy { top: 56%; }
+  .rng-title-reveal[data-reveal-mode="event"] #rngUnlockTitle { font-size: clamp(27px, 5dvh, 43px); }
+  .rng-title-reveal[data-reveal-mode="event"] #rngUnlockDetails { margin-top: 2px; font-size: clamp(16px, 3.2dvh, 20px); }
+  .rng-title-reveal[data-reveal-mode="event"] .rng-reveal-footer { bottom: 2dvh; gap: 4px; }
+  .rng-title-reveal[data-reveal-mode="event"] .rng-reveal-continue { min-height: 36px; }
+}
+
+@media (max-width: 700px) {
+  .rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-card { width: 100%; height: 100dvh; max-height: none; padding: 0; overflow: hidden; }
+  .rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-topline { top: 4.2dvh; }
+  .rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-visual,
+  .rng-title-reveal.show[data-reveal-mode="scene"] .rng-reveal-visual { top: 36%; width: min(34dvh, 70vw, 300px); height: min(34dvh, 70vw, 300px); margin: 0; }
+  .rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-copy { top: 59%; width: calc(100vw - 30px); gap: 7px; padding: 0; }
+  .rng-title-reveal[data-reveal-mode="scene"] #rngUnlockTitle { max-width: 19ch; font-size: clamp(29px, 7vw, 43px); }
+  .rng-title-reveal[data-reveal-mode="scene"] #rngUnlockDetails { font-size: clamp(16px, 4vw, 20px); }
+  .rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-footer { bottom: 3dvh; padding: 0; }
+}
+@media (max-height: 660px) {
+  .rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-topline { top: 3.5dvh; }
+  .rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-visual,
+  .rng-title-reveal.show[data-reveal-mode="scene"] .rng-reveal-visual { top: 35%; width: min(30dvh, 70vw, 270px); height: min(30dvh, 70vw, 270px); }
+  .rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-copy { top: 57%; }
+  .rng-title-reveal[data-reveal-mode="scene"] #rngUnlockTitle { font-size: clamp(26px, 5dvh, 42px); }
+  .rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-footer { bottom: 2dvh; gap: 4px; }
+  .rng-title-reveal[data-reveal-mode="scene"] .rng-reveal-continue { min-height: 36px; }
+}
+
+html[data-rng-reveal-motion="reduced"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"] *,
+html[data-rng-reveal-motion="off"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"] *,
+html[data-rng-reveal-motion="reduced"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"]::before,
+html[data-rng-reveal-motion="off"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"]::before,
+html[data-rng-reveal-motion="reduced"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"] .rng-reveal-visual::before,
+html[data-rng-reveal-motion="off"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"] .rng-reveal-visual::before,
+html[data-rng-reveal-motion="reduced"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"] .rng-reveal-ntc-fracture,
+html[data-rng-reveal-motion="off"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"] .rng-reveal-ntc-fracture {
+  animation: none !important;
+  transition: none !important;
+}
+html[data-rng-reveal-motion="reduced"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="scene"] *,
+html[data-rng-reveal-motion="off"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="scene"] *,
+html[data-rng-reveal-motion="reduced"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="scene"]::before,
+html[data-rng-reveal-motion="off"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="scene"]::before,
+html[data-rng-reveal-motion="reduced"] .rng-title-reveal:not(.debug-force-motion) .rng-reveal-art-host .ntc-rng-icon::before,
+html[data-rng-reveal-motion="off"] .rng-title-reveal:not(.debug-force-motion) .rng-reveal-art-host .ntc-rng-icon::before,
+html[data-rng-reveal-motion="reduced"] .rng-title-reveal:not(.debug-force-motion) .rng-reveal-art-host .ntc-rng-icon::after,
+html[data-rng-reveal-motion="off"] .rng-title-reveal:not(.debug-force-motion) .rng-reveal-art-host .ntc-rng-icon::after {
+  animation: none !important;
+  transition: none !important;
+}
+/* Motion-off keeps the final composition centered; the global motion rule
+   removes transforms from descendants unless these spatial transforms win. */
+html[data-rng-reveal-motion="reduced"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="scene"] .rng-reveal-visual,
+html[data-rng-reveal-motion="off"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="scene"] .rng-reveal-visual { transform: translate(-50%,-50%) scale(1.025); }
+html[data-rng-reveal-motion="reduced"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"] .rng-reveal-visual,
+html[data-rng-reveal-motion="off"] .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"] .rng-reveal-visual { transform: translate(-50%,-50%) scale(1.035); }
+html[data-rng-reveal-motion="reduced"] .rng-title-reveal:not(.debug-force-motion):is([data-reveal-mode="scene"],[data-reveal-mode="event"]) .rng-reveal-topline,
+html[data-rng-reveal-motion="off"] .rng-title-reveal:not(.debug-force-motion):is([data-reveal-mode="scene"],[data-reveal-mode="event"]) .rng-reveal-topline,
+html[data-rng-reveal-motion="reduced"] .rng-title-reveal:not(.debug-force-motion):is([data-reveal-mode="scene"],[data-reveal-mode="event"]) .rng-reveal-copy,
+html[data-rng-reveal-motion="off"] .rng-title-reveal:not(.debug-force-motion):is([data-reveal-mode="scene"],[data-reveal-mode="event"]) .rng-reveal-copy,
+html[data-rng-reveal-motion="reduced"] .rng-title-reveal:not(.debug-force-motion):is([data-reveal-mode="scene"],[data-reveal-mode="event"]) .rng-reveal-footer,
+html[data-rng-reveal-motion="off"] .rng-title-reveal:not(.debug-force-motion):is([data-reveal-mode="scene"],[data-reveal-mode="event"]) .rng-reveal-footer { transform: translateX(-50%); }
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="scene"] *,
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="scene"]::before,
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal:not(.debug-force-motion) .rng-reveal-art-host .ntc-rng-icon::before,
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal:not(.debug-force-motion) .rng-reveal-art-host .ntc-rng-icon::after,
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"] *,
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"]::before,
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"] .rng-reveal-visual::before,
+  html:not([data-rng-reveal-motion="full"]) .rng-title-reveal:not(.debug-force-motion)[data-reveal-mode="event"] .rng-reveal-ntc-fracture {
+    animation: none !important;
+    transition: none !important;
+  }
+}

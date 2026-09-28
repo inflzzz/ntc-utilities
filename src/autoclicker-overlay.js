@@ -39,8 +39,8 @@
   function drawZone(zone, index, highlighted) {
     const palette = {
       stop: { stroke: '#ff6b67', fill: '#ff4d4330', title: 'Parar' },
-      pause: { stroke: '#ffc857', fill: '#ffc85730', title: 'Pausar' },
-      start: { stroke: '#63dc9a', fill: '#63dc9a30', title: 'Retomar' }
+      pause: { stroke: '#a98fc9', fill: '#a98fc930', title: 'Pausar' },
+      start: { stroke: '#c3afe0', fill: '#c3afe030', title: 'Retomar' }
     };
     const color = palette[zone.action] || palette.stop;
     ctx.save();
@@ -55,7 +55,7 @@
   }
 
   function drawPoint(point, index, highlighted) {
-    const color = highlighted ? '#fff27a' : '#73c7ff';
+    const color = highlighted ? '#d4c4e9' : '#8f78ae';
     ctx.save();
     ctx.shadowColor = '#000';
     ctx.shadowBlur = 8;
@@ -85,7 +85,7 @@
 
   function drawCursor(point, kind, drawing) {
     if (!point) return;
-    const color = kind === 'zone' ? '#89f0bb' : '#8bd0ff';
+    const color = kind === 'zone' ? '#b59bd5' : '#9d87bb';
     ctx.save();
     ctx.shadowColor = '#000';
     ctx.shadowBlur = 5;
@@ -117,14 +117,14 @@
       const top = Math.min(state.start.y, state.cursor.y);
       const width = Math.abs(state.start.x - state.cursor.x);
       const height = Math.abs(state.start.y - state.cursor.y);
-      ctx.fillStyle = '#68d99c35';
+      ctx.fillStyle = '#8e72b035';
       ctx.fillRect(left, top, width, height);
-      ctx.strokeStyle = '#8affbc';
+      ctx.strokeStyle = '#b59bd5';
       ctx.lineWidth = 2;
       ctx.setLineDash([8, 4]);
       ctx.strokeRect(left, top, width, height);
       ctx.setLineDash([]);
-      label(`${Math.round(width)} × ${Math.round(height)} px`, left + 7, top - 31, '#8affbc');
+      label(`${Math.round(width)} × ${Math.round(height)} px`, left + 7, top - 31, '#b59bd5');
     }
 
     if (state.mode === 'picker') drawCursor(state.cursor, state.kind, state.drawing);

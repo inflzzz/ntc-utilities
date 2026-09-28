@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0 — NTC Utilities · 28 set. 2026
+
+- **NTC RNG em manutenção:** o jogo continua na navegação, mas abre apenas a tela de manutenção. O código e o progresso existente foram preservados.
+- **Editor de vídeo:** workspace com timeline, prévia, propriedades e exportação; navegação global recolhida enquanto o editor está aberto. A implementação do editor não foi alterada nesta rodada de consolidação.
+- **Editor de áudio multifaixa:** importação de stems, mixagem em um único WAV/MP3, régua e zoom da timeline, playhead e reprodução baseada em relógio monotônico para manter a posição ao minimizar/restaurar. Exportação agora diferencia progresso, conclusão, cancelamento e erro, com Abrir pasta e Tentar novamente.
+- O **Editor de áudio clássico** permanece acessível: formatos, efeitos, marcadores, metadados e fila ainda não têm paridade integral no multifaixa.
+- **Área de transferência:** imagens aparecem como miniaturas proporcionais diretamente no histórico, carregadas sob demanda; links copiados são identificados e ações secundárias ficam em um menu compacto. Os dados continuam locais.
+- **Ergonomia:** áreas de arrastar arquivos nos conversores e no compressor agora têm identificação e foco de teclado claros; mensagens de falha orientam a usar o seletor correto.
+- Incluídas ferramentas locais de documentos, PDF, estudos e segurança, além de refinamentos de navegação e estabilidade nas utilidades.
+
 ## 0.8.0 — NTC Utilities · 24 set. 2026
 
 - **Player de música:** importação de arquivos individuais; edição do nome, descrição e capa de playlists; reordenação de faixas.

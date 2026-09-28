@@ -2,9 +2,10 @@ const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const splash = $('#splash'); const appShell = $('#appShell'); const loadingProgress = $('#loadingProgress'); const loadingTrack = $('.loading-line');
 const previouslySeenAppVersion = localStorage.getItem('ntc-last-seen-changelog-version');
-const hadExistingAppData = ['ntc-folder', 'ntc-history', 'ntc-download-queue', 'ntc-theme', 'ntc-screenshot-folder', 'ntc-qr-history'].some(key => localStorage.getItem(key) !== null);
+const hadExistingAppData = ['ntc-folder', 'ntc-history', 'ntc-download-queue', 'ntc-theme', 'ntc-screenshot-folder', 'ntc-qr-history', 'ntc-security-history'].some(key => localStorage.getItem(key) !== null);
 const history = JSON.parse(localStorage.getItem('ntc-history') || '[]');
 const qrHistory = (() => { try { return JSON.parse(localStorage.getItem('ntc-qr-history') || '[]').slice(0, 50); } catch { return []; } })();
+const securityHistory = (() => { try { const entries = JSON.parse(localStorage.getItem('ntc-security-history') || '[]'); return Array.isArray(entries) ? entries.filter(item => item && typeof item === 'object' && typeof item.file === 'string').slice(0, 100) : []; } catch { return []; } })();
 let folder = localStorage.getItem('ntc-folder') || '';
 let queue = (() => { try { return JSON.parse(localStorage.getItem('ntc-download-queue') || '[]').map(item => ({ ...item, status: item.status === 'baixando' ? 'pausado' : item.status, percent: 0 })); } catch { return []; } })(); let current = null; let preview = null; let playlist = null; let previewTimer; const abortedDownloads = new Set(); const pausedDownloads = new Set();
 let conversionQueue = []; let currentConversion = null; let editingConversionId = null; const abortedConversions = new Set();
@@ -17,9 +18,74 @@ let screenRecorderStarting = false;
 let screenshotCaptureBusy = false;
 let compressionQueue = []; let compressionRunning = false;
 let qrQueue = []; let qrRunning = false; let qrPreparing = false; let qrCancelRequested = false; let qrSelectedId = null; let qrPreviewTimer = null; let qrPreviewRequestId = 0;
-let videoEdit = { source: null, meta: null, cuts: [], audioTracks: [], selectionStart: 0, selectionEnd: 0, outputName: '', exporting: false }; let videoEditDrag = null; let videoEditWaveform = [];
-let rngState = null; let rngSelectedTier = 'basic'; let rngHistoryQuery = ''; let rngHistoryTier = 'recent'; let rngRequestRunning = false; let rngTimer = null; let rngUnlockTimer = null; let rngAchievementTimer = null; let rngAchievementNextTimer = null; let rngAchievementUnlocks = null; let rngAchievementNoticeQueue = []; let rngAchievementNoticeActive = false; let rngAchievementNoticeCurrentId = null; let rngDebugEnabled = false; let rngDebugPopulated = false;
+let rngState = null; let rngSelectedTier = 'basic'; let rngHistoryQuery = ''; let rngHistoryTier = 'recent'; let rngRequestRunning = false; let rngTimer = null; let rngUnlockQueue = []; let rngUnlockSeenEventKeys = new Set(); let rngUnlockActive = false; let rngUnlockClosing = false; let rngUnlockPhaseTimer = null; let rngUnlockParticleRun = null; let rngUnlockDismissTimer = null; let rngAchievementTimer = null; let rngAchievementNextTimer = null; let rngAchievementUnlocks = null; let rngAchievementNoticeQueue = []; let rngAchievementNoticeActive = false; let rngAchievementNoticeCurrentId = null; let rngDebugEnabled = false; let rngDebugPopulated = false; let rngDebugReturnAfterReveal = false;
 let rngStateReceivedAt = 0; let rngActiveSection = 'history'; let activeAppVersion = null; let rngPatchNotesOpenPending = false;
+let rngAccountXpFeedbackTimer = null;
+let rngSystemUnlockAckPending = false;
+let rngManualRollCycleActive = false; let rngManualRollCycleId = null; let rngManualRollPresentationDone = false; let rngManualRollCompleting = false;
+let rngOnlineState = null;
+let rngProfileCardBytes = null; let rngProfileCardUrl = ''; let rngProfileCardFormat = 'landscape'; let rngProfileCardBusy = false; let rngProfileCardRenderRequestId = 0;
+let rngTitlePickerQuery = ''; let rngTitlePickerTier = 'all'; let rngTitlePickerBusy = false;
+let rngRollExperience = null;
+
+function renderRngRollExperience(state, reveal = false) {
+  if (!rngRollExperience) rngRollExperience = window.NTCRollExperience.create({
+    root: $('#rngRollExperience'),
+    onResult: renderRngRollOutcome,
+    onRevealReady: showNextRngUnlock,
+    onCycleComplete: markManualRollPresentationComplete
+  });
+  rngRollExperience.update(state, {
+    reveal,
+    discoveryResult: reveal ? rngUnlockQueue[0]?.result : null,
+    motion: document.documentElement.dataset.rngRollMotion || 'full',
+    visible: $('#rngView').classList.contains('active') && !document.hidden
+  });
+}
+function clearManualRollCycleState() {
+  rngManualRollCycleActive = false;
+  rngManualRollCycleId = null;
+  rngManualRollPresentationDone = false;
+  rngManualRollCompleting = false;
+}
+function markManualRollPresentationComplete() {
+  if (!rngManualRollCycleActive) return;
+  rngManualRollPresentationDone = true;
+  void tryCompleteManualRollCycle();
+}
+async function tryCompleteManualRollCycle() {
+  if (!rngManualRollCycleActive || !rngManualRollPresentationDone || rngManualRollCycleId === null || rngManualRollCompleting) return;
+  if (rngUnlockActive || rngUnlockClosing || rngUnlockQueue.length) return;
+  const cycleId = rngManualRollCycleId;
+  rngManualRollCompleting = true;
+  try {
+    await window.ntc.completeManualRngRoll(cycleId);
+    if (rngManualRollCycleId !== cycleId) return;
+    clearManualRollCycleState();
+    if (rngState) renderRngState(rngState);
+  } catch (error) {
+    rngManualRollCompleting = false;
+    showToast(`Não foi possível liberar a rolagem manual: ${cleanError(error)}`);
+  }
+}
+
+function renderRngRollOutcome(latest) {
+  const resultCard = $('#rngLastResult');
+  resultCard.classList.toggle('is-new', Boolean(latest?.isNew));
+  resultCard.dataset.tier = latest?.title?.tier || '';
+  $('.rng-result-icon').innerHTML = latest?.title?.tier
+    ? rngTitleIcon(latest.title, { size: 42, animation: 'none' }) || '✧'
+    : window.NTCRngIcons?.render('achievement-rolls', { size: 42, animation: 'none' }) || '✧';
+  $('#rngResultCaption').textContent = latest
+    ? BigInt(latest.fragmentReward || 0) > 0n
+      ? `DUPLICATA · +${formatRngFragments(latest.fragmentReward)} FRAGMENTOS`
+      : `${latest.isNew ? 'NOVA DESCOBERTA' : 'RESULTADO'} · ${latest.title.tierLabel || ''}`
+    : 'O SELO AGUARDA';
+  $('#rngResultTitle').textContent = latest?.title?.name || 'Encontre o improvável';
+  $('#rngResultOdds').innerHTML = latest
+    ? `<span class="rng-result-oddsline"><strong>${formatRngOdds(latest.currentOdds)}</strong></span>`
+    : 'Cada rolagem deixa uma marca.';
+}
 
 let splashValue = 0;
 const advanceSplash = () => { splashValue = Math.min(92, splashValue + (splashValue < 70 ? 4 : 1.5)); loadingProgress.style.width = `${splashValue}%`; loadingTrack.setAttribute('aria-valuenow', String(Math.round(splashValue))); };
@@ -27,6 +93,20 @@ const splashTimer = setInterval(advanceSplash, 110);
 setTimeout(() => { clearInterval(splashTimer); splashValue = 100; loadingProgress.style.width = '100%'; loadingTrack.setAttribute('aria-valuenow', '100'); setTimeout(() => { splash.classList.add('exit'); appShell.classList.add('ready'); appShell.setAttribute('aria-hidden', 'false'); void window.ntc.appEntered().catch(() => {}); }, 260); }, 2100);
 function formatBytes(bytes) { if (!bytes) return '—'; const units = ['B', 'KB', 'MB', 'GB']; let n = bytes; let i = 0; while (n > 1024 && i < units.length - 1) { n /= 1024; i++; } return `${n.toFixed(i ? 1 : 0)} ${units[i]}`; }
 function safeText(value) { return String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char])); }
+function rngTitleIcon(title, options = {}) {
+  const tier = title?.tierId || title?.tier || 'basic';
+  const asset = title?.assetId && (title.collected !== false || options.allowUncollected) ? title.assetId : '';
+  const candidate = asset && window.NTCRngIcons?.definition(asset) ? asset : `tier-${tier}`;
+  const iconId = window.NTCRngIcons?.definition(candidate) ? candidate : 'tier-basic';
+  return window.NTCRngIcons?.render(iconId, options) || '';
+}
+function formatRngOdds(value) {
+  const odds = String(value ?? '');
+  const match = odds.match(/^(.* × 10)([⁰¹²³⁴⁵⁶⁷⁸⁹⁻]+)$/);
+  if (!match) return safeText(odds);
+  const exponent = [...match[2]].map(digit => ({ '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁻': '−' })[digit] || digit).join('');
+  return `${safeText(match[1])}<sup>${safeText(exponent)}</sup>`;
+}
 function cleanError(value) { const message = String(value?.message || value || 'Não foi possível concluir a operação.').replace(/^Error invoking remote method ['"]?[^'"]+['"]?: Error:\s*/i, '').replace(/^Error:\s*/i, ''); if (/no space|espaço|disk full/i.test(message)) return 'Sem espaço suficiente na pasta escolhida. Escolha outra pasta ou libere espaço.'; if (/network|connection|timed out|conex/i.test(message)) return 'Falha de conexão. Verifique a internet e tente novamente.'; if (/permission|access is denied|acesso negado|notallowed|denied/i.test(message)) return 'A permissão foi recusada. Verifique o microfone ou escolha gravar somente a tela.'; if (/too large|maximum dimension|jpeg format/i.test(message)) return 'A imagem ficou grande demais para este formato. Diminua largura, altura ou escala e tente novamente.'; if (/invalid|corrupt|corromp/i.test(message)) return 'O arquivo não pôde ser lido. Verifique se ele está completo e em um formato suportado.'; return message; }
 let toastTimer = null; let confirmResolver = null;
 function showToast(message) { const toast = $('#toast'); toast.textContent = message; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2800); }
@@ -78,7 +158,7 @@ function rngRollBoostLabels(result, includeCombined = true) {
   if (result.isEqualHourBonus) labels.push(`Horas iguais ×2${result.equalHourTime ? ` · ${safeText(result.equalHourTime)}` : ''}`);
   if (result.isThousandRollBonus) labels.push('Marco de 1.000 rolagens ×4');
   if (result.isTenThousandRollBonus) labels.push('Marco de 10.000 rolagens ×10');
-  if (consumableMultiplier > 1) labels.push(`Fortuna acumulada ×${consumableMultiplier}`);
+  if (consumableMultiplier > 1) labels.push(`Tônicos acumulados ×${consumableMultiplier}`);
   if (result.eventMultiplier > 1) labels.push(`${safeText(result.eventName || 'Evento')} ×${result.eventMultiplier}`);
   const focusMultiplier = Math.max(1, Number(result.eventFocusMultiplier) || 1);
   if (result.eventFocusTierLabel) labels.push(`${safeText(result.eventName || 'Evento')} · ${safeText(result.eventFocusTierLabel)} em foco${focusMultiplier > 1 ? ` ×${focusMultiplier}` : ''}`);
@@ -86,19 +166,265 @@ function rngRollBoostLabels(result, includeCombined = true) {
   if (includeCombined && combinedMultiplier > 1 && labels.length > 1) labels.push(`Bônus acumulados ×${combinedMultiplier}`);
   return labels;
 }
-function showRngUnlock(result) {
+function showRngUnlock(result, { forceFullMotion = false } = {}) {
   if (!result?.title) return;
+  enqueueRngUnlock({ result, forceFullMotion, eventKind: result.eventKind || 'title' });
+  showNextRngUnlock();
+}
+function rngRevealQueueWeight(item) { return Math.max(1, Number(item.repeatCount) || 1); }
+function updateRngRevealQueueCount() {
+  const count = rngUnlockQueue.reduce((sum, item) => sum + rngRevealQueueWeight(item), 0);
+  const badge = $('#rngUnlockQueueCount');
+  if (!badge) return;
+  badge.hidden = count === 0;
+  badge.textContent = count === 1 ? '1 descoberta aguardando' : `${new Intl.NumberFormat('pt-BR').format(count)} descobertas aguardando`;
+}
+function enqueueRngUnlock(item) {
+  window.NTCRngRevealQueue?.appendToQueue(rngUnlockQueue, item);
+  updateRngRevealQueueCount();
+}
+function showRngUnlockBatch(candidates, { defer = false } = {}) {
+  for (const candidate of candidates) {
+    if (rngUnlockSeenEventKeys.has(candidate.eventKey)) continue;
+    rngUnlockSeenEventKeys.add(candidate.eventKey);
+    if (rngUnlockSeenEventKeys.size > 512) rngUnlockSeenEventKeys.delete(rngUnlockSeenEventKeys.values().next().value);
+    enqueueRngUnlock({ result: { ...candidate.result, specialUnlock: candidate.specialUnlock }, eventKind: candidate.eventKind, eventKey: candidate.eventKey, forceFullMotion: false });
+  }
+  if (!defer) showNextRngUnlock();
+}
+function rngCatalogOddsForTitle(titleId) {
+  return rngState?.catalog?.find(title => title.id === titleId)?.baseOdds || '';
+}
+const rngRevealBands = Object.freeze({ basic: 1, epic: 2, unique: 3, legendary: 3, mythic: 4, exalted: 4, glorious: 4, transcendent: 5, dimensional: 5, ntc: 5 });
+const rngRevealSettleMs = Object.freeze({ 1: 900, 2: 1650, 3: 2350, 4: 4150, 5: 6000 });
+// The phase marks the reveal's settling point; the object and atmospheric paths continue across it.
+const rngEventSettleMs = Object.freeze({ abyssal: 4450, unnamable: 5250, beyond: 6050 });
+const rngRevealParticleProfiles = Object.freeze({
+  basic: { counts: [1, 1, 0], behavior: 'drift', opacity: .42 },
+  epic: { counts: [1, 1, 1], behavior: 'drift', opacity: .48 },
+  unique: { counts: [2, 1, 1], behavior: 'drift', opacity: .54 },
+  legendary: { counts: [2, 2, 1], behavior: 'drift', opacity: .57 },
+  mythic: { counts: [2, 3, 1], behavior: 'drift', opacity: .64 },
+  abyssal: { counts: [2, 3, 2], behavior: 'absorb', opacity: .7 },
+  unnamable: { counts: [2, 3, 2], behavior: 'unresolved', opacity: .7 },
+  beyond: { counts: [2, 3, 2], behavior: 'anomaly', opacity: .72 },
+  reward: { counts: [1, 1, 0], behavior: 'drift', opacity: .42 }
+});
+const rngRevealParticleTierProfile = Object.freeze({ exalted: 'mythic', glorious: 'mythic', transcendent: 'abyssal', dimensional: 'unnamable', ntc: 'beyond' });
+function rngRevealRandom(min, max) { return min + Math.random() * (max - min); }
+function cancelRngRevealParticles() {
+  const run = rngUnlockParticleRun;
+  if (!run) return;
+  run.stopped = true;
+  for (const timer of run.timers) clearTimeout(timer);
+  for (const animation of run.animations) {
+    animation.onfinish = null;
+    animation.oncancel = null;
+    animation.cancel();
+  }
+  // Keep the fixed particle pool: the next queued reveal reuses these nodes.
+  for (const layer of run.layers) for (const particle of layer.querySelectorAll('i')) {
+    particle.hidden = true;
+    particle.removeAttribute('style');
+  }
+  rngUnlockParticleRun = null;
+}
+function rngRevealParticlePath(behavior, left, top, distance, width, height) {
+  const randomOffset = limit => rngRevealRandom(-limit, limit);
+  let dx = randomOffset(distance);
+  let dy = randomOffset(distance);
+  if (behavior === 'absorb' || behavior === 'anomaly') {
+    const targetX = 50 + randomOffset(behavior === 'anomaly' ? 6 : 11);
+    const targetY = 49 + randomOffset(behavior === 'anomaly' ? 7 : 12);
+    const fraction = behavior === 'anomaly' ? rngRevealRandom(.3, 1) : rngRevealRandom(.34, .8);
+    dx = ((targetX - left) / 100) * width * fraction;
+    dy = ((targetY - top) / 100) * height * fraction;
+  }
+  const curveX = randomOffset(behavior === 'unresolved' ? distance * .72 : distance * .34);
+  const curveY = randomOffset(behavior === 'unresolved' ? distance * .72 : distance * .34);
+  const point = (x, y, scale, curve = 0) => ({ x: x * scale + curveX * curve, y: y * scale + curveY * curve });
+  const midA = point(dx, dy, .27, behavior === 'unresolved' ? 1 : .55);
+  const midB = point(dx, dy, .68, behavior === 'unresolved' ? -.48 : -.14);
+  const midC = point(dx, dy, .88, behavior === 'unresolved' ? .22 : .08);
+  return [
+    { offset: 0, dx: 0, dy: 0 },
+    { offset: .27, dx: midA.x, dy: midA.y },
+    { offset: .68, dx: midB.x, dy: midB.y },
+    { offset: .88, dx: midC.x, dy: midC.y },
+    { offset: 1, dx, dy }
+  ];
+}
+function startRngRevealParticles(notice, tier, identity, enabled) {
+  cancelRngRevealParticles();
+  if (!enabled) return;
+  const layers = ['back', 'mid', 'front'].map(plane => notice.querySelector(`.rng-reveal-particles-${plane}`)).filter(Boolean);
+  if (layers.length !== 3) return;
+  const profileId = identity === 'reward' ? 'reward' : rngRevealParticleProfiles[identity] ? identity : rngRevealParticleTierProfile[tier] || tier;
+  const profile = rngRevealParticleProfiles[profileId] || rngRevealParticleProfiles.basic;
+  const run = { layers, timers: new Set(), animations: new Set(), stopped: false };
+  rngUnlockParticleRun = run;
+  const planeProfile = [
+    { size: [1.7, 2.7], opacity: .72, duration: [7800, 12500], gap: [750, 2300], distance: [12, 28], blur: .24 },
+    { size: [2.1, 3.3], opacity: .92, duration: [5800, 9800], gap: [600, 1900], distance: [20, 42], blur: .05 },
+    { size: [2.5, 3.9], opacity: 1, duration: [4300, 7600], gap: [1400, 3400], distance: [30, 58], blur: 0 }
+  ];
+  const schedule = (particle, planeIndex, delay) => {
+    const timer = setTimeout(() => {
+      run.timers.delete(timer);
+      if (run.stopped) return;
+      const plane = planeProfile[planeIndex];
+      const left = rngRevealRandom(12, 88);
+      const top = rngRevealRandom(14, 86);
+      const distance = rngRevealRandom(...plane.distance);
+      const bounds = layers[planeIndex].getBoundingClientRect();
+      const path = rngRevealParticlePath(profile.behavior, left, top, distance, bounds.width, bounds.height);
+      const size = rngRevealRandom(...plane.size);
+      const peak = Math.min(.72, profile.opacity * plane.opacity * rngRevealRandom(.84, 1));
+      const scaleEnd = rngRevealRandom(.82, 1.08);
+      particle.style.left = `${left}%`;
+      particle.style.top = `${top}%`;
+      particle.style.width = `${size}px`;
+      particle.style.height = `${size}px`;
+      particle.style.filter = plane.blur ? `blur(${rngRevealRandom(0, plane.blur).toFixed(2)}px)` : 'none';
+      if (typeof particle.animate !== 'function') return;
+      particle.hidden = false;
+      const frame = (point, opacity, scale) => ({ offset: point.offset, opacity, transform: `translate(-50%, -50%) translate(${point.dx.toFixed(1)}px, ${point.dy.toFixed(1)}px) scale(${scale.toFixed(2)})` });
+      const frames = [
+        frame(path[0], 0, .62), frame(path[1], peak, rngRevealRandom(.82, 1.02)),
+        frame(path[2], peak * rngRevealRandom(.68, .88), rngRevealRandom(.9, 1.12)),
+        frame(path[3], peak * rngRevealRandom(.38, .58), rngRevealRandom(.84, 1.08)), frame(path[4], 0, scaleEnd)
+      ];
+      const animation = particle.animate(frames, { duration: rngRevealRandom(...plane.duration), easing: 'linear', fill: 'forwards' });
+      run.animations.add(animation);
+      animation.onfinish = () => {
+        run.animations.delete(animation);
+        animation.onfinish = null;
+        animation.oncancel = null;
+        particle.hidden = true;
+        animation.cancel();
+        if (!run.stopped) schedule(particle, planeIndex, rngRevealRandom(...plane.gap));
+      };
+    }, delay);
+    run.timers.add(timer);
+  };
+  profile.counts.forEach((count, planeIndex) => {
+    const nodes = Array.from(layers[planeIndex].querySelectorAll('i')).slice(0, count);
+    nodes.forEach((particle, index) => {
+      particle.hidden = true;
+      schedule(particle, planeIndex, index === 0 && planeIndex === 0 ? 90 : rngRevealRandom(180, 850));
+    });
+  });
+}
+function cancelRngRevealMotion(notice = $('#rngUnlockNotice')) {
+  if (rngUnlockPhaseTimer !== null) clearTimeout(rngUnlockPhaseTimer);
+  rngUnlockPhaseTimer = null;
+  cancelRngRevealParticles();
+  window.NTCRngIcons?.cancel(notice.querySelector('.rng-reveal-art-host .ntc-rng-icon'));
+}
+function showNextRngUnlock() {
+  if (rngUnlockActive || rngUnlockClosing || !rngUnlockQueue.length) return;
+  rngRollExperience?.setOccluded(true);
+  cancelRngRevealMotion();
+  const { result, forceFullMotion, eventKind, repeatCount = 1, fragmentTotal, lastRoll } = rngUnlockQueue.shift();
   const notice = $('#rngUnlockNotice');
-  notice.dataset.tier = result.title.tier || '';
+  if (!notice.open) {
+    notice.showModal();
+    notice.setAttribute('aria-hidden', 'false');
+  }
+  rngUnlockActive = true;
+  updateRngRevealQueueCount();
+  notice.classList.toggle('debug-force-motion', forceFullMotion);
+  const requestedTier = result.title.tier || 'basic';
+  const tier = window.NTCRngIcons?.definition(`tier-${requestedTier}`) ? requestedTier : 'basic';
+  const revealBand = eventKind === 'special' ? 1 : rngRevealBands[tier] || 1;
+  const revealMode = revealBand <= 2 ? 'result' : revealBand === 3 ? 'discovery' : revealBand === 4 ? 'scene' : 'event';
+  const revealIdentity = eventKind === 'special' ? 'reward' : ({ mythic: 'mythic', exalted: 'exalted', glorious: 'glorious', transcendent: 'abyssal', dimensional: 'unnamable', ntc: 'beyond' }[tier] || 'title');
+  notice.dataset.tier = tier;
+  notice.dataset.eventKind = eventKind || 'title';
+  notice.dataset.revealMode = revealMode;
+  notice.dataset.revealIdentity = revealIdentity;
+  notice.dataset.revealBand = String(revealBand);
+  notice.dataset.revealPhase = 'reveal';
+  $('#rngUnlockTier').textContent = eventKind === 'special' ? `${result.title.tierLabel || 'Recompensa'} · REGISTRADA` : result.title.tierLabel || 'Título';
   $('#rngUnlockTitle').textContent = result.title.name || 'Título novo';
-  const details = result.simulation
-    ? `${result.title.tierLabel || ''} · ${result.currentOdds || ''} · Simulação visual, sem rolagem`
-    : `${result.title.tierLabel || ''} · ${result.currentOdds || ''} · Rolagem #${new Intl.NumberFormat('pt-BR').format(result.roll || 0)}`;
-  $('#rngUnlockDetails').textContent = `${details}${result.luckBonusBps ? ` · +${formatRngPercent(result.luckBonusBps)} de sorte permanente` : ''}`;
-  notice.setAttribute('aria-hidden', 'false');
+  $('#rngUnlockCaption').textContent = repeatCount > 1
+    ? `${new Intl.NumberFormat('pt-BR').format(repeatCount)} recompensas repetidas reunidas · rolagens #${new Intl.NumberFormat('pt-BR').format(result.roll)}–#${new Intl.NumberFormat('pt-BR').format(lastRoll || result.roll)}.`
+    : eventKind === 'special'
+      ? (result.specialUnlock?.duplicate && BigInt(result.specialUnlock?.fragmentReward || 0) > 0n ? 'Recompensa convertida em Fragmentos.' : result.specialUnlock?.duplicate ? 'Recompensa repetida registrada.' : 'Uma recompensa especial foi registrada.')
+      : result.simulation
+    ? 'Prévia visual · a rolagem real não foi alterada.'
+    : 'Um novo título agora faz parte da sua coleção.';
+  const specialFragmentTotal = BigInt(fragmentTotal || result.specialUnlock?.fragmentReward || 0);
+  const titleOdds = eventKind === 'special'
+    ? specialFragmentTotal > 0n
+      ? repeatCount > 1 ? `+${formatRngFragments(specialFragmentTotal)} Fragmentos no total` : `+${formatRngFragments(specialFragmentTotal)} Fragmentos`
+      : result.specialUnlock?.duplicate && repeatCount > 1 ? `${new Intl.NumberFormat('pt-BR').format(repeatCount)} recompensas repetidas`
+        : result.specialUnlock?.duplicate ? 'Recompensa repetida'
+          : result.title.tierLabel || 'Recompensa especial'
+    : rngCatalogOddsForTitle(result.title.id) || result.baseOdds || '';
+  $('#rngUnlockDetails').textContent = titleOdds;
+  $('#rngUnlockDetails').hidden = !titleOdds;
+  $('#rngUnlockFootnoteText').textContent = result.simulation ? 'Prévia do desbloqueio' : eventKind === 'special' ? 'Recompensa registrada' : 'Conquista registrada';
+  const crystal = notice.querySelector('.rng-reveal-crystal-frame');
+  const artHost = crystal.querySelector('.rng-reveal-art-host');
+  const iconId = eventKind === 'special'
+    ? result.specialUnlock?.relicId ? `relic-${result.specialUnlock.relicId}` : result.specialUnlock?.tierLabel === 'Segredo' ? 'achievement-secrets' : `tier-${tier}`
+    : (result.title.assetId && window.NTCRngIcons?.definition(result.title.assetId) ? result.title.assetId : `tier-${tier}`);
+  const iconDefinition = window.NTCRngIcons?.definition(iconId);
+  const resolvedIconId = iconDefinition ? iconId : `tier-${tier}`;
+  artHost.innerHTML = window.NTCRngIcons?.render(resolvedIconId, { size: 220, className: 'rng-reveal-art', animation: 'none', eager: true }) || '';
+  const artDefinition = window.NTCRngIcons?.definition(resolvedIconId);
+  const sheen = crystal.querySelector('.rng-reveal-icon-shimmer');
+  if (artDefinition?.src) {
+    sheen.style.setProperty('--rng-reveal-mask', `url("${artDefinition.src}")`);
+    sheen.style.setProperty('--rng-reveal-offset-x', `${artDefinition.opticalOffset?.[0] || 0}%`);
+    sheen.style.setProperty('--rng-reveal-offset-y', `${artDefinition.opticalOffset?.[1] || 0}%`);
+  }
+  else sheen.style.removeProperty('--rng-reveal-mask');
+  const motion = document.documentElement.dataset.rngRevealMotion || 'full';
+  notice.classList.remove('show');
+  void notice.offsetWidth;
   notice.classList.add('show');
-  clearTimeout(rngUnlockTimer);
-  rngUnlockTimer = setTimeout(() => { notice.classList.remove('show'); notice.setAttribute('aria-hidden', 'true'); }, 4200);
+  startRngRevealParticles(notice, tier, revealIdentity, motion === 'full' || forceFullMotion);
+  // Reveal motion belongs to CSS wrappers. Do not run WAAPI transforms on
+  // the icon at the same time as a scene-level entrance or an idle effect.
+  if (motion === 'full' || forceFullMotion) {
+    rngUnlockPhaseTimer = setTimeout(() => {
+      if (rngUnlockActive && notice.open && notice.dataset.revealPhase === 'reveal') notice.dataset.revealPhase = 'idle';
+      rngUnlockPhaseTimer = null;
+    }, rngEventSettleMs[revealIdentity] || rngRevealSettleMs[revealBand]);
+  } else {
+    notice.dataset.revealPhase = 'static';
+  }
+  $('#rngUnlockContinue').focus({ preventScroll: true });
+}
+function dismissRngUnlock() {
+  if (!rngUnlockActive || rngUnlockClosing) return;
+  const notice = $('#rngUnlockNotice');
+  rngUnlockActive = false;
+  rngUnlockClosing = true;
+  cancelRngRevealMotion(notice);
+  if (rngUnlockDismissTimer !== null) clearTimeout(rngUnlockDismissTimer);
+  notice.classList.remove('show');
+  rngUnlockDismissTimer = setTimeout(() => {
+    rngUnlockDismissTimer = null;
+    rngUnlockClosing = false;
+    if (rngUnlockQueue.length) {
+      showNextRngUnlock();
+      return;
+    }
+    notice.close();
+    notice.classList.remove('debug-force-motion');
+    delete notice.dataset.revealBand;
+    delete notice.dataset.revealPhase;
+    delete notice.dataset.revealMode;
+    delete notice.dataset.revealIdentity;
+    delete notice.dataset.eventKind;
+    notice.setAttribute('aria-hidden', 'true');
+    rngRollExperience?.setOccluded(false);
+    restoreRngDebugAfterReveal();
+    markManualRollPresentationComplete();
+  }, 300);
 }
 function showNextRngAchievementNotice() {
   if (rngAchievementNoticeActive || !rngAchievementNoticeQueue.length) return;
@@ -106,10 +432,15 @@ function showNextRngAchievementNotice() {
   const notice = $('#rngAchievementNotice');
   rngAchievementNoticeActive = true;
   rngAchievementNoticeCurrentId = achievement.id;
+  const categoryIcon = rngAchievementIconId(achievement.category);
+  const iconRarity = Number(achievement.luckBonusBps || 0) >= 5_000 ? 'legendary' : 'rare';
+  notice.querySelector('.rng-unlock-icon').innerHTML = window.NTCRngIcons?.render(categoryIcon, { size: 30, animation: 'reveal', eager: true }) || '';
   $('#rngAchievementTitle').textContent = achievement.name;
   $('#rngAchievementDetails').textContent = `${achievement.description}${achievement.luckBonusBps ? ` · +${formatRngPercent(achievement.luckBonusBps)} de sorte permanente` : ''}`;
   notice.setAttribute('aria-hidden', 'false');
   notice.classList.add('show');
+  const achievementIcon = notice.querySelector('.rng-unlock-icon .ntc-rng-icon');
+  window.NTCRngIcons?.play(achievementIcon, iconRarity === 'legendary' ? 'legendary' : 'reveal');
   clearTimeout(rngAchievementTimer);
   rngAchievementTimer = setTimeout(() => {
     notice.classList.remove('show');
@@ -155,7 +486,7 @@ function updateRngDebugControls(state = rngState) {
   }
   const title = state.catalog.find(item => item.id === select.value);
   const collected = Boolean(title?.collected);
-  $('#rngDebugSelectionState').textContent = title ? `${title.tierLabel} · ${collected ? 'Na coleção' : 'Ainda não coletado'} · ${title.currentOdds}` : '';
+  $('#rngDebugSelectionState').textContent = title ? `${title.tierLabel} · ${collected ? 'Na coleção' : 'Ainda não coletado'} · Chance base ${title.baseOdds}` : '';
   $('#rngDebugAdd').disabled = !title || collected;
   $('#rngDebugRemove').disabled = !title || !collected;
   $('#rngDebugSimulate').disabled = !title;
@@ -169,11 +500,48 @@ function updateRngDebugControls(state = rngState) {
   if ([...$('#rngDebugTotalMilestone').options].some(option => option.value === previousTotal)) $('#rngDebugTotalMilestone').value = previousTotal;
   $('#rngDebugGrantTotalTitles').disabled = state.collectedIds.length >= Number($('#rngDebugTotalMilestone').value || 50);
 }
+let rngDebugIconsPopulated = false;
+function renderRngDebugIconPreview() {
+  const id = $('#rngDebugIconSelect').value || 'reveal-crystal';
+  const animation = $('#rngDebugIconMotion').value || 'none';
+  window.NTCRngIcons?.cancel($('#rngDebugIconPreview .ntc-rng-icon'));
+  $('#rngDebugIconPreview').innerHTML = window.NTCRngIcons?.render(id, { size: 58, animation, eager: true }) || '';
+  $('#rngDebugIconStatus').textContent = `${window.NTCRngIcons?.definition(id)?.label || id} · ${animation === 'none' ? 'estático' : animation}`;
+}
+function initializeRngIconDebug() {
+  if (rngDebugIconsPopulated || !window.NTCRngIcons) return;
+  const select = $('#rngDebugIconSelect');
+  const entries = window.NTCRngIcons.list();
+  const groups = [
+    ['reveal-', 'Revelação'], ['tier-', 'Raridades'], ['achievement-', 'Conquistas'], ['event-', 'Eventos'],
+    ['ui-', 'Coleção e histórico'], ['set-', 'Conjuntos'], ['shop-', 'Loja e consumíveis'], ['relic-', 'Relíquias']
+  ];
+  select.innerHTML = groups.map(([prefix, label]) => `<optgroup label="${label}">${entries.filter(item => item.id.startsWith(prefix)).map(item => `<option value="${safeText(item.id)}">${safeText(item.label)}</option>`).join('')}</optgroup>`).join('');
+  select.value = 'reveal-crystal';
+  rngDebugIconsPopulated = true;
+  renderRngDebugIconPreview();
+}
+function playRngDebugIcon() {
+  if (!rngDebugEnabled) return;
+  const id = $('#rngDebugIconSelect').value;
+  const effect = $('#rngDebugIconMotion').value;
+  const element = $('#rngDebugIconPreview .ntc-rng-icon');
+  if (effect === 'none') {
+    window.NTCRngIcons?.cancel(element);
+    $('#rngDebugIconStatus').textContent = 'Prévia estática · nenhum efeito reproduzido.';
+    return;
+  }
+  const playback = window.NTCRngIcons?.play(element, effect, { force: true, loop: $('#rngDebugIconLoop').checked });
+  $('#rngDebugIconStatus').textContent = playback
+    ? `${window.NTCRngIcons.definition(id)?.label || id} · ${effect}${$('#rngDebugIconLoop').checked ? ' · repetindo até nova seleção' : ''}.`
+    : 'Este efeito não pôde ser reproduzido neste ambiente.';
+}
 async function initializeRngDebug() {
   try {
     rngDebugEnabled = await window.ntc.isDevelopmentBuild();
     if (!rngDebugEnabled) return;
     $('#rngDebugTrigger').classList.remove('hidden');
+    initializeRngIconDebug();
     updateRngDebugControls();
   } catch { rngDebugEnabled = false; }
 }
@@ -181,26 +549,45 @@ function openRngDebug() {
   if (!rngDebugEnabled) return;
   const dialog = $('#rngDebugDialog');
   dialog.classList.remove('hidden'); dialog.setAttribute('aria-hidden', 'false');
+  initializeRngIconDebug();
   updateRngDebugControls(); $('#rngDebugTitleSelect').focus();
 }
 function closeRngDebug() {
   const dialog = $('#rngDebugDialog');
   if (dialog.classList.contains('hidden')) return;
+  closeRngAccountResetConfirmation();
+  window.NTCRngIcons?.cancel($('#rngDebugIconPreview .ntc-rng-icon'));
   dialog.classList.add('hidden'); dialog.setAttribute('aria-hidden', 'true'); $('#rngDebugTrigger').focus();
+}
+function hideRngDebugForReveal() {
+  const dialog = $('#rngDebugDialog');
+  if (dialog.classList.contains('hidden')) return;
+  rngDebugReturnAfterReveal = true;
+  dialog.classList.add('hidden');
+  dialog.setAttribute('aria-hidden', 'true');
+}
+function restoreRngDebugAfterReveal() {
+  if (!rngDebugReturnAfterReveal) return;
+  rngDebugReturnAfterReveal = false;
+  openRngDebug();
 }
 function simulateRngUnlock() {
   const title = rngState?.catalog.find(item => item.id === $('#rngDebugTitleSelect').value);
   if (!rngDebugEnabled || !title) return;
-  showRngUnlock({ title: { ...title, name: rngState.debugCatalog?.find(item => item.id === title.id)?.name || title.name }, currentOdds: title.currentOdds, simulation: true });
-  $('#rngDebugStatus').textContent = 'Animação exibida; coleção e rolagens não foram alteradas.';
+  hideRngDebugForReveal();
+  showRngUnlock({ title: { ...title, name: rngState.debugCatalog?.find(item => item.id === title.id)?.name || title.name }, baseOdds: title.baseOdds, simulation: true }, { forceFullMotion: true });
+  const revealMode = document.documentElement.dataset.rngRevealMotion || 'full';
+  $('#rngDebugStatus').textContent = `Prévia com movimento completo${revealMode === 'off' || revealMode === 'reduced' ? ` (independente da preferência ${revealMode === 'off' ? 'estática' : 'reduzida'})` : ''}; coleção e rolagens não foram alteradas.`;
 }
 async function debugAddSelectedRngTitle() {
   if (!rngDebugEnabled) return;
+  const selected = rngState?.catalog?.find(title => title.id === $('#rngDebugTitleSelect').value);
   try {
     const result = await window.ntc.debugAddRngTitle($('#rngDebugTitleSelect').value);
     renderRngState(result.state);
     if (result.added) {
-      showRngUnlock({ title: result.title, currentOdds: result.currentOdds, simulation: true });
+      hideRngDebugForReveal();
+      showRngUnlock({ title: result.title, baseOdds: rngCatalogOddsForTitle(result.title.id) || selected?.baseOdds || '', simulation: true }, { forceFullMotion: true });
       $('#rngDebugStatus').textContent = `${result.title.name} adicionado ao perfil de desenvolvimento.`;
     } else $('#rngDebugStatus').textContent = 'Esse título já está na coleção.';
   } catch (error) { $('#rngDebugStatus').textContent = cleanError(error); }
@@ -223,6 +610,76 @@ async function debugClearRngCollection() {
     renderRngState(result.state);
     $('#rngDebugStatus').textContent = `${result.removedCount} ${result.removedCount === 1 ? 'título removido' : 'títulos removidos'}; rolagens e tempos mantidos.`;
   } catch (error) { $('#rngDebugStatus').textContent = cleanError(error); }
+}
+function openRngAccountResetConfirmation() {
+  if (!rngDebugEnabled) return;
+  $('#rngDebugResetPhrase').value = '';
+  $('#rngDebugResetConfirmButton').disabled = true;
+  $('#rngDebugResetConfirm').classList.remove('hidden');
+  $('#rngDebugStatus').textContent = '';
+  $('#rngDebugResetPhrase').focus();
+}
+function closeRngAccountResetConfirmation() {
+  $('#rngDebugResetConfirm').classList.add('hidden');
+  $('#rngDebugResetPhrase').value = '';
+  $('#rngDebugResetConfirmButton').disabled = true;
+  $('#rngDebugResetStart').focus();
+}
+function clearRngAccountPresentation(state) {
+  clearManualRollCycleState();
+  for (const timer of [rngUnlockPhaseTimer, rngUnlockDismissTimer, rngAchievementTimer, rngAchievementNextTimer, rngAccountXpFeedbackTimer]) {
+    if (timer !== null) clearTimeout(timer);
+  }
+  rngUnlockPhaseTimer = rngUnlockDismissTimer = rngAchievementTimer = rngAchievementNextTimer = rngAccountXpFeedbackTimer = null;
+  rngUnlockQueue = [];
+  rngUnlockSeenEventKeys.clear();
+  rngUnlockActive = false; rngUnlockClosing = false; rngDebugReturnAfterReveal = false;
+  rngAchievementNoticeQueue = []; rngAchievementNoticeActive = false; rngAchievementNoticeCurrentId = null; rngAchievementUnlocks = null;
+
+  const reveal = $('#rngUnlockNotice');
+  cancelRngRevealMotion(reveal);
+  reveal.classList.remove('show', 'debug-force-motion');
+  if (reveal.open) reveal.close();
+  for (const key of ['tier', 'eventKind', 'revealMode', 'revealIdentity', 'revealBand', 'revealPhase']) delete reveal.dataset[key];
+  reveal.setAttribute('aria-hidden', 'true');
+  reveal.querySelector('.rng-reveal-art-host').replaceChildren();
+  const achievement = $('#rngAchievementNotice');
+  window.NTCRngIcons?.cancel(achievement.querySelector('.ntc-rng-icon'));
+  achievement.classList.remove('show'); achievement.setAttribute('aria-hidden', 'true');
+  achievement.querySelector('.rng-unlock-icon').replaceChildren();
+  const systemUnlock = $('#rngSystemUnlockNotice');
+  systemUnlock.classList.remove('is-visible');
+  if (systemUnlock.open) systemUnlock.close();
+  systemUnlock.hidden = true;
+  delete systemUnlock.dataset.unlockId;
+  rngSystemUnlockAckPending = false;
+
+  rngRollExperience?.dispose(); rngRollExperience = null;
+  $('#rngAccountXpFeedback').classList.remove('is-visible', 'is-auto-unlock', 'is-recycling-unlock');
+  $('#rngAccountLevel').classList.remove('is-level-up');
+  rngState = null;
+  renderRngState(state);
+}
+async function debugResetRngAccount() {
+  if (!rngDebugEnabled || $('#rngDebugResetPhrase').value.trim() !== 'RESETAR CONTA') return;
+  const button = $('#rngDebugResetConfirmButton');
+  const cancelButton = $('#rngDebugResetCancel');
+  button.disabled = true;
+  cancelButton.disabled = true;
+  try {
+    const result = await window.ntc.debugResetRngAccount();
+    if (!result?.ok || !result.state) throw new Error(result?.message || 'O reset não foi concluído.');
+    clearRngAccountPresentation(result.state);
+    $('#rngDebugResetConfirm').classList.add('hidden');
+    $('#rngDebugResetPhrase').value = '';
+    updateRngDebugControls();
+    $('#rngDebugStatus').textContent = result.online?.leaderboardRefreshed
+      ? 'Conta local zerada; perfil Online e histórico de descobertas desta sessão removidos; Ranking Global atualizado. A autenticação foi preservada.'
+      : 'Conta local zerada e perfil Online desta sessão removido. O ranking será atualizado na próxima sincronização; autenticação preservada.';
+  } catch (error) {
+    $('#rngDebugStatus').textContent = cleanError(error);
+    button.disabled = $('#rngDebugResetPhrase').value.trim() !== 'RESETAR CONTA';
+  } finally { cancelButton.disabled = false; }
 }
 async function debugRngAction(action) {
   if (!rngDebugEnabled) return;
@@ -256,6 +713,11 @@ function updateRngTimers() {
   $('#rngAutoTotalTime').textContent = formatRngDuration(rngState.totalAutoRollSeconds + (rngState.autoRollActive ? elapsed : 0));
 }
 function normalizeRngSearch(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim(); }
+function rngAchievementIconId(category) {
+  const normalized = normalizeRngSearch(category);
+  const categories = { 'rolagens manuais': 'manual-rolls', rolagens: 'rolls', colecao: 'collection', raridades: 'rarities', 'marcos de sorte': 'luck-milestones', eventos: 'events', segredos: 'secrets', conquistas: 'achievements' };
+  return `achievement-${categories[normalized] || 'achievements'}`;
+}
 function renderRngTitleHistory(state) {
   const filter = $('#rngTitleHistoryTier');
   if (!filter.dataset.ready) {
@@ -293,28 +755,105 @@ function renderRngTitleHistory(state) {
     const bonusBadges = boosts.map(label => `<small class="rng-discovery-badge${label.startsWith('Bônus acumulados') ? ' is-combined' : ''}">${safeText(label)}</small>`).join('');
     const rolledAt = record?.rolledAt ? new Date(record.rolledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
     const detail = record
-      ? `<div class="rng-discovery-detail"><span><small>Rolagem</small><strong>#${new Intl.NumberFormat('pt-BR').format(record.roll)}</strong></span><span><small>Chance na rolagem</small><strong>${safeText(record.currentOdds || title.baseOdds)}</strong></span></div>`
+      ? `<div class="rng-discovery-detail"><span><small>Rolagem</small><strong>#${new Intl.NumberFormat('pt-BR').format(record.roll)}</strong></span><span><small>Chance na rolagem</small><strong>${formatRngOdds(record.currentOdds || title.baseOdds)}</strong></span></div>`
       : '';
     const meta = rolledAt || bonusBadges ? `<div class="rng-discovery-meta">${rolledAt ? `<span class="rng-discovery-date"><small>Obtido</small><time>${safeText(rolledAt)}</time></span>` : ''}${bonusBadges ? `<div class="rng-discovery-badges">${bonusBadges}</div>` : ''}</div>` : '';
-    return `<article class="rng-discovery-card rng-title-history-card${record ? ' has-record' : ''}" data-tier="${safeText(title.tier)}"><span class="rng-discovery-mark" aria-hidden="true">✦</span><div class="rng-discovery-copy"><div class="rng-discovery-name-line"><strong>${safeText(title.name)}</strong><span>${safeText(title.tierLabel)}</span></div>${meta}</div>${detail}</article>`;
+    return `<article class="rng-discovery-card rng-title-history-card${record ? ' has-record' : ''}" data-tier="${safeText(title.tier)}"><span class="rng-discovery-mark" aria-hidden="true">${rngTitleIcon(title, { size: 19 }) || '✦'}</span><div class="rng-discovery-copy"><div class="rng-discovery-name-line"><strong>${safeText(title.name)}</strong><span>${safeText(title.tierLabel)}</span></div>${meta}</div>${detail}</article>`;
   }).join('') || `<div class="rng-discovery-empty">${historyEmptyMessage}</div>`;
 }
 function rngBigOdds(value) { try { return BigInt(value || 0) > 0n ? `1 em ${new Intl.NumberFormat('pt-BR').format(BigInt(value))}` : '—'; } catch { return '—'; } }
+function formatRngProfileTime(seconds) {
+  const totalMinutes = Math.floor(Math.max(0, Number(seconds) || 0) / 60);
+  if (totalMinutes < 60) return `${totalMinutes}min`;
+  const hours = Math.floor(totalMinutes / 60);
+  return hours < 100 ? `${hours}h ${totalMinutes % 60}min` : `${new Intl.NumberFormat('pt-BR').format(hours)}h`;
+}
+function renderRngPlayerProfile(state) {
+  const profile = state.playerProfile;
+  if (!profile) return;
+  const name = profile.identity?.displayName || '';
+  const equipped = profile.identity?.equippedTitle;
+  const number = value => new Intl.NumberFormat('pt-BR').format(Number(value) || 0);
+  const formatExpected = value => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(Number(value) || 0);
+  const hero = $('#rngPlayerProfileHero');
+  hero.dataset.tier = equipped?.tierId || 'basic';
+  $('#rngPlayerProfileHeading').textContent = name || 'Viajante';
+  $('#rngPlayerEquippedTitle').textContent = equipped?.name || 'Nenhum título equipado';
+  $('#rngPlayerEquippedTier').textContent = (equipped?.tierLabel || 'Sem título').toLocaleUpperCase('pt-BR');
+  $('#rngPlayerProfileArt').innerHTML = equipped ? rngTitleIcon(equipped, { size: 260, className: 'rng-profile-main-crystal', animation: 'none', eager: true }) : window.NTCRngIcons?.render('ui-collection', { size: 260, animation: 'none', eager: true }) || '';
+  const record = profile.record;
+  const recordCard = $('#rngPlayerRecord');
+  recordCard.dataset.tier = record?.tierId || 'basic';
+  $('#rngPlayerRecordTitle').textContent = record?.name || 'Nenhum título descoberto ainda';
+  $('#rngPlayerRecordTier').textContent = record ? `${record.tierLabel} · ${record.roll ? `obtido na rolagem #${number(record.roll)}` : 'descoberta registrada'}` : 'Sua descoberta mais rara aparecerá aqui.';
+  $('#rngPlayerRecordOdds').textContent = record ? (record.acquisitionOdds || record.baseOdds || 'Odds não registradas') : '—';
+  $('#rngPlayerRecordArt').innerHTML = record ? rngTitleIcon(record, { size: 116, animation: 'none', eager: true }) : '';
+  $('#rngProfileRolls').textContent = number(profile.progress?.totalRolls);
+  $('#rngProfileCollection').textContent = `${number(profile.collection?.collected)} / ${number(profile.collection?.total)}`;
+  $('#rngProfileCompletion').textContent = `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format((profile.collection?.completion || 0) * 100)}%`;
+  $('#rngProfileAchievements').textContent = `${number(profile.progress?.achievementsUnlocked)} / ${number(profile.progress?.achievementsTotal)}`;
+  const index = profile.luck?.index;
+  const measuredRolls = Number(index?.measuredRolls) || 0;
+  const expectedHits = Number(index?.expected) || 0;
+  const calibrationProgress = Math.min(1, measuredRolls / 100, expectedHits / 5);
+  const rollsForCount = Math.max(0, 100 - measuredRolls);
+  const observedRate = measuredRolls > 0 ? expectedHits / measuredRolls : 0;
+  const rollsForExpectation = observedRate > 0 ? Math.ceil(Math.max(0, 5 - expectedHits) / observedRate) : null;
+  const estimatedRemaining = rollsForExpectation === null ? rollsForCount : Math.max(rollsForCount, rollsForExpectation);
+  $('#rngProfileLuckIndex').textContent = index?.ready ? `${number(index.score)} / 100` : 'Calibrando';
+  $('#rngProfileLuckRolls').textContent = `${number(measuredRolls)} rolls analisados`;
+  $('#rngProfileLuckRemaining').textContent = index?.ready
+    ? 'Índice local consolidado para a amostra atual'
+    : estimatedRemaining > 0 ? `Próxima análise em aproximadamente ${number(estimatedRemaining)} rolls` : 'Aguardando cobertura estatística suficiente';
+  const luckMeterValue = index?.ready ? Number(index.score) || 0 : Math.round(calibrationProgress * 100);
+  $('#rngProfileLuckProgress').style.width = `${luckMeterValue}%`;
+  $('#rngProfileLuckMeter').setAttribute('aria-valuenow', String(luckMeterValue));
+  $('#rngProfileLuckMeter').setAttribute('aria-label', index?.ready ? 'Índice de Sorte' : 'Calibração do Índice de Sorte');
+  $('#rngProfileLuckTooltip').textContent = index?.ready
+    ? `${number(index.observed)} resultados Singular+ observados e ${formatExpected(index.expected)} esperados em ${number(measuredRolls)} rolls. O índice é local, não um percentil entre jogadores.`
+    : `${number(index?.observed)} resultados Singular+ observados; ${formatExpected(expectedHits)} de 5 esperados para liberar a análise. Também são exigidos 100 rolls. O histórico anterior à atualização não entra no cálculo.`;
+  const milestones = profile.progress || {};
+  $('#rngMilestoneRelics').textContent = number(milestones.relicsOwned);
+  $('#rngMilestoneSecrets').textContent = number(milestones.secretsUnlocked);
+  $('#rngMilestoneDrought').textContent = number(milestones.longestSingularDrought);
+  $('#rngMilestoneAppTime').textContent = formatRngProfileTime(milestones.appOpenSeconds);
+  $('#rngMilestoneEvents').textContent = number(milestones.eventsParticipated);
+  $('#rngMilestoneEvents').parentElement.classList.toggle('is-muted', !Number(milestones.eventsParticipated));
+  const outlier = profile.luck?.bestOutlier;
+  $('#rngProfileOutlier').textContent = outlier?.name || 'Ainda não medido';
+  $('#rngProfileOutlierTier').textContent = (outlier?.tierLabel || 'Sem registro').toLocaleUpperCase('pt-BR');
+  $('#rngProfileOutlierTier').dataset.tier = outlier?.tierId || 'basic';
+  $('#rngProfileOutlierOdds').textContent = outlier?.odds || '—';
+  $('#rngProfileOutlierDetail').textContent = outlier ? `Resultado registrado na rolagem #${number(outlier.roll)}. É a menor chance individual observada nesta versão, não uma comparação entre jogadores.` : 'A raridade individual efetiva de cada resultado começa a ser registrada nesta versão.';
+  $('#rngProfileTierRows').innerHTML = (state.tiers || []).map(tier => {
+    const observed = profile.luck?.rarityByTier?.[tier.id] || { observed: 0, expected: 0 };
+    const collected = Number(profile.collection?.countsByTier?.[tier.id]) || 0;
+    const total = state.catalog.filter(title => title.tier === tier.id).length;
+    const completion = total ? Math.min(100, collected / total * 100) : 0;
+    const tooltipId = `rngProfileTierTip-${tier.id}`;
+    return `<article class="rng-profile-tier-row" data-tier="${safeText(tier.id)}"><header><span>${safeText(tier.label)}</span><span class="rng-context-tip"><button type="button" aria-label="Detalhes de ${safeText(tier.label)}" aria-describedby="${tooltipId}">i</button><span id="${tooltipId}" role="tooltip">${number(observed.observed)} resultados observados e ${formatExpected(observed.expected)} esperados nas rolagens medidas. ${number(collected)} de ${number(total)} títulos únicos descobertos.</span></span></header><strong>${number(observed.observed)}</strong><small>resultados medidos</small><div class="rng-tier-progress" role="progressbar" aria-label="Coleção ${safeText(tier.label)}" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${collected}"><span style="width:${completion}%"></span></div><b>${number(collected)} / ${number(total)} títulos</b></article>`;
+  }).join('');
+  if (rngActiveSection === 'profile' && !name && !$('#rngProfileNameDialog').open) openRngProfileNameSetup();
+}
+
 function renderRngExpansion(state) {
   const patchNotes = window.NTC_RNG_CHANGELOG || [];
   $('#rngPatchNotes').innerHTML = patchNotes.map(note => `<article class="rng-patch-note"><header><h3>${safeText(note.title)}</h3><time>${safeText(note.date)}</time></header><ul>${(note.changes || []).map(change => `<li>${safeText(change)}</li>`).join('')}</ul></article>`).join('');
   const number = value => new Intl.NumberFormat('pt-BR').format(value || 0);
   const achievementGroups = new Map();
   for (const item of state.achievements || []) achievementGroups.set(item.category, [...(achievementGroups.get(item.category) || []), item]);
-  $('#rngAchievements').innerHTML = [...achievementGroups].map(([category, achievements]) => `<section class="rng-achievement-group"><h3>${safeText(category)}</h3><div class="rng-extra-grid">${achievements.map(item => `<article class="rng-info-card${item.unlocked ? ' unlocked' : ''}"><span class="rng-info-icon">${item.unlocked ? '✦' : '◇'}</span><div><strong>${safeText(item.name)}</strong><p>${safeText(item.description)}</p>${item.rewardText ? `<small class="rng-achievement-reward">Recompensa · ${safeText(item.rewardText)}</small>` : ''}${item.luckBonusBps ? `<small class="rng-achievement-reward">Bônus permanente de sorte · +${formatRngPercent(item.luckBonusBps)}</small>` : ''}<small>${item.unlocked ? 'Concluída' : `${number(item.progress)} / ${number(item.goal)}`}</small></div></article>`).join('')}</div></section>`).join('');
-  $('#rngSecrets').innerHTML = (state.secrets || []).map(item => `<article class="rng-info-card unlocked"><span class="rng-info-icon">✧</span><div><strong>${safeText(item.name)}</strong><p>${safeText(item.hint)}</p>${item.luckBonusBps ? `<small class="rng-achievement-reward">Bônus permanente de sorte · +${formatRngPercent(item.luckBonusBps)}</small>` : ''}</div></article>`).join('') || '<p class="rng-section-empty">Nenhum segredo descoberto. Os segredos ocultos não aparecem na coleção.</p>';
+  $('#rngAchievements').innerHTML = [...achievementGroups].map(([category, achievements]) => {
+    const iconId = rngAchievementIconId(category);
+    return `<section class="rng-achievement-group"><header class="rng-achievement-heading">${window.NTCRngIcons?.render(iconId, { size: 17 }) || ''}<h3>${safeText(category)}</h3></header><div class="rng-extra-grid">${achievements.map(item => `<article class="rng-info-card${item.unlocked ? ' unlocked' : ' locked'}"><span class="rng-info-icon${item.unlocked ? ' is-unlocked' : ''}">${window.NTCRngIcons?.render(iconId, { size: 25, animation: item.unlocked ? 'hover' : 'none' }) || '◇'}</span><div><strong>${safeText(item.name)}</strong><p>${safeText(item.description)}</p>${item.rewardText ? `<small class="rng-achievement-reward">Recompensa · ${safeText(item.rewardText)}</small>` : ''}${item.luckBonusBps ? `<small class="rng-achievement-reward">Bônus permanente de sorte · +${formatRngPercent(item.luckBonusBps)}</small>` : ''}<small>${item.unlocked ? 'Concluída' : `${number(item.progress)} / ${number(item.goal)}`}</small></div></article>`).join('')}</div></section>`;
+  }).join('');
+  $('#rngSecrets').innerHTML = (state.secrets || []).map(item => `<article class="rng-info-card unlocked"><span class="rng-info-icon is-unlocked">${window.NTCRngIcons?.render('achievement-secrets', { size: 25, animation: 'hover' }) || '✧'}</span><div><strong>${safeText(item.name)}</strong><p>${safeText(item.hint)}</p>${item.luckBonusBps ? `<small class="rng-achievement-reward">Bônus permanente de sorte · +${formatRngPercent(item.luckBonusBps)}</small>` : ''}</div></article>`).join('') || '<p class="rng-section-empty">Nenhum segredo descoberto. Os segredos ocultos não aparecem na coleção.</p>';
   const stats = state.statistics || {};
   const rows = [
     ['Rolagens medidas', number(stats.measuredRolls)], ['Títulos únicos', number(stats.uniqueTitles)], ['Repetidos medidos', number(stats.duplicates)],
     ['Sorte permanente das conquistas', `+${formatRngPercent(state.achievementLuckBps)}`], ['Sorte permanente dos segredos', `+${formatRngPercent(state.secretLuckBps)}`],
     ['Sorte média nas rolagens medidas', stats.averageLuck === null ? 'Ainda não medida' : `×${Number(stats.averageLuck || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`],
     ['Maior multiplicador', `×${number(stats.maxMultiplier || 1)}`], ['Título mais raro', stats.rarestTitle ? `${stats.rarestTitle} · ${rngBigOdds(stats.rarestOdds)}` : 'Ainda não medido'],
-    ['Roll mais sortudo', stats.luckiestRoll ? `#${number(stats.luckiestRoll)} · ${rngBigOdds(stats.luckiestOdds)}` : 'Ainda não medido'],
+    ['Rolagem mais sortuda', stats.luckiestRoll ? `#${number(stats.luckiestRoll)} · ${rngBigOdds(stats.luckiestOdds)}` : 'Ainda não medido'],
     ['Maior seca de Singular+', number(stats.longestSingularDrought)], ['Mesmo título seguido', number(stats.longestSameTitleStreak)],
     ['Melhor sessão', `${number(stats.bestSession?.rolls)} rolagens · ${number(stats.bestSession?.newTitles)} novos`]
   ];
@@ -325,6 +864,7 @@ function renderRngExpansion(state) {
   const localDate = utcMs => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: 'short' }).format(new Date(utcMs));
   const localTime = utcMs => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(utcMs));
   const now = verified ? trustedRngUtc() : null;
+  const eventIconIds = { rain: 'event-rain', eclipse: 'event-eclipse', focus: 'event-alignment', fragments: 'event-fragments' };
   const nextByEvent = new Map();
   for (const window of state.eventSchedule || []) {
     const open = now !== null && window.startUtc <= now && now < window.endUtc;
@@ -338,21 +878,162 @@ function renderRngExpansion(state) {
     const goal = window.reward?.rollGoal || 0;
     const progress = state.eventRollProgress?.windowId === window.id ? state.eventRollProgress.rolls || 0 : 0;
     const rewardDetails = goal ? `<small class="rng-event-reward">${number(goal)} rolagens na participação · título garantido: ${safeText(window.reward.name)} · relíquia exclusiva aleatória</small>${joined ? `<small class="rng-event-progress">Progresso desta edição · ${number(progress)} / ${number(goal)}</small>` : ''}` : window.reward ? '<small class="rng-event-reward">Edição com título limitado</small>' : '';
-    return `<article class="rng-event-card${window.open ? ' is-open' : ''}"><div class="rng-event-main"><span class="rng-event-kicker">${safeText(window.description)} · ${safeText(boostLabel)} · ${window.durationMinutes || Math.round((window.endUtc - window.startUtc) / 60_000)} min</span><strong>${safeText(window.name)}</strong><span class="rng-event-time"><small>${momentLabel}</small><b>${localTime(window.startUtc)}</b></span>${rewardDetails}</div>${window.open ? `<button type="button" class="outline-button" data-join-rng-event="${safeText(window.id)}" ${joined ? 'disabled' : ''}>${joined ? 'Participando' : 'Participar'}</button>` : ''}</article>`;
+    const icon = globalThis.NTCRngIcons?.render(eventIconIds[window.eventId] || 'event-rain', { size: 48, className: 'rng-event-art', animation: 'hover' }) || '';
+    return `<article class="rng-event-card${window.open ? ' is-open' : ''}"><span class="rng-event-icon" aria-hidden="true">${icon}</span><div class="rng-event-main"><span class="rng-event-kicker">${safeText(window.description)} · ${safeText(boostLabel)} · ${window.durationMinutes || Math.round((window.endUtc - window.startUtc) / 60_000)} min</span><strong>${safeText(window.name)}</strong><span class="rng-event-time"><small>${momentLabel}</small><b>${localTime(window.startUtc)}</b></span>${rewardDetails}</div>${window.open ? `<button type="button" class="outline-button" data-join-rng-event="${safeText(window.id)}" ${joined ? 'disabled' : ''}>${joined ? 'Participando' : 'Participar'}</button>` : ''}</article>`;
   }).join('') || '<p class="rng-section-empty">A agenda aparece após verificar a conexão.</p>';
   $('#rngLimitedTitles').innerHTML = (state.limitedTitles || []).map(reward => `<article class="rng-info-card unlocked"><span class="rng-info-icon">✦</span><div><strong>${safeText(reward.name)}</strong><p>Edição ${safeText(reward.edition)}</p></div></article>`).join('') || '<p class="rng-section-empty">Nenhum título limitado obtido.</p>';
 }
 function formatRngFragments(value) {
   try { return new Intl.NumberFormat('pt-BR').format(BigInt(value || 0)); } catch { return '0'; }
 }
+function formatRngAccountValue(value) {
+  try {
+    const integer = BigInt(value || 0).toString();
+    if (integer.length <= 15) return new Intl.NumberFormat('pt-BR').format(BigInt(integer));
+    return `${integer[0]}.${integer.slice(1, 3)}e${integer.length - 1}`;
+  } catch { return '0'; }
+}
+const rngSystemUnlockCopy = Object.freeze({
+  'fragment-recycling': { icon: 'fragment-pouch', level: 'NÍVEL 2', title: 'Fragmentos', detail: 'Títulos repetidos agora são convertidos em Fragmentos.' },
+  'auto-roll': { icon: 'ui-history', level: 'NÍVEL 3', title: 'Rolagem Automática', detail: 'Agora você pode deixar as rolagens acontecerem automaticamente.' },
+  improvements: { icon: 'ui-shop', level: 'NÍVEL 4', title: 'Melhorias', detail: 'Use seus Fragmentos para melhorar permanentemente sua progressão.' }
+});
+function pendingRngSystemUnlockId(state) {
+  return ['fragment-recycling', 'auto-roll', 'improvements'].includes(state?.pendingAccountSystemUnlock) ? state.pendingAccountSystemUnlock : null;
+}
+function showRngSystemUnlock(unlockId) {
+  const notice = $('#rngSystemUnlockNotice');
+  if (!window.NTCRngAvailability?.gameUiEnabled) {
+    notice.classList.remove('is-visible');
+    if (notice.open) notice.close();
+    notice.hidden = true;
+    delete notice.dataset.unlockId;
+    return;
+  }
+  if (notice.dataset.unlockId === unlockId && notice.open) return;
+  const copy = rngSystemUnlockCopy[unlockId];
+  if (!copy) return;
+  notice.dataset.unlockId = unlockId;
+  notice.querySelector('[data-system-unlock-level]').textContent = copy.level;
+  notice.querySelector('[data-system-unlock-title]').textContent = copy.title;
+  notice.querySelector('[data-system-unlock-detail]').textContent = copy.detail;
+  const iconHost = notice.querySelector('[data-system-unlock-icon]');
+  window.NTCRngIcons?.cancel(iconHost.querySelector('.ntc-rng-icon'));
+  iconHost.innerHTML = window.NTCRngIcons?.render(copy.icon, { size: 30, animation: 'none' }) || '';
+  notice.hidden = false;
+  notice.classList.remove('is-visible');
+  if (!notice.open) notice.showModal();
+  requestAnimationFrame(() => {
+    if (!notice.open) return;
+    notice.classList.add('is-visible');
+    $('#rngSystemUnlockContinue').focus({ preventScroll: true });
+  });
+}
+function syncRngSystemUnlock(state) {
+  const pendingId = pendingRngSystemUnlockId(state);
+  const notice = $('#rngSystemUnlockNotice');
+  if (pendingId) { showRngSystemUnlock(pendingId); return true; }
+  notice.classList.remove('is-visible');
+  if (notice.open) notice.close();
+  notice.hidden = true;
+  delete notice.dataset.unlockId;
+  return false;
+}
+async function continueRngSystemUnlock() {
+  const notice = $('#rngSystemUnlockNotice');
+  const unlockId = notice.dataset.unlockId;
+  if (!unlockId || rngSystemUnlockAckPending) return;
+  const button = $('#rngSystemUnlockContinue');
+  rngSystemUnlockAckPending = true;
+  button.setAttribute('aria-busy', 'true');
+  try {
+    const result = await window.ntc.acknowledgeRngSystemUnlock(unlockId);
+    if (!result?.ok || !result.state) throw new Error('Não foi possível registrar este desbloqueio. Tente novamente.');
+    renderRngState(result.state);
+  } catch (error) {
+    showToast(cleanError(error));
+  } finally {
+    button.removeAttribute('aria-busy');
+    rngSystemUnlockAckPending = false;
+    if (rngState) renderRngState(rngState);
+  }
+}
+function renderRngAccountProgress(state, previousState = null) {
+  const progress = state.accountProgress || { level: '1', xp: '0', xpToNextLevel: '10', lifetimeXp: '0', progressBasisPoints: 0 };
+  const percent = Math.max(0, Math.min(100, (Number(progress.progressBasisPoints) || 0) / 100));
+  const currentXp = formatRngAccountValue(progress.xp);
+  const nextXp = formatRngAccountValue(progress.xpToNextLevel);
+  const levelLabel = $('#rngAccountLevel');
+  levelLabel.textContent = formatRngAccountValue(progress.level);
+  $('#rngAccountXp').textContent = `${currentXp} / ${nextXp} XP`;
+  $('#rngAccountProgressFill').style.transform = `scaleX(${percent / 100})`;
+  $('#rngAccountProgressBar').setAttribute('aria-valuenow', percent.toFixed(2));
+  $('#rngAccountProgressBar').setAttribute('aria-valuetext', `${currentXp} de ${nextXp} XP`);
+  syncRngSystemUnlock(state);
+
+  const feedback = $('#rngAccountXpFeedback');
+  if (!previousState?.accountProgress) return;
+  const previousLifetimeXp = BigInt(previousState.accountProgress.lifetimeXp || 0);
+  const currentLifetimeXp = BigInt(progress.lifetimeXp || 0);
+  if (currentLifetimeXp <= previousLifetimeXp) {
+    if (currentLifetimeXp < previousLifetimeXp) {
+      if (rngAccountXpFeedbackTimer) clearTimeout(rngAccountXpFeedbackTimer);
+      rngAccountXpFeedbackTimer = null;
+      feedback.classList.remove('is-visible', 'is-auto-unlock', 'is-recycling-unlock');
+      $('#rngAccountUnlockDetail').hidden = true;
+      $('#rngAccountLevel').classList.remove('is-level-up');
+    }
+    return;
+  }
+  const gained = currentLifetimeXp - previousLifetimeXp;
+  const newLevel = BigInt(progress.level || 1);
+  const unlockDetail = $('#rngAccountUnlockDetail');
+  const oldLevel = BigInt(previousState.accountProgress.level || 1);
+  feedback.textContent = newLevel > oldLevel
+      ? `LEVEL UP · NÍVEL ${formatRngAccountValue(newLevel)}`
+      : `+${formatRngAccountValue(gained)} XP`;
+  unlockDetail.textContent = '';
+  unlockDetail.hidden = true;
+  const leveledUp = newLevel > oldLevel;
+  levelLabel.classList.remove('is-level-up');
+  feedback.classList.remove('is-visible', 'is-auto-unlock', 'is-recycling-unlock');
+  void feedback.offsetWidth;
+  feedback.classList.add('is-visible');
+  if (leveledUp) levelLabel.classList.add('is-level-up');
+  if (rngAccountXpFeedbackTimer) clearTimeout(rngAccountXpFeedbackTimer);
+  rngAccountXpFeedbackTimer = setTimeout(() => {
+    feedback.classList.remove('is-visible');
+    feedback.classList.remove('is-auto-unlock', 'is-recycling-unlock');
+    unlockDetail.hidden = true;
+    levelLabel.classList.remove('is-level-up');
+    rngAccountXpFeedbackTimer = null;
+  }, newLevel > oldLevel ? 1100 : 850);
+}
 function renderRngShop(state) {
   const fragments = BigInt(state.fragments || 0);
   const price = BigInt(state.nextPermanentUpgradeCost || 50_000);
   $('#rngFragmentsBalance').textContent = `${formatRngFragments(fragments)} Fragmentos`;
+  $('#rngFragmentsBalance').hidden = state.fragmentRecyclingUnlocked !== true;
   $('#rngPermanentLevel').textContent = new Intl.NumberFormat('pt-BR').format(state.permanentUpgradeLevels || 0);
   $('#rngPermanentBonus').textContent = `+${formatRngPercent(state.permanentLuckBps || 0)}`;
+  $('#rngEnhancedRecyclingIcon').innerHTML = window.NTCRngIcons?.render('fragment-pouch', { size: 46, className: 'rng-shop-product-art', animation: 'none' }) || '';
+  $('#rngShopEnhancedLuckIcon').innerHTML = window.NTCRngIcons?.render('shop-enhanced-luck', { size: 48, className: 'rng-shop-product-art', animation: 'sparkle' }) || '';
+  $('#rngShopFortuneRollsIcon').innerHTML = window.NTCRngIcons?.render('shop-fortune-rolls', { size: 48, className: 'rng-shop-product-art', animation: 'glow' }) || '';
+  $('#rngShopFortuneTimeIcon').innerHTML = window.NTCRngIcons?.render('shop-fortune-time', { size: 48, className: 'rng-shop-product-art', animation: 'glow' }) || '';
+  $('#rngInventoryFortuneRollsIcon').innerHTML = window.NTCRngIcons?.render('shop-fortune-rolls', { size: 48, className: 'rng-shop-product-art', animation: 'glow' }) || '';
+  $('#rngInventoryFortuneTimeIcon').innerHTML = window.NTCRngIcons?.render('shop-fortune-time', { size: 48, className: 'rng-shop-product-art', animation: 'glow' }) || '';
   $('#rngBuyUpgrade').textContent = `Comprar por ${formatRngFragments(price)}`;
   $('#rngBuyUpgrade').disabled = fragments < price || rngRequestRunning;
+  const recycling = state.enhancedRecycling || { unlocked: false, level: 0, maxLevel: 5, nextBonusPercent: 10, nextCost: '25' };
+  const recyclingMaxed = recycling.level >= recycling.maxLevel;
+  const recyclingCost = recycling.nextCost === null ? null : BigInt(recycling.nextCost);
+  $('#rngEnhancedRecyclingLevel').textContent = `${recycling.level} / ${recycling.maxLevel}`;
+  $('#rngEnhancedRecyclingBonus').textContent = recyclingMaxed
+    ? `Duplicatas concedem +${recycling.bonusPercent}% Fragmentos.`
+    : `Duplicatas: +${recycling.nextBonusPercent}% Fragmentos no próximo nível.`;
+  $('#rngEnhancedRecyclingCost').textContent = recyclingCost === null ? 'Nível máximo' : `${formatRngFragments(recyclingCost)} Fragmentos`;
+  $('#rngEnhancedRecyclingLocked').hidden = recycling.unlocked === true;
+  $('#rngBuyEnhancedRecycling').disabled = recycling.unlocked !== true || recyclingMaxed || fragments < (recyclingCost ?? 0n) || rngRequestRunning;
   for (const id of ['rngBuyRollBoost', 'rngBuyTimeBoost']) {
     $(`#${id}`).disabled = fragments < 5_000n || rngRequestRunning;
   }
@@ -369,7 +1050,7 @@ function renderRngInventory(state) {
     : formatRngDuration(boost.remaining)).join(' + ')}`;
   $('#rngActiveBoostLabel').textContent = activeLabel;
   const queue = state.boostQueue || [];
-  $('#rngBoostQueueLabel').textContent = queue.length ? `Próximos: ${queue.map(boost => boost.type === 'rolls' ? 'Fortuna por rolagens' : 'Fortuna por tempo').join(' → ')}` : 'Nenhuma ativação na fila';
+  $('#rngBoostQueueLabel').textContent = queue.length ? `Próximos: ${queue.map(boost => boost.type === 'rolls' ? 'Tônico por rolagens' : 'Ampulheta por tempo').join(' → ')}` : 'Nenhuma ativação na fila';
 }
 function formatRngRelicMultiplier(value) {
   try {
@@ -388,16 +1069,13 @@ function formatRngRelicLuck(value) {
 function renderRngRelics(state) {
   const relicState = state.relics || { catalog: [], slots: [], sets: [], activeEffects: [] };
   const fragments = BigInt(state.fragments || 0);
-  const sourceLabel = relic => relic.source === 'drought'
-    ? `Conquista de azar · ${new Intl.NumberFormat('pt-BR').format(relic.droughtGoal || 0)} rolls sem Singular+ na etapa`
-    : relic.source === 'random-drop' ? relic.rare ? 'Drop aleatório raríssimo' : 'Drop aleatório'
-      : relic.source === 'event' ? `Exclusiva de evento · ${relic.eventId === 'eclipse' ? 'Eclipse' : 'Chuva de Fragmentos'}`
-        : relic.source === 'achievement' ? `Conquista · descubra ${new Intl.NumberFormat('pt-BR').format(relic.achievementGoal || 0)} títulos`
+  const sourceLabel = relic => relic.source === 'random-drop' ? relic.rare ? 'Achado raríssimo' : 'Achado aleatório'
+      : relic.source === 'event' ? `Exclusiva de evento · ${relic.eventId === 'eclipse' ? 'Noite sem Alvorecer' : 'Queda de Cinzas'}`
+      : relic.source === 'achievement' ? `Conquista · descubra ${new Intl.NumberFormat('pt-BR').format(relic.achievementGoal || 0)} títulos`
           : 'Exclusiva da loja';
-  const categoryLabel = relic => relic.setId === 'celestial' ? 'RELÓGIOS CELESTES'
+  const categoryLabel = relic => relic.setId === 'celestial' ? 'RELÓGIOS DA PENITÊNCIA'
     : relic.setId === 'echoes' ? 'ECOS'
-      : relic.setId === 'misfortune' ? 'TRÍADE DO AZAR'
-        : relic.source === 'random-drop' ? 'DROP ALEATÓRIO'
+      : relic.source === 'random-drop' ? 'ACHADO ALEATÓRIO'
           : relic.source === 'event' ? 'RELÍQUIA DE EVENTO'
             : relic.source === 'achievement' ? 'RELÍQUIA DE CONQUISTA'
               : 'RELÍQUIA AVULSA';
@@ -409,7 +1087,8 @@ function renderRngRelics(state) {
       : relic.owned
         ? `<button class="outline-button" type="button" data-${relic.equipped ? 'unequip' : 'equip'}-rng-relic="${safeText(relic.id)}" ${rngRequestRunning || (!relic.equipped && equipmentFull) ? 'disabled' : ''}>${relic.equipped ? 'Desequipar' : equipmentFull ? 'Sem espaço livre' : 'Equipar'}</button>`
         : '<button class="outline-button" type="button" disabled>Não encontrada</button>';
-    return `<article class="rng-relic-card${relic.owned ? ' is-owned' : ' is-locked'}${relic.equipped ? ' is-equipped' : ''}"><span class="rng-relic-icon" aria-hidden="true">${safeText(relic.icon)}</span><div class="rng-relic-copy"><span class="rng-shop-kicker">${safeText(categoryLabel(relic))}</span><h3>${safeText(relic.name)}</h3><p>${safeText(relic.effect)}</p><small>${safeText(sourceLabel(relic))}</small></div>${button}</article>`;
+    const icon = window.NTCRngIcons?.render(`relic-${relic.id}`, { size: 38, className: 'rng-relic-art', eager: false }) || '';
+    return `<article class="rng-relic-card${relic.owned ? ' is-owned' : ' is-locked'}${relic.equipped ? ' is-equipped' : ''}"><span class="rng-relic-icon" aria-hidden="true">${icon}</span><div class="rng-relic-copy"><span class="rng-shop-kicker">${safeText(categoryLabel(relic))}</span><h3>${safeText(relic.name)}</h3><p>${safeText(relic.effect)}</p><small>${safeText(sourceLabel(relic))}</small></div>${button}</article>`;
   };
   $('#rngRelicShop').innerHTML = relicState.catalog.filter(relic => relic.purchasable).map(relic => card(relic, 'shop')).join('');
   $('#rngRelicInventory').innerHTML = relicState.catalog.map(relic => card(relic, 'inventory')).join('');
@@ -418,14 +1097,15 @@ function renderRngRelics(state) {
   $('#rngRelicSlots').innerHTML = Array.from({ length: 6 }, (_, index) => {
     const relic = byId.get(relicState.slots?.[index]);
     return relic
-      ? `<button type="button" class="rng-relic-slot is-filled" data-unequip-rng-relic="${safeText(relic.id)}"><span>${safeText(relic.icon)}</span><strong>${safeText(relic.name)}</strong><small>Retirar</small></button>`
+      ? `<button type="button" class="rng-relic-slot is-filled" data-unequip-rng-relic="${safeText(relic.id)}"><span>${window.NTCRngIcons?.render(`relic-${relic.id}`, { size: 28, animation: 'none' }) || '◇'}</span><strong>${safeText(relic.name)}</strong><small>Retirar</small></button>`
       : `<div class="rng-relic-slot"><span>◇</span><strong>Espaço ${index + 1}</strong><small>Livre</small></div>`;
   }).join('');
   const effectLabels = [...(relicState.activeEffects || [])];
   if ((relicState.fragmentMultiplierBps || 10_000) > 10_000) effectLabels.push(`Fragmentos ×${((relicState.fragmentMultiplierBps || 10_000) / 10_000).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}`);
   $('.rng-relic-effects').style.display = effectLabels.length ? 'grid' : 'none';
   $('#rngRelicEffects').innerHTML = effectLabels.map(label => `<span>${safeText(label)}</span>`).join('');
-  $('#rngRelicSets').innerHTML = (relicState.sets || []).map(set => `<article class="rng-set-card${set.complete ? ' is-complete' : ''}"><div><span class="rng-shop-kicker">SET ${set.equippedCount} / ${set.pieceIds.length}</span><strong>${safeText(set.name)}</strong></div><p>${safeText(set.effect)}</p><small>${set.complete ? 'Bônus do set ativo' : 'Equipe as três peças para ativar'}</small></article>`).join('');
+  const setIconIds = { celestial: 'set-celestial', echoes: 'set-echoes' };
+  $('#rngRelicSets').innerHTML = (relicState.sets || []).map(set => `<article class="rng-set-card${set.complete ? ' is-complete' : ''}"><span class="rng-set-icon" aria-hidden="true">${window.NTCRngIcons?.render(setIconIds[set.id] || 'set-celestial', { size: 46, animation: set.complete ? 'glow' : 'none' }) || ''}</span><div class="rng-set-main"><div><span class="rng-shop-kicker">CONJUNTO ${set.equippedCount} / ${set.pieceIds.length}</span><strong>${safeText(set.name)}</strong></div><p>${safeText(set.effect)}</p><small>${set.complete ? 'Bônus do conjunto ativo' : 'Equipe as três peças para ativar'}</small></div></article>`).join('');
 }
 async function performRngShopAction(action, argument, successMessage) {
   if (rngRequestRunning) return;
@@ -435,15 +1115,60 @@ async function performRngShopAction(action, argument, successMessage) {
     const result = await window.ntc[action](...(argument === undefined ? [] : [argument]));
     if (result?.state) renderRngState(result.state);
     if (!result?.ok) {
-      const messages = { 'insufficient-fragments': 'Você ainda não tem Fragmentos suficientes.', 'already-owned': 'Essa relíquia já faz parte da sua coleção.', 'already-equipped': 'Essa relíquia já está equipada.', 'no-free-slot': 'Os seis espaços estão ocupados. Retire uma relíquia primeiro.', 'not-owned': 'Essa relíquia ainda não foi encontrada.', 'not-equipped': 'Essa relíquia não está equipada.' };
+      const messages = { 'insufficient-fragments': 'Você ainda não tem Fragmentos suficientes.', 'upgrade-locked': 'Melhorias ficam disponíveis no Nível 4.', 'max-level': 'Esta melhoria já está no nível máximo.', 'already-owned': 'Essa relíquia já faz parte da sua coleção.', 'already-equipped': 'Essa relíquia já está equipada.', 'no-free-slot': 'Os seis espaços estão ocupados. Retire uma relíquia primeiro.', 'not-owned': 'Essa relíquia ainda não foi encontrada.', 'not-equipped': 'Essa relíquia ainda não está equipada.' };
       showToast(messages[result?.reason] || 'Não foi possível concluir essa ação.');
     }
     else showToast(successMessage(result));
   } catch (error) { showToast(cleanError(error)); }
   finally { rngRequestRunning = false; if (rngState) renderRngState(rngState); }
 }
+function renderRngOnlineNamePrompt() {
+  const prompt = $('#rngOnlineNamePrompt');
+  if (!prompt) return;
+  const hasName = Boolean(rngState?.playerProfile?.identity?.displayName);
+  prompt.classList.toggle('hidden', hasName);
+}
+
+function formatRngOnlineRolls(value) {
+  try { return new Intl.NumberFormat('pt-BR').format(BigInt(String(value ?? '0'))); } catch { return '—'; }
+}
+
+function renderRngOnlineState(state) {
+  if (!state || typeof state !== 'object') return;
+  rngOnlineState = state;
+  const connection = $('#rngOnlineConnection');
+  const statusText = $('#rngOnlineStatusText');
+  const retry = $('#rngOnlineRetry');
+  const updated = $('#rngOnlineRankingUpdated');
+  const list = $('#rngOnlineLeaderboard');
+  const feedback = $('#rngOnlineFeedback');
+  if (!connection || !statusText || !list) return;
+  const labels = {
+    connecting: 'Conectando…', online: 'Online', offline: 'Offline',
+    error: 'Erro de sincronização', unconfigured: 'Não configurado'
+  };
+  const status = Object.hasOwn(labels, state.status) ? state.status : 'error';
+  connection.dataset.status = status;
+  statusText.textContent = labels[status];
+  connection.title = String(state.message || labels[status]);
+  retry.classList.toggle('hidden', !['offline', 'error'].includes(status));
+  feedback.textContent = ['offline', 'error', 'unconfigured'].includes(status) ? String(state.message || '') : '';
+  feedback.classList.toggle('hidden', !feedback.textContent);
+  const rows = Array.isArray(state.leaderboard) ? state.leaderboard : [];
+  if (!rows.length) {
+    const empty = status === 'online' ? 'Ainda não há perfis publicados. Seja o primeiro no ranking.' : 'O ranking será exibido quando a conexão estiver disponível.';
+    list.innerHTML = `<li class="rng-online-empty">${safeText(empty)}</li>`;
+  } else {
+    list.innerHTML = rows.map((entry, index) => `<li class="rng-online-player${index === 0 ? ' is-first' : ''}"><span class="rng-online-rank">#${index + 1}</span><span class="rng-online-player-copy"><span class="rng-online-player-name"><i class="rng-online-presence" data-status="${entry.activityStatus === 'online' ? 'online' : 'offline'}" aria-label="${entry.activityStatus === 'online' ? 'Ativo agora' : 'Offline'}"></i><strong>${safeText(entry.displayName || 'Viajante')}</strong>${entry.showBotBadge ? '<em class="rng-online-bot-badge">BOT</em>' : ''}</span></span><strong class="rng-online-roll-count">${formatRngOnlineRolls(entry.totalRolls)} <small>rolls</small></strong></li>`).join('');
+  }
+  updated.textContent = state.updatedAt
+    ? `Atualizado às ${new Date(state.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+    : status === 'online' ? 'Sincronizado agora' : 'Aguardando conexão';
+}
+
 function renderRngState(state) {
   if (!state?.catalog?.length) return;
+  const previousState = rngState;
   const previousRoll = rngState?.totalRolls ?? null;
   const unlockedAchievements = (state.achievements || []).filter(item => item.unlocked);
   const newlyUnlockedAchievements = rngAchievementUnlocks === null
@@ -452,27 +1177,41 @@ function renderRngState(state) {
   rngAchievementUnlocks = new Set(unlockedAchievements.map(item => item.id));
   if (state !== rngState) rngStateReceivedAt = performance.now();
   rngState = state;
+  renderRngAccountProgress(state, previousState);
+  renderRngOnlineNamePrompt();
+  for (const [section, icon] of Object.entries({ profile: 'ui-profile', online: 'ui-online', history: 'ui-history', collection: 'ui-collection', achievements: 'ui-achievements', statistics: 'ui-statistics', events: 'ui-events', shop: 'ui-shop', inventory: 'ui-inventory', 'patch-notes': 'ui-updates' })) {
+    const host = document.querySelector(`[data-rng-section="${section}"] .rng-section-tab-icon`);
+    if (host && !host.firstElementChild) host.innerHTML = window.NTCRngIcons?.render(icon, { size: 25, animation: 'none' }) || '';
+  }
   const totalCollected = state.collectedIds.length;
-  $('#rngCollectionCount').textContent = `${totalCollected} / ${state.totalTitles}`;
+  const fragmentsUnlocked = state.fragmentRecyclingUnlocked === true;
+  $('#rngFragmentWallet').hidden = !fragmentsUnlocked;
+  $('#rngFragmentBalance').textContent = formatRngFragments(fragmentsUnlocked ? state.fragments : '0');
   $('#rngRollCount').textContent = new Intl.NumberFormat('pt-BR').format(state.totalRolls);
   $('#rngSessionRolls').textContent = new Intl.NumberFormat('pt-BR').format(state.session?.rolls || 0);
   $('#rngSessionBest').textContent = state.session?.bestOdds && state.session.bestOdds !== '0' ? `1 em ${new Intl.NumberFormat('pt-BR').format(BigInt(state.session.bestOdds))}` : '—';
   $('#rngSessionDrought').textContent = state.statistics?.sinceSingular === null ? 'Ainda não medido' : new Intl.NumberFormat('pt-BR').format(state.statistics?.sinceSingular || 0);
-  $('#rngProgressBar').style.width = `${Math.min(100, totalCollected / state.totalTitles * 100)}%`;
-  $('#rngProgressBar').parentElement.setAttribute('aria-valuenow', String(totalCollected));
-  $('#rngProgressBar').parentElement.setAttribute('aria-valuemax', String(state.totalTitles));
   const exactLuckBonus = (() => { try { return (BigInt(state.totalLuckBpsExact || state.totalLuckBps || 10_000) - 10_000n).toString(); } catch { return '0'; } })();
   $('#rngLuckValue').textContent = `+${formatRngExactPercent(exactLuckBonus)}`;
-  $('#rngCollectionLuck').textContent = `+${formatRngPercent(state.passiveLuckBps)} coleção`;
-  $('#rngAchievementLuck').textContent = `+${formatRngPercent(state.achievementLuckBps)} conquistas`;
-  $('#rngSecretLuck').textContent = `+${formatRngPercent(state.secretLuckBps)} segredos`;
-  $('#rngUpgradeLuck').textContent = `+${formatRngPercent(state.permanentLuckBps)} loja`;
+  $('#rngCollectionLuck').textContent = `+${formatRngPercent(state.passiveLuckBps)}`;
+  $('#rngAchievementLuck').textContent = `+${formatRngPercent(state.achievementLuckBps)}`;
+  $('#rngSecretLuck').textContent = `+${formatRngPercent(state.secretLuckBps)}`;
+  $('#rngUpgradeLuck').textContent = `+${formatRngPercent(state.permanentLuckBps)}`;
   $('#rngRelicLuck').textContent = formatRngRelicLuck(state.relicLuckMultiplierBps);
-  $('#rngAutoButton').textContent = state.autoRollActive ? 'Pausar Auto-roll' : 'Iniciar Auto-roll';
+  const autoRollUnlocked = state.autoRollUnlocked === true;
+  $('#rngAutoButton').textContent = state.autoRollActive
+    ? 'Pausar rolagem automática'
+    : autoRollUnlocked ? 'Iniciar rolagem automática' : 'Rolagem automática · Nível 3';
   $('#rngAutoButton').classList.toggle('is-active', state.autoRollActive);
-  $('#rngRollButton').disabled = Boolean(state.autoRollActive || rngRequestRunning);
+  $('#rngAutoButton').classList.toggle('is-locked', !autoRollUnlocked && !state.autoRollActive);
+  $('#rngAutoButton').title = autoRollUnlocked ? '' : 'Desbloqueia ao atingir o Nível 3';
+  $('#rngAutoButton').setAttribute('aria-label', autoRollUnlocked || state.autoRollActive
+    ? (state.autoRollActive ? 'Pausar rolagem automática' : 'Iniciar rolagem automática')
+    : 'Rolagem automática bloqueada até o Nível 3');
+  const systemUnlockBlocksRolls = Boolean(pendingRngSystemUnlockId(state) || rngSystemUnlockAckPending);
+  $('#rngRollButton').disabled = Boolean(systemUnlockBlocksRolls || state.autoRollActive || rngRequestRunning || rngManualRollCycleActive);
   $('#rngRollButton').textContent = state.rollsPerCycle > 1 ? `Rolar (${state.rollsPerCycle}×)` : 'Rolar';
-  $('#rngAutoButton').disabled = rngRequestRunning;
+  $('#rngAutoButton').disabled = systemUnlockBlocksRolls || rngRequestRunning || (!autoRollUnlocked && !state.autoRollActive);
   $('#rngRollBatchInfo').textContent = `${state.rollsPerCycle} ${state.rollsPerCycle === 1 ? 'rolagem' : 'rolagens'} por ciclo`;
   const rollsUntilBonus = state.bonusRollEvery - state.bonusRollCounter;
   $('#rngBonusRollInfo').textContent = `Rolagem bônus ×${state.bonusMultiplier} em ${rollsUntilBonus} ${rollsUntilBonus === 1 ? 'rolagem' : 'rolagens'}`;
@@ -481,29 +1220,20 @@ function renderRngState(state) {
   const rollsUntilTenThousandBonus = 10_000 - (state.totalRolls % 10_000);
   $('#rngTenThousandBonusInfo').textContent = `Bônus supremo ×10 em ${new Intl.NumberFormat('pt-BR').format(rollsUntilTenThousandBonus)} ${rollsUntilTenThousandBonus === 1 ? 'rolagem' : 'rolagens'}`;
 
-  const latest = state.latestResult;
-  const resultCard = $('#rngLastResult');
-  resultCard.classList.toggle('is-new', Boolean(latest?.isNew));
-  resultCard.dataset.tier = latest?.title?.tier || '';
-  $('#rngResultCaption').textContent = latest ? `${latest.isNew ? 'NOVO TÍTULO' : 'REPETIDO'} · ${safeText(latest.title.tierLabel || '')}` : 'ÚLTIMO RESULTADO';
-  $('#rngResultTitle').textContent = latest?.title?.name || 'Ainda sem rolagens';
-  const latestBoosts = latest ? rngRollBoostLabels(latest).join(' · ') : '';
-  $('#rngResultOdds').textContent = latest ? `Chance na rolagem · ${latest.currentOdds}${latestBoosts ? ` · ${latestBoosts}` : ''} · +${formatRngFragments(latest.fragmentReward)} Fragmentos · #${new Intl.NumberFormat('pt-BR').format(latest.roll)}` : 'O título e a chance aparecem aqui.';
   const results = Array.isArray(state.latestResults) ? state.latestResults : [];
   const unlockResults = Array.isArray(state.latestUnlocks) ? state.latestUnlocks : results;
-  const newUnlocks = unlockResults.filter(result => result.roll > (previousRoll ?? 0) && result.isNew);
-  const newlyUnlocked = newUnlocks.at(-1);
-  if (previousRoll !== null && newlyUnlocked) {
-    showRngUnlock(newlyUnlocked);
+  const revealCandidates = window.NTCRngRevealQueue?.collectCandidates(unlockResults, previousRoll ?? 0) || [];
+  const newUnlocks = revealCandidates.filter(candidate => candidate.eventKind === 'title').map(candidate => candidate.result);
+  if (previousRoll !== null && revealCandidates.length) {
+    showRngUnlockBatch(revealCandidates, { defer: true });
     const audibleUnlock = newUnlocks.filter(shouldPlayRngTitleSound).at(-1);
     if (audibleUnlock) void playRngTitleSound(audibleUnlock);
   }
-  const specialUnlock = unlockResults.filter(result => result.roll > (previousRoll ?? 0)).flatMap(result => result.specialUnlocks || []).at(-1);
-  if (previousRoll !== null && specialUnlock) showRngUnlock({ title: { name: specialUnlock.name, tierLabel: specialUnlock.tierLabel, tier: 'ntc' }, roll: state.totalRolls, currentOdds: specialUnlock.tierLabel, luckBonusBps: specialUnlock.luckBonusBps });
+  renderRngRollExperience(state, rngUnlockQueue.length > 0 && !rngUnlockActive && !rngUnlockClosing);
   if (newlyUnlockedAchievements.length) queueRngAchievementNotices(newlyUnlockedAchievements);
   const batchResults = $('#rngBatchResults');
   batchResults.classList.toggle('hidden', results.length < 2);
-  batchResults.innerHTML = results.length < 2 ? '' : `${state.latestBatchSize > results.length ? `<div class="rng-batch-summary">Mostrando os ${results.length} resultados mais recentes de ${new Intl.NumberFormat('pt-BR').format(state.latestBatchSize)}.</div>` : ''}${results.map(result => { const boosts = rngRollBoostLabels(result); return `<article class="rng-batch-result${result.isNew ? ' is-new' : ''}" data-tier="${safeText(result.title?.tier || '')}"><span>${result.isNew ? 'NOVO TÍTULO' : 'REPETIDO'} · #${new Intl.NumberFormat('pt-BR').format(result.roll)}${boosts.length ? ` · ${safeText(boosts.join(' · '))}` : ''}</span><strong>${safeText(result.title?.name || '')}</strong><span>${safeText(result.title?.tierLabel || '')} · ${safeText(result.currentOdds || '')} · +${formatRngFragments(result.fragmentReward)} Fragmentos</span></article>`; }).join('')}`;
+  batchResults.innerHTML = results.length < 2 ? '' : `${state.latestBatchSize > results.length ? `<div class="rng-batch-summary">Mostrando os ${results.length} resultados mais recentes de ${new Intl.NumberFormat('pt-BR').format(state.latestBatchSize)}.</div>` : ''}${results.map(result => { const boosts = rngRollBoostLabels(result); const fragmentReward = BigInt(result.fragmentReward || 0); const duplicateCopy = fragmentReward > 0n ? ` · Duplicata · +${formatRngFragments(fragmentReward)} Fragmentos` : ''; return `<article class="rng-batch-result${result.isNew ? ' is-new' : ''}" data-tier="${safeText(result.title?.tier || '')}"><span>${result.isNew ? 'NOVO TÍTULO' : 'REPETIDO'} · #${new Intl.NumberFormat('pt-BR').format(result.roll)}${boosts.length ? ` · ${safeText(boosts.join(' · '))}` : ''}</span><strong>${safeText(result.title?.name || '')}</strong><span>${safeText(result.title?.tierLabel || '')} · ${safeText(result.currentOdds || '')}${duplicateCopy}</span></article>`; }).join('')}`;
 
   renderRngTitleHistory(state);
 
@@ -512,12 +1242,13 @@ function renderRngState(state) {
   $('#rngTierFilters').innerHTML = tiers.map(tier => {
     const inTier = state.catalog.filter(title => title.tier === tier.id);
     const found = inTier.filter(title => title.collected).length;
-    return `<button class="rng-tier-tab${tier.id === rngSelectedTier ? ' active' : ''}" type="button" role="tab" aria-selected="${tier.id === rngSelectedTier}" data-rng-tier="${tier.id}"><span>${safeText(tier.label)}</span><small>${found}/${inTier.length}</small></button>`;
+    return `<button class="rng-tier-tab${tier.id === rngSelectedTier ? ' active' : ''}" type="button" role="tab" aria-selected="${tier.id === rngSelectedTier}" data-rng-tier="${tier.id}"><span class="rng-tier-tab-label">${window.NTCRngIcons?.render(`tier-${tier.id}`, { size: 16 }) || ''}<span>${safeText(tier.label)}</span></span><small>${found}/${inTier.length}</small></button>`;
   }).join('');
   const visible = state.catalog.filter(title => title.tier === rngSelectedTier);
   const selectedTier = tiers.find(tier => tier.id === rngSelectedTier);
   $('#rngTierCount').textContent = `${visible.filter(title => title.collected).length} / ${visible.length} · ${safeText(selectedTier?.label || '')}`;
-  $('#rngCatalog').innerHTML = visible.map(title => `<article class="rng-title-row${title.collected ? ' collected' : ' locked'}"><span class="rng-title-mark">${title.collected ? '✧' : '·'}</span><div class="rng-title-info"><strong>${safeText(title.name)}</strong><span>${title.collected ? 'Obtido' : 'Não encontrado'}</span></div><div class="rng-title-odds"><strong>${safeText(title.currentOdds)}</strong><small>Chance atual</small>${title.currentOdds !== title.baseOdds ? `<small>Base ${safeText(title.baseOdds)}</small>` : ''}</div></article>`).join('');
+  $('#rngCatalog').innerHTML = visible.map(title => `<article class="rng-title-row${title.collected ? ' collected' : ' locked'}" data-tier="${safeText(title.tier)}"><span class="rng-title-mark" aria-hidden="true">${rngTitleIcon(title, { size: 19, animation: 'none' }) || '<span class="rng-title-locked-mark">?</span>'}</span><div class="rng-title-info"><strong>${safeText(title.name)}</strong><span>${title.collected ? 'Obtido' : 'Não encontrado'}</span></div><div class="rng-title-odds"><strong>${formatRngOdds(title.baseOdds)}</strong></div></article>`).join('');
+  renderRngPlayerProfile(state);
   renderRngExpansion(state);
   renderRngShop(state);
   renderRngInventory(state);
@@ -527,13 +1258,34 @@ function renderRngState(state) {
 }
 async function loadRngState() { try { renderRngState(await window.ntc.getRngState()); } catch (error) { showToast(`NTC RNG indisponível: ${cleanError(error)}`); } }
 async function performManualRngRoll() {
-  if (rngRequestRunning || rngState?.autoRollActive) return;
+  if (rngRequestRunning || rngManualRollCycleActive || rngState?.autoRollActive || pendingRngSystemUnlockId(rngState) || rngSystemUnlockAckPending) return;
+  rngManualRollCycleActive = true;
+  rngManualRollCycleId = null;
+  rngManualRollPresentationDone = false;
+  rngManualRollCompleting = false;
+  rngRollExperience?.beginRequest();
   rngRequestRunning = true; if (rngState) renderRngState(rngState);
-  try { await window.ntc.rollRng(); } catch (error) { showToast(cleanError(error)); }
+  try {
+    const outcome = await window.ntc.rollRng();
+    if (outcome?.accepted !== true) {
+      clearManualRollCycleState();
+      return;
+    }
+    rngManualRollCycleId = outcome.cycleId;
+    if (rngManualRollPresentationDone) void tryCompleteManualRollCycle();
+  } catch (error) {
+    rngRollExperience?.requestFailed();
+    clearManualRollCycleState();
+    showToast(cleanError(error));
+  }
   finally { rngRequestRunning = false; if (rngState) renderRngState(rngState); }
 }
 async function toggleRngAutoRoll() {
-  if (rngRequestRunning) return;
+  if (rngRequestRunning || pendingRngSystemUnlockId(rngState) || rngSystemUnlockAckPending) return;
+  if (!rngState?.autoRollActive && rngState?.autoRollUnlocked !== true) {
+    showToast('A Rolagem Automática é desbloqueada no Nível 2.');
+    return;
+  }
   rngRequestRunning = true; if (rngState) renderRngState(rngState);
   try { await window.ntc.setRngAutoRoll(!rngState?.autoRollActive); }
   catch (error) { showToast(cleanError(error)); }
@@ -636,7 +1388,33 @@ function showUpdateNotice(update) {
 }
 function closeConfirm(result) { $('#confirmDialog').classList.add('hidden'); const resolver = confirmResolver; confirmResolver = null; resolver?.(result); }
 function confirmAction(title, message, acceptLabel = 'Confirmar') { $('#confirmTitle').textContent = title; $('#confirmMessage').textContent = message; $('#confirmAccept').textContent = acceptLabel; $('#confirmDialog').classList.remove('hidden'); $('#confirmCancel').focus(); return new Promise(resolve => { confirmResolver = resolve; }); }
-function syncSettings() { $('#folderPath').textContent = folder || 'Downloads'; $('#settingsFolder').textContent = folder || 'Downloads'; if (!editingConversionId) $('#converterFolderPath').textContent = folder || 'Downloads'; $('#videoFolderPath').textContent = folder || 'Downloads'; $('#videoEditorFolderPath').textContent = folder || 'Downloads'; $('#imageFolderPath').textContent = folder || 'Downloads'; $('#recorderFolderPath').textContent = localStorage.getItem('ntc-recorder-folder') || folder || 'Downloads'; $('#screenshotFolderPath').textContent = localStorage.getItem('ntc-screenshot-folder') || folder || 'Downloads'; $('#qrFolderPath').textContent = folder || 'Downloads'; $('#openFolderAfter').checked = localStorage.getItem('ntc-open-folder') === 'true'; $('#duplicatePolicy').value = localStorage.getItem('ntc-duplicate') || 'rename'; $('#filenameTemplate').value = localStorage.getItem('ntc-filename-template') || 'title'; document.documentElement.style.colorScheme = 'dark'; }
+const RNG_REVEAL_MOTION_KEY = 'ntc-rng-reveal-motion';
+const RNG_ROLL_MOTION_KEY = 'ntc-rng-roll-motion';
+function applyRngRollPreference() {
+  const saved = localStorage.getItem(RNG_ROLL_MOTION_KEY) || 'full';
+  const preference = ['full', 'reduced', 'off', 'auto'].includes(saved) ? saved : 'full';
+  const systemReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+  document.documentElement.dataset.rngRollMotion = preference === 'auto' ? systemReduced ? 'reduced' : 'full' : preference;
+  rngRollExperience?.setMotion(document.documentElement.dataset.rngRollMotion);
+  const control = $('#rngRollMotion');
+  if (control) control.value = preference;
+}
+function applyRngRevealPreference() {
+  const saved = localStorage.getItem(RNG_REVEAL_MOTION_KEY) || 'auto';
+  const preference = ['auto', 'reduced', 'off', 'full'].includes(saved) ? saved : 'auto';
+  const systemReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+  document.documentElement.dataset.rngRevealMotion = preference === 'auto' ? systemReduced ? 'reduced' : 'full' : preference;
+  const activeReveal = $('#rngUnlockNotice');
+  if (document.documentElement.dataset.rngRevealMotion !== 'full' && !activeReveal?.classList.contains('debug-force-motion')) cancelRngRevealParticles();
+  const control = $('#rngRevealMotion');
+  if (control) control.value = preference;
+}
+const rngRevealMotionMedia = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+rngRevealMotionMedia?.addEventListener?.('change', () => {
+  if ((localStorage.getItem(RNG_REVEAL_MOTION_KEY) || 'auto') === 'auto') applyRngRevealPreference();
+  if ((localStorage.getItem(RNG_ROLL_MOTION_KEY) || 'full') === 'auto') applyRngRollPreference();
+});
+function syncSettings() { $('#folderPath').textContent = folder || 'Downloads'; $('#settingsFolder').textContent = folder || 'Downloads'; if (!editingConversionId) $('#converterFolderPath').textContent = folder || 'Downloads'; $('#videoFolderPath').textContent = folder || 'Downloads'; $('#imageFolderPath').textContent = folder || 'Downloads'; $('#recorderFolderPath').textContent = localStorage.getItem('ntc-recorder-folder') || folder || 'Downloads'; $('#screenshotFolderPath').textContent = localStorage.getItem('ntc-screenshot-folder') || folder || 'Downloads'; $('#qrFolderPath').textContent = folder || 'Downloads'; $('#openFolderAfter').checked = localStorage.getItem('ntc-open-folder') === 'true'; $('#duplicatePolicy').value = localStorage.getItem('ntc-duplicate') || 'rename'; $('#filenameTemplate').value = localStorage.getItem('ntc-filename-template') || 'title'; applyRngRevealPreference(); applyRngRollPreference(); document.documentElement.style.colorScheme = 'dark'; }
 async function refreshSpaceHint(estimatedSize = 0) { if (!folder) return; try { const free = await window.ntc.freeSpace(folder); if (!Number.isFinite(free)) { $('#spaceHint').textContent = 'Espaço disponível não informado.'; return; } $('#spaceHint').textContent = estimatedSize ? `Espaço livre: ${formatBytes(free)} · estimativa: ~${formatBytes(estimatedSize)}` : `Espaço livre: ${formatBytes(free)}`; } catch { $('#spaceHint').textContent = 'Espaço disponível não informado.'; } }
 function addHistory(item) { history.unshift(item); history.splice(50); localStorage.setItem('ntc-history', JSON.stringify(history)); renderHistory(); }
 function compressionIsImage(file) { return /\.(jpe?g|png|webp|bmp|tiff?)$/i.test(file || ''); }
@@ -646,25 +1424,12 @@ function updateCompressionControls() { const source = compressionQueue[0]?.sourc
 async function addCompressionFiles(files) { files.filter(file => /\.(mp4|mkv|mov|avi|webm|m4v|mp3|m4a|aac|wav|flac|ogg|opus|wma)$/i.test(file || '')).forEach(file => { if (!compressionQueue.some(item => item.source === file)) compressionQueue.push({ id: toolId(), source: file, name: file.split(/[\\/]/).pop(), status: 'Pronto' }); }); renderCompressionQueue(); updateCompressionControls(); }
 function applyCompressionPreset() { const preset = $('#compressionPreset').value; if (preset === 'equilibrado') Object.assign({ }, { }); const values = preset === 'muito' ? { resolution: '144', fps: 8, crf: 45, bitrate: 16, quality: 5, scale: 20 } : { resolution: '720', fps: 24, crf: 30, bitrate: 64, quality: 60, scale: 60 }; if (preset !== 'manual') { $('#compressionResolution').value = values.resolution; $('#compressionFps').value = values.fps; $('#compressionCrf').value = values.crf; $('#compressionBitrate').value = values.bitrate; $('#compressionImageQuality').value = values.quality; $('#compressionImageScale').value = values.scale; } }
 async function startCompressionQueue() { if (compressionRunning) return; compressionRunning = true; let completed = 0; const compressionFolder = localStorage.getItem('ntc-compression-folder') || folder; for (const item of compressionQueue.filter(entry => entry.status === 'Pronto' || entry.status === 'Falhou')) { item.status = 'Comprimindo'; renderCompressionQueue(); try { const result = await window.ntc.startCompression({ ...item, folder: compressionFolder, duplicate: 'rename', resolution: $('#compressionResolution').value, fps: $('#compressionFps').value, crf: $('#compressionCrf').value, audioBitrate: $('#compressionBitrate').value, audioFormat: $('#compressionAudioFormat').value, sampleRate: $('#compressionSampleRate').value, mono: $('#compressionMono').checked }); item.status = 'Concluído'; completed++; addHistory({ title: result.file.split(/[\\/]/).pop(), type: result.kind, format: result.kind === 'video' ? 'MP4' : $('#compressionAudioFormat').value.toUpperCase(), quality: 'comprimido', size: formatBytes(result.size), file: result.file, time: 'Agora', operation: 'compression' }); } catch (error) { item.status = `Falhou: ${cleanError(error)}`; } renderCompressionQueue(); } compressionRunning = false; if (completed) showToast(`${completed === 1 ? 'Arquivo comprimido' : `${completed} arquivos comprimidos`}. Acesse em Histórico.`); }
-function normalizeVideoEditCuts() { const duration = Number(videoEdit.meta?.duration || 0); videoEdit.cuts = videoEdit.cuts.map(cut => ({ start: Math.max(0, Math.min(duration, Number(cut.start) || 0)), end: Math.max(0, Math.min(duration, Number(cut.end) || 0)) })).filter(cut => cut.end - cut.start > .05).sort((a, b) => a.start - b.start).reduce((cuts, cut) => { const last = cuts.at(-1); if (last && cut.start <= last.end + .05) last.end = Math.max(last.end, cut.end); else cuts.push(cut); return cuts; }, []); }
-function videoEditSegments() { const duration = Number(videoEdit.meta?.duration || 0); normalizeVideoEditCuts(); const segments = []; let cursor = 0; videoEdit.cuts.forEach(cut => { if (cut.start > cursor + .05) segments.push({ start: cursor, end: cut.start }); cursor = Math.max(cursor, cut.end); }); if (duration > cursor + .05) segments.push({ start: cursor, end: duration }); return segments; }
-function videoEditDuration() { return videoEditSegments().reduce((total, segment) => total + segment.end - segment.start, 0); }
-function videoEditSourceTime(projectTime) { const target = Math.max(0, Math.min(videoEditDuration(), Number(projectTime) || 0)); let passed = 0; for (const segment of videoEditSegments()) { const length = segment.end - segment.start; if (target <= passed + length) return segment.start + target - passed; passed += length; } return videoEditSegments().at(-1)?.end || 0; }
-function videoEditProjectTime(sourceTime) { let passed = 0; for (const segment of videoEditSegments()) { if (sourceTime >= segment.start && sourceTime <= segment.end) return passed + sourceTime - segment.start; passed += segment.end - segment.start; } return passed; }
-function videoEditSelectionBounds() { const a = Math.min(videoEdit.selectionStart, videoEdit.selectionEnd); const b = Math.max(videoEdit.selectionStart, videoEdit.selectionEnd); const sourceDuration = Number(videoEdit.meta?.duration || 0); return [Math.max(0, a), Math.min(sourceDuration, b)]; }
-function paintVideoEditorWaveform() { const canvas = $('#videoTimelineWaveform'); if (!canvas || !videoEdit.source) return; const rect = canvas.getBoundingClientRect(); const ratio = window.devicePixelRatio || 1; canvas.width = Math.max(1, Math.round(rect.width * ratio)); canvas.height = Math.max(1, Math.round(rect.height * ratio)); const context = canvas.getContext('2d'); context.scale(ratio, ratio); context.clearRect(0, 0, rect.width, rect.height); const middle = rect.height / 2; context.strokeStyle = '#bcbcbc'; context.lineWidth = 1; const values = videoEditWaveform.length ? videoEditWaveform : new Array(120).fill(.08); for (let x = 0; x < Math.ceil(rect.width); x++) { const index = Math.min(values.length - 1, Math.floor(x / Math.max(1, rect.width) * values.length)); const amplitude = Math.max(.04, Number(values[index]) || .04) * (rect.height * .42); context.beginPath(); context.moveTo(x + .5, middle - amplitude); context.lineTo(x + .5, middle + amplitude); context.stroke(); } }
-function renderVideoEditorTimeline() { if (!videoEdit.source) return; const sourceDuration = Math.max(.01, Number(videoEdit.meta?.duration || 0)); const outputDuration = Math.max(.01, videoEditDuration()); const [start, end] = videoEditSelectionBounds(); const selection = $('#videoTimelineSelection'); selection.style.left = `${start / sourceDuration * 100}%`; selection.style.width = `${Math.max(.25, (end - start) / sourceDuration * 100)}%`; $('#videoTimelineCuts').innerHTML = videoEdit.cuts.map(cut => `<span class="timeline-cut" style="left:${cut.start / sourceDuration * 100}%;width:${Math.max(.2, (cut.end - cut.start) / sourceDuration * 100)}%"></span>`).join(''); const player = $('#videoEditorPlayer'); const current = Number.isFinite(player.currentTime) ? player.currentTime : 0; $('#videoTimelinePlayhead').style.left = `${Math.max(0, Math.min(100, current / sourceDuration * 100))}%`; $('#videoEditorTime').textContent = `${formatEditorTime(videoEditProjectTime(current))} / ${formatEditorTime(outputDuration)}`; $('#videoEditorDuration').textContent = `final ${formatEditorTime(outputDuration)}`; const removed = videoEdit.cuts.reduce((total, cut) => total + cut.end - cut.start, 0); $('#videoCutSummary').textContent = videoEdit.cuts.length ? `${videoEdit.cuts.length} ${videoEdit.cuts.length === 1 ? 'trecho removido' : 'trechos removidos'} · ${formatEditorTime(removed)}` : 'Arraste na waveform para selecionar um trecho'; $('#removeVideoCut').disabled = end - start < .1; $('#undoVideoCut').disabled = !videoEdit.cuts.length; paintVideoEditorWaveform(); renderVideoEditorAudioTracks(); }
-function paintVideoEditorAudioWaveforms() { $$('[data-audio-waveform]').forEach(canvas => { const track = videoEdit.audioTracks.find(entry => entry.id === canvas.dataset.audioWaveform); if (!track) return; const rect = canvas.getBoundingClientRect(); const ratio = window.devicePixelRatio || 1; canvas.width = Math.max(1, Math.round(rect.width * ratio)); canvas.height = Math.max(1, Math.round(rect.height * ratio)); const context = canvas.getContext('2d'); context.scale(ratio, ratio); context.clearRect(0, 0, rect.width, rect.height); const values = track.waveform?.length ? track.waveform : new Array(90).fill(.16); const middle = rect.height / 2; context.strokeStyle = '#eeeeee'; context.globalAlpha = .76; context.lineWidth = 1; for (let x = 0; x < Math.ceil(rect.width); x++) { const index = Math.min(values.length - 1, Math.floor(x / Math.max(1, rect.width) * values.length)); const amplitude = Math.max(.05, Number(values[index]) || .05) * rect.height * .39; context.beginPath(); context.moveTo(x + .5, middle - amplitude); context.lineTo(x + .5, middle + amplitude); context.stroke(); } }); }
-function renderVideoEditorAudioTracks() { const list = $('#videoEditorAudioTracks'); const duration = Math.max(.01, videoEditDuration()); if (!videoEdit.audioTracks.length) { list.innerHTML = '<div class="empty-state"><p>Adicione músicas ou áudios para misturar.</p></div>'; return; } list.innerHTML = videoEdit.audioTracks.map(track => { const position = Math.max(0, Math.min(duration, Number(track.position) || 0)); const visibleDuration = track.loop ? Math.max(.05, duration - position) : Math.max(.05, Math.min(Number(track.duration) || .05, duration - position)); return `<article class="video-audio-track"><strong title="${safeText(track.name)}">${safeText(track.name)}</strong><div class="audio-timeline-track"><div class="audio-track-clip" data-audio-track="${track.id}" style="left:${position / duration * 100}%;width:${Math.max(1, visibleDuration / duration * 100)}%"><canvas class="audio-track-waveform" data-audio-waveform="${track.id}" aria-hidden="true"></canvas><button type="button" data-audio-drag="start" aria-label="Ajustar início"></button><span>${safeText(track.loop ? `${track.name} · loop` : track.name)}</span><button type="button" data-audio-drag="end" aria-label="Ajustar fim"></button></div></div><div class="audio-track-settings"><label>vol.<input class="text-input" data-audio-volume="${track.id}" type="number" min="0" max="300" value="${Math.round(Number(track.volume) || 100)}" /></label><label>loop<input data-audio-loop="${track.id}" type="checkbox" ${track.loop ? 'checked' : ''} /></label><button class="ghost-button" data-audio-remove="${track.id}" type="button">×</button></div></article>`; }).join(''); paintVideoEditorAudioWaveforms(); $$('[data-audio-remove]').forEach(button => button.onclick = () => { videoEdit.audioTracks = videoEdit.audioTracks.filter(track => track.id !== button.dataset.audioRemove); renderVideoEditorTimeline(); }); $$('[data-audio-volume]').forEach(input => input.oninput = () => { const track = videoEdit.audioTracks.find(entry => entry.id === input.dataset.audioVolume); if (track) track.volume = Math.max(0, Math.min(300, Number(input.value) || 0)); }); $$('[data-audio-loop]').forEach(input => input.onchange = () => { const track = videoEdit.audioTracks.find(entry => entry.id === input.dataset.audioLoop); if (track) { track.loop = input.checked; renderVideoEditorTimeline(); } }); $$('[data-audio-track]').forEach(clip => clip.onpointerdown = event => { if (event.button !== 0) return; const track = videoEdit.audioTracks.find(entry => entry.id === clip.dataset.audioTrack); if (!track) return; const mode = event.target.dataset.audioDrag || 'move'; videoEditDrag = { id: track.id, mode, startX: event.clientX, position: Number(track.position) || 0, trimStart: Number(track.trimStart) || 0, duration: Number(track.duration) || .1, timeline: clip.parentElement.getBoundingClientRect() }; event.preventDefault(); }); }
-function updateVideoEditorAudioDrag(event) { if (!videoEditDrag) return; const track = videoEdit.audioTracks.find(entry => entry.id === videoEditDrag.id); if (!track) return; const total = Math.max(.01, videoEditDuration()); const delta = (event.clientX - videoEditDrag.startX) / Math.max(1, videoEditDrag.timeline.width) * total; const maxDuration = Math.max(.05, Number(track.mediaDuration) - videoEditDrag.trimStart); if (videoEditDrag.mode === 'move') track.position = Math.max(0, Math.min(total - .05, videoEditDrag.position + delta)); if (videoEditDrag.mode === 'start') { const trimStart = Math.max(0, Math.min(Number(track.mediaDuration) - .05, videoEditDrag.trimStart + delta)); const changed = trimStart - videoEditDrag.trimStart; track.trimStart = trimStart; track.duration = Math.max(.05, Math.min(maxDuration - changed, videoEditDrag.duration - changed)); track.position = Math.max(0, videoEditDrag.position + changed); } if (videoEditDrag.mode === 'end' && !track.loop) track.duration = Math.max(.05, Math.min(maxDuration, videoEditDrag.duration + delta)); renderVideoEditorTimeline(); }
-async function loadVideoEditor(file) { try { const meta = await window.ntc.inspectVideo(file); videoEdit = { source: meta.path, meta, cuts: [], audioTracks: [], selectionStart: 0, selectionEnd: Math.min(1, meta.duration), outputName: safeBase(`${meta.baseName || meta.name.replace(/\.[^.]+$/, '')} editado`), exporting: false }; videoEditWaveform = []; $('#videoEditorWorkspace').classList.remove('hidden'); $('#videoEditorName').textContent = meta.name; $('#videoEditorOutputName').value = videoEdit.outputName; $('#videoEditorFolderPath').textContent = folder || 'Downloads'; $('#videoOriginalVolume').value = '100'; $('#videoMuteOriginal').checked = false; const player = $('#videoEditorPlayer'); player.src = sourceUrl(meta.path); player.load(); renderVideoEditorTimeline(); try { videoEditWaveform = await window.ntc.getWaveform(meta.path); } catch { videoEditWaveform = []; } renderVideoEditorTimeline(); } catch (error) { showToast(cleanError(error)); } }
-async function addVideoEditorAudio() { const files = await window.ntc.chooseVideoEditorAudio(); const results = await Promise.allSettled(files.map(file => window.ntc.inspectMedia(file))); let invalid = 0; const added = []; results.forEach(result => { if (result.status !== 'fulfilled') { invalid++; return; } const info = result.value; const track = { id: toolId(), source: info.path, name: info.name, mediaDuration: Number(info.duration) || .1, trimStart: 0, duration: Number(info.duration) || .1, position: 0, volume: 100, loop: false, waveform: [] }; videoEdit.audioTracks.push(track); added.push(track); }); renderVideoEditorTimeline(); await Promise.all(added.map(async track => { try { track.waveform = await window.ntc.getWaveform(track.source); } catch { track.waveform = []; } })); renderVideoEditorTimeline(); if (invalid) showToast('Alguns arquivos não possuem uma faixa de áudio válida.'); }
-async function exportVideoEdit() { if (!videoEdit.source || videoEdit.exporting) return; const duration = videoEditDuration(); if (duration <= .05) return showToast('Mantenha ao menos um trecho do vídeo para exportar.'); videoEdit.exporting = true; const id = toolId(); const progress = $('#videoEditorProgress'); progress.classList.remove('hidden'); $('#videoEditorStatus').textContent = 'EXPORTANDO'; $('#videoEditorPercent').textContent = '0%'; $('#videoEditorProgressBar').style.width = '0%'; $('#videoEditorProgressTitle').textContent = videoEdit.meta.name; $('#exportVideoEdit').disabled = true; $('#cancelVideoEdit').onclick = () => window.ntc.cancelVideoEdit(id); try { const result = await window.ntc.startVideoEdit({ id, source: videoEdit.source, duration: videoEdit.meta.duration, cuts: videoEdit.cuts, audioTracks: videoEdit.audioTracks, originalVolume: $('#videoOriginalVolume').value, muteOriginal: $('#videoMuteOriginal').checked, hasAudio: videoEdit.meta.hasAudio, folder: folder || await window.ntc.defaultDownloadFolder(), outputName: $('#videoEditorOutputName').value.trim() || videoEdit.outputName, duplicate: localStorage.getItem('ntc-duplicate') || 'rename' }); addHistory({ title: result.filename, type: 'video', format: 'MP4', quality: 'H.264 editado', size: formatBytes(result.size), file: result.file, time: 'Agora', operation: 'conversion' }); $('#videoEditorStatus').textContent = 'CONCLUÍDO'; $('#videoEditorPercent').textContent = '100%'; $('#videoEditorProgressBar').style.width = '100%'; $('#videoEditorProgressMeta').textContent = 'Arquivo criado. Acesse em Histórico.'; showToast('Vídeo editado. Acesse em Histórico.'); } catch (error) { $('#videoEditorStatus').textContent = 'ERRO'; $('#videoEditorPercent').textContent = 'ERRO'; $('#videoEditorProgressMeta').textContent = cleanError(error); } finally { videoEdit.exporting = false; $('#exportVideoEdit').disabled = false; } }
 function showEditAfterDownload(file, title) { downloadedAudioToEdit = { file, title }; $('#downloadedAudioName').textContent = title || 'Download concluído.'; $('#editAfterDownloadModal').classList.remove('hidden'); clearTimeout(editSuggestionTimer); editSuggestionTimer = setTimeout(hideEditAfterDownload, 8000); }
 function hideEditAfterDownload() { clearTimeout(editSuggestionTimer); editSuggestionTimer = null; downloadedAudioToEdit = null; $('#editAfterDownloadModal').classList.add('hidden'); }
 
 function renderHistory() {
   renderQrHistory();
+  renderSecurityHistory();
   const list = $('#historyList'); const empty = $('#emptyHistory'); const all = $('#allHistory');
   if (!history.length) { list.classList.add('hidden'); empty.classList.remove('hidden'); all.innerHTML = '<div class="empty-state"><div class="empty-icon">◷</div><p>Nenhum arquivo concluído ainda.</p></div>'; return; }
   const filter = $('#historyFilter')?.value || 'all'; const visible = history.map((item, index) => ({ item, index })).filter(({ item }) => filter === 'all' || (filter === 'failed' ? item.state === 'erro' : item.operation === filter));
@@ -676,11 +1441,14 @@ function renderHistory() {
 }
 
 function setHistoryTab(tab) {
-  const qr = tab === 'qr';
-  $('#filesHistoryTab').classList.toggle('active', !qr); $('#filesHistoryTab').setAttribute('aria-selected', String(!qr));
-  $('#qrHistoryTab').classList.toggle('active', qr); $('#qrHistoryTab').setAttribute('aria-selected', String(qr));
-  $('#filesHistoryPanel').classList.toggle('hidden', qr); $('#qrHistoryPanel').classList.toggle('hidden', !qr);
-  $('#filesHistoryActions').classList.toggle('hidden', qr); $('#qrHistoryActions').classList.toggle('hidden', !qr);
+  const tabs = { files: 'files', qr: 'qr', security: 'security' };
+  for (const [key, name] of Object.entries(tabs)) {
+    const active = key === tab;
+    $(`#${name}HistoryTab`).classList.toggle('active', active);
+    $(`#${name}HistoryTab`).setAttribute('aria-selected', String(active));
+    $(`#${name}HistoryPanel`).classList.toggle('hidden', !active);
+    $(`#${name}HistoryActions`).classList.toggle('hidden', !active);
+  }
 }
 
 function renderQrHistory() {
@@ -692,6 +1460,30 @@ function renderQrHistory() {
   $$('[data-qr-history-folder]').forEach(button => button.onclick = async () => { const result = await window.ntc.openFileFolder(qrHistory[Number(button.dataset.qrHistoryFolder)].file); if (result) showToast('Não foi possível abrir a pasta.'); });
   $$('[data-qr-history-copy]').forEach(button => button.onclick = async () => { await window.ntc.copyText(qrHistory[Number(button.dataset.qrHistoryCopy)].url); showToast('Link copiado.'); });
 }
+
+function renderSecurityHistory() {
+  const list = $('#securityHistoryList');
+  if (!list) return;
+  if (!securityHistory.length) { list.innerHTML = '<div class="empty-state"><div class="empty-icon">◇</div><p>Arquivos protegidos e restaurados aparecerão aqui.</p></div>'; return; }
+  list.innerHTML = securityHistory.map((item, index) => {
+    const encrypted = item.action === 'encrypt';
+    const action = encrypted ? 'Criptografado' : 'Descriptografado';
+    const date = item.time ? new Date(item.time) : null;
+    const formattedDate = date && !Number.isNaN(date.getTime()) ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(date) : 'Data indisponível';
+    const details = [action, formatBytes(Number(item.size) || 0), formattedDate].join(' · ');
+    return `<article class="history-item security-history-item"><div class="history-icon">${encrypted ? '◇' : '↩'}</div><div class="history-copy"><strong>${safeText(item.title || 'Arquivo')}</strong><span>${safeText(details)}</span></div>${item.file ? `<button class="ghost-button" data-security-history-open="${index}" type="button">Abrir</button><button class="ghost-button" data-security-history-folder="${index}" type="button">Pasta</button>` : ''}</article>`;
+  }).join('');
+  $$('[data-security-history-open]').forEach(button => button.onclick = async () => { const result = await window.ntc.openFile(securityHistory[Number(button.dataset.securityHistoryOpen)].file); if (result) showToast('Não foi possível abrir o arquivo.'); });
+  $$('[data-security-history-folder]').forEach(button => button.onclick = async () => { const result = await window.ntc.openFileFolder(securityHistory[Number(button.dataset.securityHistoryFolder)].file); if (result) showToast('Não foi possível abrir a pasta.'); });
+}
+
+window.addEventListener('ntc-security-history-updated', () => {
+  try {
+    const entries = JSON.parse(localStorage.getItem('ntc-security-history') || '[]');
+    securityHistory.splice(0, securityHistory.length, ...(Array.isArray(entries) ? entries.filter(item => item && typeof item === 'object' && typeof item.file === 'string').slice(0, 100) : []));
+    renderSecurityHistory();
+  } catch { showToast('Não foi possível atualizar o Histórico de segurança.'); }
+});
 
 function normalizeQrInput(value) {
   const raw = String(value || '').trim();
@@ -821,6 +1613,15 @@ function clearQrHistoryWithConfirm() {
     if (!accepted) return;
     qrHistory.length = 0; localStorage.removeItem('ntc-qr-history'); renderQrHistory(); showToast('Histórico de QR Codes limpo.');
   });
+}
+
+async function clearSecurityHistoryWithConfirm() {
+  if (!securityHistory.length) { showToast('O histórico de segurança já está vazio.'); return; }
+  if (!await confirmAction('Limpar histórico de segurança?', 'Serão removidos apenas os registros. Os arquivos não serão apagados.', 'Limpar histórico')) return;
+  securityHistory.length = 0;
+  localStorage.removeItem('ntc-security-history');
+  renderSecurityHistory();
+  showToast('Histórico de segurança limpo.');
 }
 
 function persistQueue() { localStorage.setItem('ntc-download-queue', JSON.stringify(queue.map(item => ({ ...item, status: item.status === 'baixando' ? 'pausado' : item.status, percent: 0 })))); }
@@ -1006,8 +1807,7 @@ function startNextVideo() { if (currentVideo) return; const item = videoQueue.fi
 function startNextImage() { if (currentImage) return; const item = imageQueue.find(entry => entry.status === 'pronto'); if (!item) return; currentImage = item; Object.assign(item, { format: $('#imageFormat').value, quality: $('#imageQuality').value, scale: $('#imageScale').value, width: $('#imageWidth').value, height: $('#imageHeight').value, keepRatio: $('#imageKeepRatio').checked, folder, duplicate: localStorage.getItem('ntc-duplicate') || 'rename', status: 'convertendo', error: '' }); $('#imageProgress').classList.remove('hidden'); $('#imageStatus').textContent = 'CONVERTENDO'; $('#imageTitle').textContent = item.name; $('#imagePercent').textContent = '0%'; $('#imageProgressBar').style.width = '0%'; $('#cancelImage').textContent = 'Cancelar'; $('#cancelImage').onclick = () => window.ntc.cancelImageConversion(item.id); renderMediaQueue('image'); window.ntc.startImageConversion(item).catch(error => { const reason = cleanError(error); item.status = 'erro'; item.error = reason; lastFailedImage = item; currentImage = null; $('#imageStatus').textContent = 'FALHOU'; $('#imagePercent').textContent = 'ERRO'; $('#imageProgressBar').style.width = '100%'; $('#imageMeta').textContent = `${reason} Ajuste tamanho, escala ou formato e tente novamente.`; $('#cancelImage').textContent = 'Tentar com ajustes atuais'; $('#cancelImage').onclick = async () => { item.status = 'pronto'; item.error = ''; lastFailedImage = null; $('#imageStatus').textContent = 'TENTANDO NOVAMENTE'; $('#imagePercent').textContent = '0%'; $('#imageProgressBar').style.width = '0%'; renderMediaQueue('image'); await startImagesWithWarning(); }; renderMediaQueue('image'); showToast('A conversão falhou. O motivo e a ação para tentar novamente estão na fila.'); }); }
 window.ntc.onVideoEvent(update => { if (!currentVideo || update.id !== currentVideo.id) return; if (update.status === 'converting') { $('#videoPercent').textContent = `${Math.round(update.percent || 0)}%`; $('#videoProgressBar').style.width = `${update.percent || 0}%`; } if (update.status === 'complete') { const item = currentVideo; addHistory({ title: item.outputName, type: 'video', format: item.format, quality: item.quality, size: formatBytes(update.size), file: update.file, source: item.source, operation: 'conversion', time: 'Agora' }); videoQueue = videoQueue.filter(entry => entry.id !== item.id); currentVideo = null; $('#videoStatus').textContent = 'CONCLUÍDO'; $('#videoPercent').textContent = '100%'; $('#videoProgressBar').style.width = '100%'; $('#videoMeta').textContent = `Salvo como ${update.filename}`; if ($('#openFolderAfter').checked) window.ntc.openFolder(item.folder); renderMediaQueue('video'); setTimeout(startNextVideo, 0); } });
 window.ntc.onImageEvent(update => { if (!currentImage || update.id !== currentImage.id) return; if (update.status === 'converting') { $('#imagePercent').textContent = `${Math.round(update.percent || 0)}%`; $('#imageProgressBar').style.width = `${update.percent || 0}%`; } if (update.status === 'complete') { const item = currentImage; addHistory({ title: item.outputName, type: 'image', format: item.format, quality: `${item.quality}%`, size: formatBytes(update.size), file: update.file, source: item.source, operation: 'conversion', time: 'Agora' }); imageQueue = imageQueue.filter(entry => entry.id !== item.id); currentImage = null; $('#imageStatus').textContent = 'CONCLUÍDO'; $('#imagePercent').textContent = '100%'; $('#imageProgressBar').style.width = '100%'; $('#imageMeta').textContent = `Salvo em ${item.folder} · ${update.filename}`; $('#cancelImage').textContent = 'Abrir pasta'; $('#cancelImage').onclick = () => window.ntc.openFolder(item.folder); if ($('#openFolderAfter').checked) window.ntc.openFolder(item.folder); renderMediaQueue('image'); scheduleImagePreview(); setTimeout(startNextImage, 0); } });
-window.ntc.onVideoEditorEvent(update => { if (!videoEdit.exporting || update.status !== 'converting') return; $('#videoEditorPercent').textContent = `${Math.round(update.percent || 0)}%`; $('#videoEditorProgressBar').style.width = `${update.percent || 0}%`; });
-function bindDropzone(id, choose, add) { const element = $(`#${id}`); element.onclick = async () => add(await choose()); element.onkeydown = async event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); add(await choose()); } }; ['dragenter', 'dragover'].forEach(name => element.addEventListener(name, event => { event.preventDefault(); event.stopPropagation(); element.classList.add('dragging'); })); ['dragleave', 'drop'].forEach(name => element.addEventListener(name, event => { event.preventDefault(); event.stopPropagation(); element.classList.remove('dragging'); })); element.addEventListener('drop', event => { const files = [...event.dataTransfer.files].map(file => file.path || window.ntc.pathForFile(file)).filter(Boolean); if (files.length) add(files); else showToast('Não foi possível acessar o arquivo arrastado. Use Selecionar imagens.'); }); }
+function bindDropzone(id, choose, add) { const element = $(`#${id}`); element.onclick = async () => add(await choose()); element.onkeydown = async event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); add(await choose()); } }; ['dragenter', 'dragover'].forEach(name => element.addEventListener(name, event => { event.preventDefault(); event.stopPropagation(); element.classList.add('dragging'); })); ['dragleave', 'drop'].forEach(name => element.addEventListener(name, event => { event.preventDefault(); event.stopPropagation(); element.classList.remove('dragging'); })); element.addEventListener('drop', event => { const files = [...event.dataTransfer.files].map(file => file.path || window.ntc.pathForFile(file)).filter(Boolean); if (files.length) add(files); else showToast('Não foi possível acessar o arquivo arrastado. Use o botão de seleção acima.'); }); }
 $('#selectPlaylist').onclick = openPlaylistSelection;
 $('#resumeQueue').onclick = () => { queue.forEach(item => { if (['pausado', 'erro', 'cancelado'].includes(item.status)) { item.status = 'aguardando'; item.percent = 0; } }); persistQueue(); renderQueue(); startNext(); };
 $('#abortQueue').onclick = () => { if (current) { abortedDownloads.add(current.downloadId); window.ntc.cancelDownload(current.downloadId); } queue = []; localStorage.removeItem('ntc-download-queue'); renderQueue(); $('#progressCard').classList.add('hidden'); };
@@ -1019,8 +1819,10 @@ $('#downloadForm').addEventListener('submit', event => { event.preventDefault();
 $$('input[name="downloadType"]').forEach(input => input.addEventListener('change', setFormatOptions));
 $('#chooseFolder').onclick = chooseFolder; $('#chooseFolderSettings').onclick = chooseFolder;
 $('#openFolderAfter').onchange = event => localStorage.setItem('ntc-open-folder', event.target.checked); $('#duplicatePolicy').onchange = event => localStorage.setItem('ntc-duplicate', event.target.value); $('#filenameTemplate').onchange = event => { localStorage.setItem('ntc-filename-template', event.target.value); showToast('Modelo de nome atualizado.'); };
+$('#rngRevealMotion').onchange = event => { localStorage.setItem(RNG_REVEAL_MOTION_KEY, event.target.value); applyRngRevealPreference(); showToast('Efeitos de raridade atualizados.'); };
+$('#rngRollMotion').onchange = event => { localStorage.setItem(RNG_ROLL_MOTION_KEY, event.target.value); applyRngRollPreference(); showToast('Animação da rolagem atualizada.'); };
 async function clearHistoryWithConfirm() { if (!history.length) { showToast('O histórico já está vazio.'); return; } if (!await confirmAction('Limpar histórico?', 'Os registros locais serão removidos. Os arquivos baixados não serão apagados.', 'Limpar')) return; history.length = 0; localStorage.removeItem('ntc-history'); renderHistory(); showToast('Histórico limpo.'); }
-async function resetPreferences() { if (!await confirmAction('Restaurar preferências?', 'A pasta, os atalhos de captura, a abertura automática, a regra de duplicatas e o modelo de nome voltarão ao padrão.', 'Restaurar')) return; localStorage.removeItem('ntc-folder'); localStorage.removeItem('ntc-open-folder'); localStorage.removeItem('ntc-duplicate'); localStorage.removeItem('ntc-filename-template'); localStorage.removeItem('ntc-screenshot-folder'); await configureScreenshotShortcut(''); await configureQuickScreenshotShortcut(''); $('#screenshotShortcut').value = ''; $('#quickScreenshotShortcut').value = ''; folder = await window.ntc.defaultDownloadFolder(); localStorage.setItem('ntc-folder', folder); syncSettings(); showToast('Preferências restauradas.'); }
+async function resetPreferences() { if (!await confirmAction('Restaurar preferências?', 'A pasta, os atalhos de captura, a abertura automática, a regra de duplicatas, o modelo de nome e as animações do NTC RNG voltarão ao padrão.', 'Restaurar')) return; localStorage.removeItem('ntc-folder'); localStorage.removeItem('ntc-open-folder'); localStorage.removeItem('ntc-duplicate'); localStorage.removeItem('ntc-filename-template'); localStorage.removeItem('ntc-screenshot-folder'); localStorage.removeItem(RNG_REVEAL_MOTION_KEY); localStorage.removeItem(RNG_ROLL_MOTION_KEY); await configureScreenshotShortcut(''); await configureQuickScreenshotShortcut(''); $('#screenshotShortcut').value = ''; $('#quickScreenshotShortcut').value = ''; folder = await window.ntc.defaultDownloadFolder(); localStorage.setItem('ntc-folder', folder); syncSettings(); showToast('Preferências restauradas.'); }
 async function checkTools() { const button = $('#checkTools'); button.disabled = true; $('#toolVersions').textContent = 'Verificando yt-dlp, FFmpeg e FFprobe…'; try { const version = await window.ntc.toolVersions(); if (version.error) { $('#toolVersions').textContent = `Erro: ${cleanError(version.error)}`; showToast('Não foi possível verificar as ferramentas.'); } else { $('#toolVersions').textContent = `yt-dlp ${version.ytdlp} · FFmpeg ${version.ffmpeg.match(/ffmpeg version\s+([^\s]+)/i)?.[1] || 'instalado'} · FFprobe ${version.ffprobe.match(/ffprobe version\s+([^\s]+)/i)?.[1] || 'instalado'}`; showToast('Ferramentas verificadas.'); } } catch (error) { $('#toolVersions').textContent = `Erro: ${cleanError(error)}`; showToast('Não foi possível verificar as ferramentas.'); } finally { button.disabled = false; } }
 async function checkUpdates() { const button = $('#checkUpdates'); button.disabled = true; $('#updateStatus').textContent = 'Verificando atualizações…'; try { showUpdateNotice(await window.ntc.checkForUpdates()); } catch { showUpdateNotice({ status: 'error', message: 'Não foi possível verificar atualizações agora.' }); } finally { button.disabled = false; } }
 let imagePreviewTimer = null;
@@ -1036,18 +1838,8 @@ async function chooseToolFolder() { const chosen = await window.ntc.chooseDownlo
 function wouldCreateLargeImage() { const scale = Math.max(1, Number($('#imageScale').value) || 100) / 100; const typedWidth = Number($('#imageWidth').value); const typedHeight = Number($('#imageHeight').value); return imageQueue.some(item => Math.max(typedWidth || Math.round((item.sourceWidth || 0) * scale), typedHeight || Math.round((item.sourceHeight || 0) * scale)) > 16384); }
 async function startImagesWithWarning() { if (!imageQueue.some(item => item.status === 'pronto') && lastFailedImage) { if (!imageQueue.some(item => item.id === lastFailedImage.id)) imageQueue.push(lastFailedImage); lastFailedImage.status = 'pronto'; lastFailedImage = null; renderMediaQueue('image'); } if (wouldCreateLargeImage()) { const accepted = await confirmAction('Imagem muito grande', 'Este tamanho pode consumir muita memória, travar o computador ou falhar por limite do formato. Deseja tentar mesmo assim?', 'Tentar mesmo assim'); if (!accepted) return; } startNextImage(); }
 $('#chooseVideo').onclick = async () => addVideos(await window.ntc.chooseVideoFiles()); $('#chooseImages').onclick = async () => { await addImages(await window.ntc.chooseImageFiles()); scheduleImagePreview(); }; $('#chooseVideoFolder').onclick = chooseToolFolder; $('#chooseImageFolder').onclick = chooseToolFolder; bindDropzone('videoDropzone', () => window.ntc.chooseVideoFiles(), addVideos); bindDropzone('imageDropzone', () => window.ntc.chooseImageFiles(), async files => { await addImages(files); scheduleImagePreview(); }); ['imageFormat', 'imageQuality', 'imageScale', 'imageWidth', 'imageHeight', 'imageKeepRatio'].forEach(id => $(`#${id}`).addEventListener(id === 'imageKeepRatio' ? 'change' : 'input', scheduleImagePreview)); $('#startVideos').onclick = startNextVideo; $('#startImages').onclick = startImagesWithWarning;
-$('#chooseVideoEditor').onclick = async () => { const file = await window.ntc.chooseVideoEditorFile(); if (file) loadVideoEditor(file); }; bindDropzone('videoEditorDropzone', () => window.ntc.chooseVideoEditorFile().then(file => file ? [file] : []), files => { if (files[0]) loadVideoEditor(files[0]); }); $('#addVideoEditorAudio').onclick = addVideoEditorAudio; $('#chooseVideoEditorFolder').onclick = chooseToolFolder; $('#exportVideoEdit').onclick = exportVideoEdit;
-$('#videoTimeline').addEventListener('pointerdown', event => { if (!videoEdit.source) return; const rect = event.currentTarget.getBoundingClientRect(); const point = Math.max(0, Math.min(videoEdit.meta.duration, (event.clientX - rect.left) / rect.width * videoEdit.meta.duration)); videoEdit.selectionStart = point; videoEdit.selectionEnd = point; event.currentTarget.setPointerCapture(event.pointerId); renderVideoEditorTimeline(); });
-$('#videoTimeline').addEventListener('pointermove', event => { if (!event.currentTarget.hasPointerCapture(event.pointerId)) return; const rect = event.currentTarget.getBoundingClientRect(); videoEdit.selectionEnd = Math.max(0, Math.min(videoEdit.meta.duration, (event.clientX - rect.left) / rect.width * videoEdit.meta.duration)); renderVideoEditorTimeline(); });
-$('#videoTimeline').addEventListener('pointerup', event => { if (!event.currentTarget.hasPointerCapture(event.pointerId)) return; event.currentTarget.releasePointerCapture(event.pointerId); });
-$('#videoTimeline').addEventListener('keydown', event => { if (!videoEdit.source || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return; event.preventDefault(); const next = Math.max(0, Math.min(videoEdit.meta.duration, videoEdit.selectionEnd + (event.key === 'ArrowRight' ? 1 : -1))); videoEdit.selectionStart = next; videoEdit.selectionEnd = next; $('#videoEditorPlayer').currentTime = next; renderVideoEditorTimeline(); });
-$('#removeVideoCut').onclick = () => { const [start, end] = videoEditSelectionBounds(); if (end - start < .1) { showToast('Arraste na waveform para selecionar o trecho que deseja remover.'); return; } videoEdit.cuts.push({ start, end }); normalizeVideoEditCuts(); videoEdit.selectionStart = end; videoEdit.selectionEnd = Math.min(videoEdit.meta.duration, end + .1); $('#videoEditorPlayer').currentTime = Math.min(videoEdit.meta.duration, end); renderVideoEditorTimeline(); showToast('Trecho removido. O vídeo será unido ao exportar.'); };
-$('#undoVideoCut').onclick = () => { videoEdit.cuts.pop(); videoEdit.selectionStart = 0; videoEdit.selectionEnd = Math.min(1, videoEditDuration()); renderVideoEditorTimeline(); };
-$('#videoOriginalVolume').oninput = () => { $('#videoOriginalVolume').value = Math.max(0, Math.min(300, Number($('#videoOriginalVolume').value) || 0)); }; $('#videoMuteOriginal').onchange = () => { $('#videoOriginalTrack').classList.toggle('hidden', $('#videoMuteOriginal').checked); };
-$('#videoEditorPlayer').addEventListener('timeupdate', event => { const player = event.currentTarget; const cut = videoEdit.cuts.find(item => player.currentTime >= item.start && player.currentTime < item.end); if (cut) player.currentTime = cut.end; renderVideoEditorTimeline(); });
-document.addEventListener('pointermove', updateVideoEditorAudioDrag); document.addEventListener('pointerup', () => { videoEditDrag = null; });
 $('#clearHistory').onclick = clearHistoryWithConfirm; $('#clearHistorySettings').onclick = clearHistoryWithConfirm; $('#clearHistoryPage').onclick = clearHistoryWithConfirm; $('#resetPreferences').onclick = resetPreferences; $('#checkTools').onclick = checkTools; $('#checkUpdates').onclick = checkUpdates;
-$('#filesHistoryTab').onclick = () => setHistoryTab('files'); $('#qrHistoryTab').onclick = () => setHistoryTab('qr'); $('#clearQrHistory').onclick = clearQrHistoryWithConfirm;
+$('#filesHistoryTab').onclick = () => setHistoryTab('files'); $('#qrHistoryTab').onclick = () => setHistoryTab('qr'); $('#securityHistoryTab').onclick = () => setHistoryTab('security'); $('#clearQrHistory').onclick = clearQrHistoryWithConfirm; $('#clearSecurityHistory').onclick = clearSecurityHistoryWithConfirm;
 $('#addQrLinks').onclick = addQrLinks; $('#qrLinks').addEventListener('keydown', event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); addQrLinks(); } });
 $('#generateQrCodes').onclick = () => { qrQueue.filter(item => item.status === 'cancelado').forEach(item => { item.status = 'aguardando'; }); processQrQueue(); };
 $('#cancelQrQueue').onclick = () => { qrCancelRequested = true; $('#cancelQrQueue').disabled = true; $('#cancelQrQueue').textContent = 'Parando…'; };
@@ -1055,12 +1847,25 @@ $('#chooseQrFolder').onclick = async () => { const chosen = await window.ntc.cho
 ['qrForeground', 'qrBackground', 'qrSize', 'qrFormat'].forEach(id => { $(`#${id}`).addEventListener('input', onQrSettingsChange); $(`#${id}`).addEventListener('change', onQrSettingsChange); });
 window.ntc.onQrEvent(update => { const item = qrQueue.find(entry => entry.id === update.id); if (!item) return; if (update.status === 'generating') item.status = 'gerando'; if (update.status === 'complete') item.status = 'concluido'; if (update.status === 'failed') { item.status = 'erro'; item.error = qrFailureMessage(update.error); } renderQrQueue(); });
 window.ntc.onRngState(renderRngState);
+window.ntc.onRngOnlineState(renderRngOnlineState);
+window.ntc.getRngOnlineState().then(renderRngOnlineState).catch(() => renderRngOnlineState({ status: 'offline', message: 'Não foi possível consultar o NTC Online.', leaderboard: [] }));
+$('#rngOnlineRetry').addEventListener('click', async () => {
+  $('#rngOnlineRetry').disabled = true;
+  $('#rngOnlineRetry').textContent = 'Conectando…';
+  try { renderRngOnlineState(await window.ntc.retryRngOnline()); }
+  catch { renderRngOnlineState({ status: 'offline', message: 'Sem conexão. O jogo continua funcionando localmente.', leaderboard: rngOnlineState?.leaderboard || [] }); }
+  finally { $('#rngOnlineRetry').disabled = false; $('#rngOnlineRetry').textContent = 'Tentar novamente'; }
+});
+$('#rngOnlineSetName').addEventListener('click', () => setRngSection('profile'));
 $('#rngRollButton').onclick = performManualRngRoll;
 $('#rngAutoButton').onclick = toggleRngAutoRoll;
+$('#rngSystemUnlockContinue').onclick = continueRngSystemUnlock;
+$('#rngSystemUnlockNotice').addEventListener('cancel', event => event.preventDefault());
 function setRngSection(section) {
   rngActiveSection = section;
   $$('[data-rng-section]').forEach(tab => tab.classList.toggle('active', tab.dataset.rngSection === section));
   $$('[data-rng-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.rngPanel !== section));
+  if (section === 'profile' && rngState && !rngState.playerProfile?.identity?.displayName) openRngProfileNameSetup();
 }
 function showNewRngPatchNotes() {
   if (!activeAppVersion) { rngPatchNotesOpenPending = true; return; }
@@ -1073,7 +1878,135 @@ function showNewRngPatchNotes() {
   localStorage.removeItem(pendingVersionKey);
 }
 $('.rng-section-tabs').addEventListener('click', event => { const button = event.target.closest('[data-rng-section]'); if (button) setRngSection(button.dataset.rngSection); });
+function openRngProfileNameSetup() {
+  const dialog = $('#rngProfileNameDialog');
+  if (dialog.open || rngState?.playerProfile?.identity?.displayName) return;
+  $('#rngProfileNameSetupInput').value = '';
+  $('#rngProfileNameCount').textContent = '0 / 32';
+  $('#rngProfileNameError').textContent = '';
+  dialog.showModal();
+  requestAnimationFrame(() => $('#rngProfileNameSetupInput').focus());
+}
+function renderRngTitlePicker() {
+  if (!rngState) return;
+  const query = rngTitlePickerQuery.trim().toLocaleLowerCase('pt-BR');
+  const titles = rngState.catalog.filter(title => title.collected && (rngTitlePickerTier === 'all' || title.tier === rngTitlePickerTier) && (!query || title.name.toLocaleLowerCase('pt-BR').includes(query)));
+  const equippedId = rngState.playerProfile?.identity?.equippedTitleId;
+  $('#rngTitlePickerResults').innerHTML = titles.map(title => `<button type="button" class="rng-title-picker-item${title.id === equippedId ? ' is-equipped' : ''}" data-equip-rng-title="${safeText(title.id)}" data-tier="${safeText(title.tier)}"><span class="rng-title-picker-item-art" aria-hidden="true">${rngTitleIcon(title, { size: 60, animation: 'none', eager: true })}</span><span class="rng-title-picker-item-copy"><strong>${safeText(title.name)}</strong><span>${safeText(title.tierLabel)}${title.id === equippedId ? ' · EQUIPADO' : ''}</span><small>${safeText(title.baseOdds || title.currentOdds || '')}</small></span></button>`).join('') || '<div class="rng-discovery-empty">Nenhum título possuído corresponde à busca.</div>';
+  $('#rngTitlePickerCount').textContent = `${new Intl.NumberFormat('pt-BR').format(titles.length)} ${titles.length === 1 ? 'título disponível' : 'títulos disponíveis'}`;
+  $('#rngTitlePickerClear').disabled = !equippedId || rngTitlePickerBusy;
+}
+function openRngTitlePicker() {
+  if (!rngState?.playerProfile?.identity?.displayName) { openRngProfileNameSetup(); return; }
+  rngTitlePickerQuery = '';
+  rngTitlePickerTier = 'all';
+  $('#rngTitlePickerSearch').value = '';
+  const tiersWithTitles = new Set(rngState.catalog.filter(title => title.collected).map(title => title.tier));
+  $('#rngTitlePickerTier').innerHTML = '<option value="all">Todas as raridades</option>' + (rngState.tiers || []).filter(tier => tiersWithTitles.has(tier.id)).map(tier => `<option value="${safeText(tier.id)}">${safeText(tier.label)}</option>`).join('');
+  $('#rngTitlePickerTier').value = 'all';
+  renderRngTitlePicker();
+  $('#rngTitlePickerDialog').showModal();
+  requestAnimationFrame(() => $('#rngTitlePickerSearch').focus());
+}
+async function equipRngProfileTitle(equippedTitleId) {
+  if (rngTitlePickerBusy) return;
+  rngTitlePickerBusy = true;
+  renderRngTitlePicker();
+  try {
+    const result = await window.ntc.setRngProfile({ equippedTitleId });
+    if (!result?.ok) throw new Error(result?.reason === 'title-not-owned' ? 'Você só pode equipar títulos que já descobriu.' : 'Não foi possível trocar o título.');
+    if (result.state) renderRngState(result.state);
+    $('#rngTitlePickerDialog').close();
+    showToast(equippedTitleId ? 'Título equipado.' : 'Título removido do perfil.');
+  } catch (error) { showToast(cleanError(error)); }
+  finally { rngTitlePickerBusy = false; }
+}
+$('#rngProfileNameSetupInput').addEventListener('input', event => {
+  $('#rngProfileNameCount').textContent = `${[...event.target.value].length} / 32`;
+  $('#rngProfileNameError').textContent = '';
+});
+$('#rngProfileNameForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const button = $('#rngProfileNameConfirm');
+  const displayName = $('#rngProfileNameSetupInput').value;
+  button.disabled = true;
+  try {
+    const result = await window.ntc.setRngProfile({ displayName });
+    const messages = { 'name-empty': 'Digite um nome para confirmar sua identidade.', 'name-too-long': 'Use no máximo 32 caracteres.', 'name-locked': 'Este nome já foi confirmado.' };
+    if (!result?.ok) throw new Error(messages[result?.reason] || 'Não foi possível criar sua identidade.');
+    if (result.state) renderRngState(result.state);
+    $('#rngProfileNameDialog').close();
+    showToast('Identidade criada.');
+  } catch (error) { $('#rngProfileNameError').textContent = cleanError(error); }
+  finally { button.disabled = false; }
+});
+$('#rngProfileNameDialog').addEventListener('cancel', event => { if (!rngState?.playerProfile?.identity?.displayName) event.preventDefault(); });
+$('#rngChangeTitle').addEventListener('click', openRngTitlePicker);
+$('#rngTitlePickerClose').addEventListener('click', () => $('#rngTitlePickerDialog').close());
+$('#rngTitlePickerSearch').addEventListener('input', event => { rngTitlePickerQuery = event.target.value; renderRngTitlePicker(); });
+$('#rngTitlePickerTier').addEventListener('change', event => { rngTitlePickerTier = event.target.value; renderRngTitlePicker(); });
+$('#rngTitlePickerResults').addEventListener('click', event => { const button = event.target.closest('[data-equip-rng-title]'); if (button) void equipRngProfileTitle(button.dataset.equipRngTitle); });
+$('#rngTitlePickerClear').addEventListener('click', () => void equipRngProfileTitle(null));
+function clearRngProfileCardPreview() {
+  if (rngProfileCardUrl) URL.revokeObjectURL(rngProfileCardUrl);
+  rngProfileCardUrl = '';
+  rngProfileCardBytes = null;
+  $('#rngProfileShareImage').removeAttribute('src');
+  $('#rngProfileShareLoading').textContent = 'Preparando a ficha…';
+  $('#rngProfileShareStatus').textContent = '';
+  $('#rngProfileCopyImage').disabled = true;
+  $('#rngProfileSaveImage').disabled = true;
+}
+async function renderRngProfileCardPreview(format) {
+  const requestId = ++rngProfileCardRenderRequestId;
+  rngProfileCardFormat = format === 'portrait' ? 'portrait' : 'landscape';
+  $$('#rngProfileShareDialog [data-profile-format]').forEach(button => button.classList.toggle('active', button.dataset.profileFormat === rngProfileCardFormat));
+  rngProfileCardBusy = true;
+  clearRngProfileCardPreview();
+  $('#rngProfileShareLoading').textContent = 'Renderizando em alta resolução…';
+  try {
+    const result = await window.ntc.renderRngProfileCard(rngProfileCardFormat);
+    if (requestId !== rngProfileCardRenderRequestId || !$('#rngProfileShareDialog').open) return;
+    rngProfileCardBytes = new Uint8Array(result.png);
+    rngProfileCardUrl = URL.createObjectURL(new Blob([rngProfileCardBytes], { type: 'image/png' }));
+    $('#rngProfileShareImage').src = rngProfileCardUrl;
+    $('#rngProfileShareLoading').textContent = '';
+    $('#rngProfileShareStatus').textContent = `${new Intl.NumberFormat('pt-BR').format(result.width)} × ${new Intl.NumberFormat('pt-BR').format(result.height)} · PNG · render dedicado`;
+    $('#rngProfileCopyImage').disabled = false;
+    $('#rngProfileSaveImage').disabled = false;
+  } catch (error) {
+    if (requestId !== rngProfileCardRenderRequestId || !$('#rngProfileShareDialog').open) return;
+    $('#rngProfileShareLoading').textContent = 'Não foi possível gerar a ficha.';
+    $('#rngProfileShareStatus').textContent = cleanError(error);
+  } finally { if (requestId === rngProfileCardRenderRequestId) rngProfileCardBusy = false; }
+}
+$('#rngShareProfile').addEventListener('click', () => {
+  clearRngProfileCardPreview();
+  rngProfileCardFormat = 'landscape';
+  $$('#rngProfileShareDialog [data-profile-format]').forEach(button => button.classList.toggle('active', button.dataset.profileFormat === rngProfileCardFormat));
+  $('#rngProfileShareDialog').showModal();
+  void renderRngProfileCardPreview('landscape');
+});
+$('#rngProfileShareDialog').addEventListener('click', event => {
+  const formatButton = event.target.closest('[data-profile-format]');
+  if (formatButton && formatButton.dataset.profileFormat !== rngProfileCardFormat) void renderRngProfileCardPreview(formatButton.dataset.profileFormat);
+});
+$('#rngProfileShareClose').addEventListener('click', () => $('#rngProfileShareDialog').close());
+$('#rngProfileShareDialog').addEventListener('close', () => { rngProfileCardRenderRequestId++; rngProfileCardBusy = false; clearRngProfileCardPreview(); });
+$('#rngProfileCopyImage').addEventListener('click', async () => {
+  if (!rngProfileCardBytes) return;
+  try { await window.ntc.copyRngProfileCard(rngProfileCardBytes); showToast('Ficha copiada para a área de transferência.'); }
+  catch (error) { $('#rngProfileShareStatus').textContent = cleanError(error); }
+});
+$('#rngProfileSaveImage').addEventListener('click', async () => {
+  if (!rngProfileCardBytes) return;
+  try {
+    const result = await window.ntc.saveRngProfileCard(rngProfileCardBytes);
+    if (!result?.canceled) showToast('Ficha PNG salva.');
+  } catch (error) { $('#rngProfileShareStatus').textContent = cleanError(error); }
+});
 $('#rngBuyUpgrade').onclick = () => performRngShopAction('purchaseRngUpgrade', undefined, result => `Sorte permanente aumentada para o nível ${new Intl.NumberFormat('pt-BR').format(result.levels)}.`);
+$('#rngBuyEnhancedRecycling').onclick = () => performRngShopAction('purchaseRngEnhancedRecycling', undefined, result => `Reciclagem Aprimorada · nível ${result.level}.`);
 $('#rngBuyRollBoost').onclick = () => performRngShopAction('purchaseRngConsumable', 'rolls', () => 'Consumível de 600 rolagens adicionado ao inventário.');
 $('#rngBuyTimeBoost').onclick = () => performRngShopAction('purchaseRngConsumable', 'time', () => 'Consumível de 10 minutos adicionado ao inventário.');
 $('#rngActivateRollBoost').onclick = () => performRngShopAction('activateRngConsumable', 'rolls', result => result.queued ? 'Bônus de 600 rolagens adicionado à fila.' : 'Bônus ×2 de 600 rolagens ativado.');
@@ -1096,12 +2029,27 @@ $('#rngEventSchedule').addEventListener('click', async event => { const button =
 $('#rngDebugTrigger').onclick = openRngDebug;
 $('#closeRngDebug').onclick = closeRngDebug;
 $('#rngDebugDialog').addEventListener('click', event => { if (event.target === $('#rngDebugDialog')) closeRngDebug(); });
+const rngOddsHelpDialog = $('#rngOddsHelpDialog');
+const closeRngOddsHelp = () => { if (rngOddsHelpDialog.open) rngOddsHelpDialog.close(); };
+$('#rngOddsHelpButton').onclick = () => rngOddsHelpDialog.showModal();
+$('#closeRngOddsHelp').onclick = closeRngOddsHelp;
+$('#acknowledgeRngOddsHelp').onclick = closeRngOddsHelp;
+rngOddsHelpDialog.addEventListener('click', event => { if (event.target === rngOddsHelpDialog) closeRngOddsHelp(); });
+$('#rngUnlockContinue').onclick = dismissRngUnlock;
+$('#rngUnlockNotice').addEventListener('cancel', event => { event.preventDefault(); dismissRngUnlock(); });
 $('#rngDebugTitleSelect').onchange = () => { $('#rngDebugStatus').textContent = ''; updateRngDebugControls(); };
 $('#rngDebugSimulate').onclick = simulateRngUnlock;
 $('#rngDebugSoundTest').onclick = previewRngTitleSound;
+$('#rngDebugIconSelect').onchange = renderRngDebugIconPreview;
+$('#rngDebugIconMotion').onchange = renderRngDebugIconPreview;
+$('#rngDebugIconPlay').onclick = playRngDebugIcon;
 $('#rngDebugAdd').onclick = debugAddSelectedRngTitle;
 $('#rngDebugRemove').onclick = debugRemoveSelectedRngTitle;
 $('#rngDebugClearAll').onclick = debugClearRngCollection;
+$('#rngDebugResetStart').onclick = openRngAccountResetConfirmation;
+$('#rngDebugResetCancel').onclick = closeRngAccountResetConfirmation;
+$('#rngDebugResetPhrase').addEventListener('input', event => { $('#rngDebugResetConfirmButton').disabled = event.currentTarget.value.trim() !== 'RESETAR CONTA'; });
+$('#rngDebugResetConfirmButton').onclick = debugResetRngAccount;
 $('#rngDebugTierSelect').onchange = () => { $('#rngDebugStatus').textContent = ''; updateRngDebugControls(); };
 $('#rngDebugGrantTier').onclick = () => debugRngAction('tier');
 $('#rngDebugTotalMilestone').onchange = () => { $('#rngDebugStatus').textContent = ''; updateRngDebugControls(); };
@@ -1112,6 +2060,8 @@ $('#rngTierFilters').addEventListener('click', event => { const tab = event.targ
 $('#rngTitleHistorySearch').addEventListener('input', event => { rngHistoryQuery = event.currentTarget.value; if (rngState) renderRngTitleHistory(rngState); });
 $('#rngTitleHistoryTier').addEventListener('change', event => { rngHistoryTier = event.currentTarget.value; if (rngState) renderRngTitleHistory(rngState); });
 window.addEventListener('focus', () => { if ($('#rngView').classList.contains('active')) loadRngState(); });
+document.addEventListener('visibilitychange', () => rngRollExperience?.setVisible(!document.hidden && $('#rngView').classList.contains('active')));
+window.addEventListener('pagehide', () => rngRollExperience?.dispose(), { once: true });
 loadRngState(); rngTimer = setInterval(updateRngTimers, 1000);
 $('#chooseRecorderFolder').onclick = async () => { const chosen = await window.ntc.chooseDownloadFolder(); if (!chosen) return; localStorage.setItem('ntc-recorder-folder', chosen); syncSettings(); showToast('Pasta de gravações atualizada.'); };
 $('#chooseScreenshotFolder').onclick = async () => { const chosen = await window.ntc.chooseDownloadFolder(); if (!chosen) return; localStorage.setItem('ntc-screenshot-folder', chosen); const shortcut = localStorage.getItem('ntc-quick-screenshot-shortcut'); if (shortcut) await configureQuickScreenshotShortcut(shortcut); syncSettings(); showToast('Pasta de capturas atualizada.'); };
@@ -1144,12 +2094,26 @@ window.ntc.onUpdateEvent(showUpdateNotice);
 $('#historyFilter').onchange = renderHistory;
 $('#confirmCancel').onclick = () => closeConfirm(false); $('#confirmAccept').onclick = () => closeConfirm(true);
 function navigateToView(target) {
+  const viewTarget = window.NTCRngAvailability?.resolveView(target) || (target === 'rng' ? 'rngMaintenance' : target);
+  window.NTCVideoProjectUi?.setWorkspaceActive(viewTarget === 'videoEditor' && !$('#videoProjectPanel')?.classList.contains('hidden'));
+  if (target !== 'security' && $('#securityView').classList.contains('active')) window.ntcSecurityUi?.close();
+  if (target !== 'studyTools') window.ntcStudyUi?.close();
   $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === target));
-  $$('.view').forEach(view => view.classList.toggle('active', view.id === `${target}View`));
-  if (target === 'rng') showNewRngPatchNotes();
+  $$('.view').forEach(view => view.classList.toggle('active', view.id === `${viewTarget}View`));
+  rngRollExperience?.setVisible(viewTarget === 'rng' && !document.hidden);
+  if (viewTarget === 'rng') {
+    showNewRngPatchNotes();
+    if (rngState) renderRngRollExperience(rngState);
+  }
+  if (target === 'clipboardHistory') window.ntcClipboardHistoryUi?.open();
+  if (target === 'documents') window.ntcDocumentsUi?.open();
+  if (target === 'pdf') window.ntcPdfUi?.open();
+  if (target === 'studyTools') window.ntcStudyUi?.open();
+  if (target === 'timeTools') window.ntcWorldClock?.open();
 }
 $$('.nav-item[data-view]').forEach(button => button.onclick = () => navigateToView(button.dataset.view));
 $$('[data-open-tool]').forEach(button => button.onclick = () => navigateToView(button.dataset.openTool));
+$('#closeVideoEditor').onclick = () => navigateToView('home');
 function updateMaximizedLayout(maximized) { document.body.classList.toggle('window-maximized', Boolean(maximized)); $('#maximizeWindow').textContent = maximized ? '❐' : '□'; $('#maximizeWindow').setAttribute('aria-label', maximized ? 'Restaurar' : 'Maximizar'); }
 $('#minimizeWindow').onclick = () => window.ntc.minimizeWindow(); $('#maximizeWindow').onclick = async () => updateMaximizedLayout(await window.ntc.toggleMaximize()); $('#closeWindow').onclick = () => window.ntc.closeWindow();
 window.ntc.isMaximized().then(updateMaximizedLayout); window.ntc.onWindowMaximized(updateMaximizedLayout);
@@ -1177,7 +2141,7 @@ $('#removeCover').onclick = () => { const item = currentEditingConversion(); if 
 $('#startConversions').onclick = () => { saveConversionEdits(); startNextConversion(); };
 $('#abortConversions').onclick = () => { if (currentConversion) { abortedConversions.add(currentConversion.conversionId); window.ntc.cancelConversion(currentConversion.conversionId); } conversionQueue = []; editingConversionId = null; $('#converterEditor').classList.add('hidden'); $('#conversionProgress').classList.add('hidden'); renderConversionQueue(); };
 $('#dismissEditAfterDownload').onclick = hideEditAfterDownload;
-$('#openDownloadedInEditor').onclick = async () => { const item = downloadedAudioToEdit; hideEditAfterDownload(); if (!item) return; await addMediaFiles([item.file]); $$('.nav-item').forEach(button => button.classList.toggle('active', button.dataset.view === 'converter')); $$('.view').forEach(view => view.classList.toggle('active', view.id === 'converterView')); };
+$('#openDownloadedInEditor').onclick = async () => { const item = downloadedAudioToEdit; hideEditAfterDownload(); if (!item) return; await addMediaFiles([item.file]); window.NTCMediaProjectUi?.setMode('audio', 'legacy'); $$('.nav-item').forEach(button => button.classList.toggle('active', button.dataset.view === 'converter')); $$('.view').forEach(view => view.classList.toggle('active', view.id === 'converterView')); };
 document.addEventListener('keydown', event => {
   const tag = event.target?.tagName; const editorActive = $('#converterView').classList.contains('active'); if (!editorActive) return;
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !event.shiftKey) { event.preventDefault(); undoEditorChange(); return; }
@@ -1197,11 +2161,12 @@ document.addEventListener('keydown', async event => {
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
   if (!$('#confirmDialog').classList.contains('hidden')) { closeConfirm(false); return; }
+  if (!$('#clipboardPreviewDialog').classList.contains('hidden')) { window.ntcClipboardHistoryUi?.closePreview(); return; }
   if (!$('#rngPatchNotesDialog').classList.contains('hidden')) { closeRngPatchNotesDialog(); return; }
   if (!$('#changelogDialog').classList.contains('hidden')) { $('#changelogDialog').classList.add('hidden'); return; }
   if (!$('#rngDebugDialog').classList.contains('hidden')) closeRngDebug();
 });
-initializeQrSettings(); syncSettings(); loadMicrophones(); $('#compressionFolderPath').textContent = localStorage.getItem('ntc-compression-folder') || folder || 'Downloads'; setFormatOptions(); conversionQualityOptions('mp3'); updateConverterExtension('mp3'); renderHistory(); renderQrQueue(); renderQueue(); renderConversionQueue(); renderCompressionQueue();
+initializeQrSettings(); syncSettings(); window.ntcClipboardHistoryUi?.initialize({ showToast, confirmAction }); loadMicrophones(); $('#compressionFolderPath').textContent = localStorage.getItem('ntc-compression-folder') || folder || 'Downloads'; setFormatOptions(); conversionQualityOptions('mp3'); updateConverterExtension('mp3'); renderHistory(); renderQrQueue(); renderQueue(); renderConversionQueue(); renderCompressionQueue();
 window.ntc.appVersion().then(version => {
   activeAppVersion = String(version);
   $('#appVersion').textContent = `v${activeAppVersion}`;
@@ -1211,3 +2176,4 @@ window.ntc.appVersion().then(version => {
   if (rngPatchNotesOpenPending) { rngPatchNotesOpenPending = false; showNewRngPatchNotes(); }
 }).catch(() => { $('#appVersion').textContent = 'Indisponível'; });
 window.ntc.defaultDownloadFolder().then(value => { if (!folder) { folder = value; localStorage.setItem('ntc-folder', folder); syncSettings(); } refreshSpaceHint(); });
+window.NTCMediaAppBridge = Object.freeze({ toolId, safeText, formatBytes, cleanError, showToast, addHistory, getFolder: () => folder, setFolder: value => { if (!value) return; folder = value; localStorage.setItem('ntc-folder', value); syncSettings(); refreshSpaceHint(); } });

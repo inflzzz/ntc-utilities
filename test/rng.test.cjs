@@ -11,11 +11,13 @@ const {
   THOUSAND_ROLL_BONUS_MULTIPLIER,
   TIERS,
   TITLES,
+  CATALOG_VERSION,
   basePoolWeight,
   equalHourBonusAt,
   normalizeState,
-  migrateDroughtRelicProgress,
-  RNG_RELIC_DROUGHT_PROGRESS_VERSION,
+  migrateRemovedMisfortuneRelics,
+  RNG_RELIC_REMOVAL_VERSION,
+  RNG_NTC_ODDS_CEILING_DENOMINATOR,
   achievementLuckRewardBps,
   luckForState,
   currentWeights,
@@ -57,6 +59,17 @@ function randomValueForTitle(state, titleId, options = {}) {
   throw new Error(`Unknown test title: ${titleId}`);
 }
 
+function ntcWeight(weights) {
+  return TITLES.filter(title => title.tier === 'ntc').reduce((total, title) => total + weights.get(title.id), 0n);
+}
+
+function assertRarityOrder(weights) {
+  const ordered = [...TITLES].sort((left, right) => left.baseWeight > right.baseWeight ? -1 : left.baseWeight < right.baseWeight ? 1 : 0);
+  for (let index = 0; index < ordered.length - 1; index++) {
+    assert.ok(weights.get(ordered[index].id) > weights.get(ordered[index + 1].id), `${ordered[index].id} remains more likely than ${ordered[index + 1].id}`);
+  }
+}
+
 test('the catalog starts with 200 distinct titles, 20 in each tier', () => {
   assert.equal(TITLES.length, 200);
   assert.equal(new Set(TITLES.map(title => title.id)).size, 200);
@@ -74,14 +87,14 @@ test('base odds are distinct and the complete weighted pool sums to exactly 100%
   const denominators = TITLES.filter(title => title.denominator).map(title => title.denominator);
   assert.ok(denominators.some(value => value === 750_000_000n));
   assert.ok(denominators.at(-1) > 1_000_000_000_000_000_000_000_000_000n);
-  const catalog = publicCatalog({});
+  const catalog = publicCatalog({ collectedIds: ['unique-08', 'unique-20'] });
   const luckyLad = catalog.find(title => title.id === 'unique-08');
   const luckiestLad = catalog.find(title => title.id === 'unique-20');
-  assert.equal(luckyLad.name, '???');
+  assert.equal(luckyLad.name, 'O Favorito do Acaso');
   assert.equal(luckyLad.tierLabel, 'Lendário');
   assert.equal(luckyLad.baseOdds, '1 em 278.000.000');
-  assert.equal(luckiestLad.name, '???');
-  assert.equal(publicCatalog({ collectedIds: ['unique-08', 'unique-20'] }).find(title => title.id === 'unique-20').name, 'Luckiest Lad');
+  assert.equal(luckiestLad.name, 'O Acaso Encarnado');
+  assert.equal(publicCatalog({ collectedIds: ['unique-08', 'unique-20'] }).find(title => title.id === 'unique-20').name, 'O Acaso Encarnado');
   assert.equal(luckiestLad.tierLabel, 'Lendário');
   assert.equal(luckiestLad.baseOdds, '1 em 777.777.777');
   assert.equal(catalog.find(title => title.id === 'legendary-08').tierLabel, 'Singular');
@@ -126,8 +139,7 @@ test('first-title rarity achievements scale from 1% to 500% permanent luck', () 
   assert.equal(rarityLuck.achievementBonusBps, totalRarityBonus);
   assert.equal(rarityLuck.totalBps, 10_000 + rarityLuck.passiveBps + totalRarityBonus);
   assert.equal(achievementLuckRewardBps('tier-ntc'), 50_000, 'the first Além do NTC title grants a massive +500% permanent luck');
-  const epicId = TITLES.find(title => title.tier === 'epic').id;
-  assert.ok(currentWeights({ collectedIds: ['epic-01'] }).get(epicId) > currentWeights({ collectedIds: ['basic-01'] }).get(epicId));
+  assert.ok(ntcWeight(currentWeights({ collectedIds: ['epic-01'] })) > ntcWeight(currentWeights({ collectedIds: ['basic-01'] })));
   assert.equal(luckForState({}).achievementBonusBps, 0, 'unearned rarity achievements do not grant luck');
   const extremeWeights = currentWeights({ collectedIds: TITLES.map(title => title.id) });
   assert.equal([...extremeWeights.values()].reduce((sum, weight) => sum + weight, 0n), POOL);
@@ -146,9 +158,9 @@ test('difficult achievement luck rewards stack and old save evidence grants only
     eventsParticipated: 10,
     limitedTitles: ['limited-first-rain']
   });
-  assert.equal(earned.achievementBonusBps, 80_900);
+  assert.equal(earned.achievementBonusBps, 80_850);
   assert.equal(earned.passiveBps, 10_000);
-  assert.equal(earned.totalBps, 100_900, 'large rarity achievement bonuses add to collection luck without replacing it');
+  assert.equal(earned.totalBps, 100_850, 'large rarity achievement bonuses add to collection luck without replacing it');
   assert.equal(luckForState({ totalRolls: 99_999, manualRolls: 999_999 }).achievementBonusBps, 0);
 });
 
@@ -188,8 +200,8 @@ test('the Singular+ drought tracker advances from legacy unknown state and rewar
   const milestone = rollTitle(before, 0n);
   assert.equal(milestone.state.sinceSingular, 10_000);
   assert.equal(milestone.state.longestSingularDrought, 10_000);
-  assert.equal(luckForState(milestone.state).achievementBonusBps, 50);
-  assert.equal(achievementLuckRewardBps('drought-10000'), 50);
+  assert.equal(luckForState(milestone.state).achievementBonusBps, 0);
+  assert.equal(achievementLuckRewardBps('drought-10000'), 0);
 });
 
 test('Eco de Sete grants +1% permanent luck when its secret is discovered', () => {
@@ -219,10 +231,9 @@ test('equal-hour clock bonus is active for the whole local matching minute and s
 
   const equalHourAt = new Date(2026, 8, 23, 20, 20, 37).getTime();
   const normalState = normalizeState({});
-  const rareId = TITLES.find(title => title.tier === 'epic').id;
   const normalWeights = currentWeights(normalState);
   const equalHourWeights = currentWeights(normalState, { equalHourBonus: true });
-  assert.ok(equalHourWeights.get(rareId) > normalWeights.get(rareId));
+  assert.ok(ntcWeight(equalHourWeights) > ntcWeight(normalWeights));
   assert.ok(equalHourWeights.get(TITLES[0].id) < normalWeights.get(TITLES[0].id));
 
   const bonusState = { totalRolls: 9, bonusRollCounter: 9 };
@@ -235,9 +246,9 @@ test('equal-hour clock bonus is active for the whole local matching minute and s
   assert.equal(result.state.recentDiscoveries[0].rolledAt, equalHourAt);
   assert.equal(result.state.recentDiscoveries[0].isBonusRoll, true);
   assert.equal(result.state.recentDiscoveries[0].isEqualHourBonus, true);
-  const bonusOnlyWeight = currentWeights(bonusState, { bonusRoll: true }).get(rareId);
-  const stackedWeight = currentWeights(bonusState, { bonusRoll: true, equalHourBonus: true }).get(rareId);
-  assert.ok(stackedWeight > bonusOnlyWeight, 'the two active bonuses multiply together');
+  const bonusOnlyWeight = ntcWeight(currentWeights(bonusState, { bonusRoll: true }));
+  const stackedWeight = ntcWeight(currentWeights(bonusState, { bonusRoll: true, equalHourBonus: true }));
+  assert.ok(stackedWeight > bonusOnlyWeight, 'the two active bonuses increase the curve input together');
 });
 
 test('every thousandth roll gets ×4 and combines multiplicatively with the other active bonuses', () => {
@@ -254,8 +265,8 @@ test('every thousandth roll gets ×4 and combines multiplicatively with the othe
   assert.equal(result.state.recentDiscoveries[0].isThousandRollBonus, true);
   assert.equal(result.state.recentDiscoveries[0].thousandRollMultiplier, 4);
   assert.equal(result.state.recentDiscoveries[0].rolledAt, equalHourAt);
-  const baseWeight = currentWeights(beforeMilestone).get(TITLES.find(title => title.tier === 'epic').id);
-  const stackedWeight = currentWeights(beforeMilestone, { bonusRoll: true, equalHourBonus: true, thousandRollBonus: true }).get(TITLES.find(title => title.tier === 'epic').id);
+  const baseWeight = ntcWeight(currentWeights(beforeMilestone));
+  const stackedWeight = ntcWeight(currentWeights(beforeMilestone, { bonusRoll: true, equalHourBonus: true, thousandRollBonus: true }));
   assert.ok(stackedWeight > baseWeight);
 });
 
@@ -273,10 +284,9 @@ test('every ten-thousandth roll gets ×10 and stacks with roll, clock, and thous
   assert.equal(result.tenThousandRollMultiplier, 10);
   assert.equal(result.state.recentDiscoveries[0].isTenThousandRollBonus, true);
   assert.equal(result.state.recentDiscoveries[0].tenThousandRollMultiplier, 10);
-  const titleId = TITLES.find(title => title.tier === 'epic').id;
-  const baseWeight = currentWeights(beforeMilestone).get(titleId);
-  const stackedWeight = currentWeights(beforeMilestone, { bonusRoll: true, equalHourBonus: true, thousandRollBonus: true, tenThousandRollBonus: true }).get(titleId);
-  assert.ok(stackedWeight > baseWeight, 'all simultaneously active multipliers raise rare-title weight');
+  const baseWeight = ntcWeight(currentWeights(beforeMilestone));
+  const stackedWeight = ntcWeight(currentWeights(beforeMilestone, { bonusRoll: true, equalHourBonus: true, thousandRollBonus: true, tenThousandRollBonus: true }));
+  assert.ok(stackedWeight > baseWeight, 'all simultaneously active multipliers advance the curve');
 });
 
 test('collection luck advances once per pair of new titles, and caps at +100%', () => {
@@ -290,12 +300,10 @@ test('collection luck advances once per pair of new titles, and caps at +100%', 
 
 test('rarity collection milestones improve that rarity while basic collection improves global luck', () => {
   const base = currentWeights({});
-  const epicTitle = TITLES.find(title => title.id === 'epic-01');
-  const mythicTitle = TITLES.find(title => title.id === 'mythic-01');
   const milestone = debugGrantTierTitles({}, 'epic', 5);
   assert.equal(milestone.granted, 5);
   assert.equal(publicProgress(milestone.state).tierProgress.find(tier => tier.id === 'epic').bonusBps, 250);
-  assert.ok(currentWeights(milestone.state).get(epicTitle.id) > base.get(epicTitle.id));
+  assert.ok(ntcWeight(currentWeights(milestone.state)) > ntcWeight(base));
   const partial = normalizeState({ collectedIds: ['epic-06', 'epic-10'] });
   const completed = debugGrantTierTitles(partial, 'epic', 5);
   assert.equal(completed.granted, 3);
@@ -304,7 +312,7 @@ test('rarity collection milestones improve that rarity while basic collection im
 
   const basicMilestone = debugGrantTierTitles({}, 'basic', 5);
   assert.equal(luckForState(basicMilestone.state).passiveBps, 450);
-  assert.ok(currentWeights(basicMilestone.state).get(mythicTitle.id) > base.get(mythicTitle.id));
+  assert.ok(ntcWeight(currentWeights(basicMilestone.state)) > ntcWeight(base));
 });
 
 test('automatic collection milestones unlock 2x/3x cycles and stronger bonus rolls', () => {
@@ -329,8 +337,7 @@ test('automatic collection milestones unlock 2x/3x cycles and stronger bonus rol
   const tenth = rollTitle(ninth.state, 0n);
   assert.equal(tenth.isBonusRoll, true);
   assert.equal(tenth.state.bonusRollCounter, 0);
-  const epicTitle = TITLES.find(title => title.id === 'epic-01');
-  assert.ok(currentWeights(state, { bonusRoll: true }).get(epicTitle.id) > currentWeights(state).get(epicTitle.id));
+  assert.ok(ntcWeight(currentWeights(state, { bonusRoll: true })) > ntcWeight(currentWeights(state)));
 });
 
 test('debug progression can set rarity/total milestones and prepare the next bonus roll', () => {
@@ -347,24 +354,72 @@ test('debug progression can set rarity/total milestones and prepare the next bon
   assert.equal(first.state.totalRolls + 1, duplicate.state.totalRolls);
 });
 
-test('boosted probabilities remain a valid distribution and Basic absorbs the remainder', () => {
+test('boosted probabilities remain ordered and the NTC tail receives more mass', () => {
   const state = normalizeState({ collectedIds: TITLES.slice(0, 100).map(title => title.id) });
   const weights = currentWeights(state);
   assert.equal([...weights.values()].reduce((sum, weight) => sum + weight, 0n), POOL);
-  const rare = TITLES.find(title => title.tier === 'epic');
-  const basic = TITLES.find(title => title.tier === 'basic');
-  assert.ok(weights.get(rare.id) > rare.baseWeight);
-  assert.ok(weights.get(basic.id) < basic.baseWeight);
+  assert.ok(ntcWeight(weights) > ntcWeight(currentWeights({})));
+  assert.ok(weights.get('basic-01') < currentWeights({}).get('basic-01'));
+  assertRarityOrder(weights);
 });
 
-test('the 100% distribution remains exact and individual odds remain distinct as luck grows', () => {
+test('asymptotic luck compression preserves all rarity orderings and stays under the 1-in-10-million ceiling', () => {
+  const preNtcTitles = TITLES.filter(title => title.tier !== 'ntc').map(title => title.id);
+  const developedSave = { collectedIds: preNtcTitles, permanentUpgradeLevels: 80, longestSingularDrought: 1_000_000 };
+  const neutral = currentWeights({});
+  const developed = currentWeights(developedSave);
+  const ceiling = POOL / RNG_NTC_ODDS_CEILING_DENOMINATOR;
+  assert.ok(ntcWeight(developed) > ntcWeight(neutral), 'non-NTC progression raises the NTC tail without owning an NTC title');
+  assert.ok(ntcWeight(developed) < ceiling);
+  assert.equal([...developed.values()].reduce((sum, weight) => sum + weight, 0n), POOL);
+  assert.ok([...developed.values()].every(weight => weight > 0n));
+  assertRarityOrder(developed);
+
+  const fullyBoosted = currentWeights({
+    ...developedSave,
+    permanentUpgradeLevels: Number.MAX_SAFE_INTEGER,
+    equippedRelicIds: ['solar-clock', 'lunar-clock', 'astrolabe', 'lucky-feather', 'eclipse-prism', 'atlas-of-possibilities']
+  }, {
+    bonusRoll: true,
+    equalHourBonus: true,
+    thousandRollBonus: true,
+    tenThousandRollBonus: true,
+    eventMultiplier: 5,
+    focusTierId: 'ntc',
+    focusMultiplier: 3,
+    consumableMultiplier: 4,
+    localHour: 12
+  });
+  assert.ok(ntcWeight(fullyBoosted) <= ceiling, 'stacked bonuses cannot push the aggregate NTC chance above its hard ceiling');
+  assert.ok(ntcWeight(fullyBoosted) < ceiling, 'finite luck approaches but does not reach the asymptote');
+  assertRarityOrder(fullyBoosted);
+
+  const unboundedUpgradeState = { ...developedSave, permanentUpgradeLevels: 1e308 };
+  const beyondSafeNumber = currentWeights(unboundedUpgradeState, { consumableMultiplier: 4, eventMultiplier: 5 });
+  assert.ok(ntcWeight(beyondSafeNumber) < ceiling, 'even an extreme finite upgrade count remains below the asymptote');
+  assert.equal([...beyondSafeNumber.values()].reduce((sum, weight) => sum + weight, 0n), POOL);
+  assertRarityOrder(beyondSafeNumber);
+  assert.doesNotThrow(() => luckForState(unboundedUpgradeState), 'luck summaries avoid Number overflow for the unbounded store');
+
+  const allNtcTitles = TITLES.filter(title => title.tier === 'ntc').map(title => title.id);
+  const withNtc = currentWeights({
+    ...developedSave,
+    collectedIds: [...preNtcTitles, ...allNtcTitles],
+    ownedRelicIds: ['atlas-of-possibilities'],
+    equippedRelicIds: ['atlas-of-possibilities']
+  });
+  assert.deepEqual(withNtc, developed, 'NTC achievements and the 200-title relic do not create a circular route to the curve cap');
+});
+
+test('the 100% distribution remains exact, ordered, and renderable as luck grows', () => {
   for (const count of [0, 2, 40, 100, 200]) {
     const state = normalizeState({ collectedIds: TITLES.slice(0, count).map(title => title.id) });
     const weights = currentWeights(state);
     assert.equal([...weights.values()].reduce((sum, weight) => sum + weight, 0n), POOL);
-    const odds = publicCatalog(state).map(title => title.currentOdds);
-    assert.equal(new Set(odds).size, TITLES.length);
-    assert.ok(odds.every(value => !value.includes(',')));
+    assertRarityOrder(weights);
+    const catalog = publicCatalog(state);
+    assert.equal(new Set(catalog.map(title => title.baseOdds)).size, TITLES.length, 'catalog reference odds stay distinct');
+    assert.ok(catalog.every(title => !title.currentOdds.includes(',')));
   }
 });
 
@@ -409,7 +464,7 @@ test('title history records exact rolls and bonus details while recent discoveri
   };
 
   let state = rollTitle({}, 0n, { rolledAt: ordinaryTime }).state;
-  assert.deepEqual(state.recentDiscoveries, [{ titleId: 'basic-01', roll: 1, currentOdds: '1 em 2', isBonusRoll: false, rollBonusMultiplier: 1, isEqualHourBonus: false, equalHourMultiplier: 1, equalHourTime: '', isThousandRollBonus: false, thousandRollMultiplier: 1, isTenThousandRollBonus: false, tenThousandRollMultiplier: 1, consumableMultiplier: 1, consumableBoostTypes: [], rolledAt: ordinaryTime, eventName: '', eventMultiplier: 1, eventFocusTierLabel: '', eventFocusMultiplier: 1 }]);
+  assert.deepEqual(state.recentDiscoveries, [{ titleId: 'basic-01', titleNameAtDiscovery: 'Primeira Faísca', tierAtDiscovery: 'basic', tierLabelAtDiscovery: 'Básico', tierRankAtDiscovery: 0, catalogVersionAtDiscovery: CATALOG_VERSION, roll: 1, currentOdds: '1 em 2', isBonusRoll: false, rollBonusMultiplier: 1, isEqualHourBonus: false, equalHourMultiplier: 1, equalHourTime: '', isThousandRollBonus: false, thousandRollMultiplier: 1, isTenThousandRollBonus: false, tenThousandRollMultiplier: 1, consumableMultiplier: 1, consumableBoostTypes: [], rolledAt: ordinaryTime, eventName: '', eventMultiplier: 1, eventFocusTierLabel: '', eventFocusMultiplier: 1 }]);
   state = rollTitle(state, 0n, { rolledAt: ordinaryTime }).state;
   assert.equal(state.recentDiscoveries.length, 1, 'a duplicate must not create a discovery record');
   state = rollSpecificTitle(state, 'basic-02').state;
@@ -495,6 +550,36 @@ test('Fragmentos reward new and repeated titles by rarity and first-time event t
   assert.equal(repeatedLimited.fragmentReward, '1', 'an already-owned event title does not pay the one-time bonus again');
 });
 
+test('equipped Fragmentos relics carry fractional bonuses and boost every fragment reward source', () => {
+  let state = normalizeState({
+    collectedIds: ['basic-01'],
+    ownedRelicIds: ['torn-pouch'],
+    equippedRelicIds: ['torn-pouch']
+  });
+  let total = 0n;
+  for (let index = 0; index < 10; index++) {
+    const outcome = rollTitle(state, 0n);
+    total += BigInt(outcome.fragmentReward);
+    state = outcome.state;
+  }
+  assert.equal(total, 11n, 'ten 1-Fragmento rewards at ×1.10 produce 11 Fragmentos instead of losing every fraction');
+  assert.equal(state.fragmentBalance, '11');
+  assert.equal(state.fragmentRewardRemainderBps, 0);
+  assert.deepEqual(normalizeState(JSON.parse(JSON.stringify(state))), state, 'the fractional carry survives a save/load round trip');
+
+  const duplicateRelicState = normalizeState({
+    collectedIds: ['basic-01'],
+    ownedRelicIds: ['torn-pouch', 'lucky-feather'],
+    equippedRelicIds: ['torn-pouch'],
+    randomRelicTarget: 8_000,
+    randomRelicProgress: 7_999
+  });
+  const duplicateRelic = rollTitle(duplicateRelicState, 0n, { randomRelicTargetValue: 0n, randomRelicChoiceValue: 0n });
+  assert.equal(duplicateRelic.specialUnlocks.at(-1).duplicate, true);
+  assert.equal(duplicateRelic.fragmentReward, '27501', '×1.10 applies to the 1 base Fragmento and 25,000 from the duplicate relic');
+  assert.equal(duplicateRelic.state.fragmentRewardRemainderBps, 1_000);
+});
+
 test('Fragmentos store purchases use exact balances, doubling upgrade costs, and permanent luck', () => {
   const broke = purchasePermanentUpgrade({});
   assert.equal(broke.ok, false);
@@ -536,10 +621,10 @@ test('different Fortune consumables overlap as ×4 while repeats of one type que
   assert.deepEqual(queued.state.activeBoost, { type: 'rolls', remaining: 600 });
   assert.deepEqual(queued.state.parallelBoost, { type: 'time', remaining: 600 });
   assert.deepEqual(queued.state.boostQueue, []);
-  const twiceBoostedOdds = currentWeights(queued.state, { consumableMultiplier: 2 }).get('epic-01');
-  const boostedOdds = currentWeights(queued.state, { consumableMultiplier: 4 }).get('epic-01');
-  const ordinaryOdds = currentWeights(queued.state).get('epic-01');
-  assert.ok(twiceBoostedOdds > ordinaryOdds && boostedOdds > twiceBoostedOdds, 'each active Fortune doubles the rare weights while preserving the pool');
+  const twiceBoostedOdds = ntcWeight(currentWeights(queued.state, { consumableMultiplier: 2 }));
+  const boostedOdds = ntcWeight(currentWeights(queued.state, { consumableMultiplier: 4 }));
+  const ordinaryOdds = ntcWeight(currentWeights(queued.state));
+  assert.ok(twiceBoostedOdds > ordinaryOdds && boostedOdds > twiceBoostedOdds, 'each active Fortune advances the curve before its ceiling');
   const outcome = rollTitle(queued.state, 0n);
   assert.equal(outcome.consumableBoostType, 'rolls+time');
   assert.deepEqual(outcome.consumableBoostTypes, ['rolls', 'time']);
@@ -571,14 +656,14 @@ test('timed consumables pause while closed and only reduce active time-based eff
   assert.deepEqual(afterCrossingRoll.boostQueue, []);
 });
 
-test('relic catalog has three distinct three-piece sets and six equipment slots', () => {
-  assert.equal(RELICS.length, 17);
-  assert.equal(RELIC_SETS.length, 3);
-  assert.equal(new Set(RELICS.map(relic => relic.id)).size, 17);
+test('relic catalog no longer contains the misfortune triad and keeps six equipment slots', () => {
+  assert.equal(RELICS.length, 14);
+  assert.equal(RELIC_SETS.length, 2);
+  assert.equal(new Set(RELICS.map(relic => relic.id)).size, 14);
   for (const set of RELIC_SETS) assert.equal(RELICS.filter(relic => relic.setId === set.id).length, 3);
   const publicState = publicRelicState({});
   assert.equal(publicState.slots.length, 6);
-  assert.equal(publicState.catalog.length, 17);
+  assert.equal(publicState.catalog.length, 14);
   assert.equal(Object.hasOwn(publicState, 'randomRelicTarget'), false);
   assert.equal(Object.hasOwn(publicState, 'randomRelicProgress'), false);
   assert.equal(publicState.catalog.find(relic => relic.id === 'twin-core').purchasable, false);
@@ -624,68 +709,47 @@ test('Solar and Lunar follow local PC hours while the complete celestial set kee
   assert.deepEqual(relicEffects(complete, { localHour: 12 }).completeSetIds, ['celestial']);
 });
 
-test('echo and misfortune relic effects stack into extreme luck, extra results, and Fragmentos', () => {
+test('echo relic effects remain independent of drought statistics', () => {
   const allEchoes = ['twin-core', 'echo-spring', 'fragment-pouch'];
   const echoState = normalizeState({ ownedRelicIds: allEchoes, equippedRelicIds: allEchoes, totalRolls: 99 });
   assert.equal(rollsPerAction(echoState), 5, 'twin core and set double 1 into 4, then the spring crosses roll 100');
   assert.equal(relicEffects(echoState).fragmentMultiplierBps, 12_500);
 
-  const misfortune = ['misfortune-mark', 'cracked-die', 'drought-heart'];
-  const dryState = normalizeState({ ownedRelicIds: misfortune, equippedRelicIds: misfortune, sinceSingular: 10_000, droughtRelicStage: 3 });
-  assert.equal(relicEffects(dryState).luckMultiplierBps, 12_800_000n, '×1.25 and ten drought doublings stack');
-  assert.equal(relicEffects(dryState).fragmentMultiplierBps, 12_500);
-  assert.equal(rollsPerAction(dryState), 4, 'one base, cracked die, and two drought results');
-  const weights = currentWeights({ ...dryState, sinceSingular: 100_000 }, { localHour: 12 });
-  assert.equal([...weights.values()].reduce((sum, weight) => sum + weight, 0n), POOL);
-  assert.ok([...weights.values()].every(weight => weight > 0n), 'every one of the 200 titles keeps a nonzero chance under extreme luck');
+  const dryState = { sinceSingular: 40_000, longestSingularDrought: 40_000 };
+  assert.equal(relicEffects(dryState).luckMultiplierBps, 10_000n);
+  assert.equal(relicEffects(dryState).fragmentMultiplierBps, 10_000);
+  assert.equal(rollsPerAction(dryState), 1);
+  assert.deepEqual(currentWeights(dryState), currentWeights({ sinceSingular: 0, longestSingularDrought: 0 }), 'dry-roll counters do not alter title chances');
 });
 
-test('the misfortune triad drops sequentially at 15k, 25k, and 40k dry rolls and resets each stage', () => {
-  const legacy = normalizeState({ sinceSingular: 14_999, droughtRelicStage: 0, droughtRelicProgress: 14_999 });
-  assert.equal(legacy.droughtRelicProgress, 0, 'pre-update drought progress does not advance the new relic track');
-  assert.equal(legacy.droughtRelicProgressVersion, RNG_RELIC_DROUGHT_PROGRESS_VERSION);
+test('legacy misfortune relics convert once to Fragmentos and preserve independent drought stats', () => {
   const priorSave = {
     totalRolls: 73_105,
     sinceSingular: 27_047,
+    longestSingularDrought: 27_047,
     fragmentBalance: '123456',
-    ownedRelicIds: ['misfortune-mark', 'solar-clock'],
-    equippedRelicIds: ['misfortune-mark', 'solar-clock'],
+    ownedRelicIds: ['cracked-die', 'solar-clock'],
+    equippedRelicIds: ['misfortune-mark', 'cracked-die', 'solar-clock'],
     droughtRelicStage: 1,
     droughtRelicProgress: 14_999,
-    droughtRelicProgressVersion: RNG_RELIC_DROUGHT_PROGRESS_VERSION - 1
+    droughtRelicProgressVersion: RNG_RELIC_REMOVAL_VERSION - 1
   };
-  const migratedSave = migrateDroughtRelicProgress(priorSave);
-  assert.deepEqual(migratedSave.ownedRelicIds, ['solar-clock'], 'a relic granted by the old roll counter is revoked, but other relics remain');
+  const migratedSave = migrateRemovedMisfortuneRelics(priorSave);
+  assert.deepEqual(migratedSave.ownedRelicIds, ['solar-clock']);
   assert.deepEqual(migratedSave.equippedRelicIds, ['solar-clock']);
-  assert.equal(migratedSave.droughtRelicStage, 0);
-  assert.equal(migratedSave.droughtRelicProgress, 0);
-  assert.equal(migratedSave.droughtRelicProgressVersion, RNG_RELIC_DROUGHT_PROGRESS_VERSION);
+  assert.equal(migratedSave.fragmentBalance, '173456');
+  assert.equal(migratedSave.relicRemovalVersion, RNG_RELIC_REMOVAL_VERSION);
+  assert.equal(Object.hasOwn(migratedSave, 'droughtRelicProgress'), false);
   assert.equal(migratedSave.totalRolls, priorSave.totalRolls);
   assert.equal(migratedSave.sinceSingular, priorSave.sinceSingular);
-  assert.equal(migratedSave.fragmentBalance, priorSave.fragmentBalance);
-  assert.equal(migrateDroughtRelicProgress(migratedSave), migratedSave, 'migration is idempotent after the new version is saved');
-  let first = rollTitle({ ...legacy, droughtRelicProgress: 14_999 }, 0n, { randomRelicTargetValue: 0n });
-  assert.ok(first.state.ownedRelicIds.includes('misfortune-mark'));
-  assert.equal(first.state.droughtRelicStage, 1);
-  assert.equal(first.state.droughtRelicProgress, 0);
+  assert.equal(migrateRemovedMisfortuneRelics(migratedSave), migratedSave, 'migration does not pay out again');
 
-  const singularId = TITLES.find(title => title.tier === 'unique').id;
-  const interruptedState = normalizeState({ ...first.state, droughtRelicProgressVersion: RNG_RELIC_DROUGHT_PROGRESS_VERSION, droughtRelicProgress: 2_000 });
-  const singular = rollTitle(interruptedState, randomValueForTitle(interruptedState, singularId), { randomRelicTargetValue: 0n });
-  assert.equal(singular.state.droughtRelicProgress, 0);
-  assert.equal(singular.state.droughtRelicStage, 1);
-
-  const secondStart = normalizeState({ ...singular.state, droughtRelicProgressVersion: RNG_RELIC_DROUGHT_PROGRESS_VERSION, sinceSingular: 24_999, droughtRelicProgress: 24_999 });
-  const second = rollTitle(secondStart, 0n, { randomRelicTargetValue: 0n });
-  assert.ok(second.state.ownedRelicIds.includes('cracked-die'));
-  assert.equal(second.state.droughtRelicStage, 2);
-  assert.equal(second.state.droughtRelicProgress, 0);
-
-  const thirdStart = normalizeState({ ...second.state, droughtRelicProgressVersion: RNG_RELIC_DROUGHT_PROGRESS_VERSION, sinceSingular: 39_999, droughtRelicProgress: 39_999 });
-  const third = rollTitle(thirdStart, 0n, { randomRelicTargetValue: 0n });
-  assert.ok(third.state.ownedRelicIds.includes('drought-heart'));
-  assert.equal(third.state.droughtRelicStage, 3);
-  assert.equal(third.state.droughtRelicProgress, 0);
+  const primaryAlreadyStripped = { relicRemovalVersion: 2, droughtRelicProgressVersion: 2, fragmentBalance: '400', sinceSingular: 27_047, ownedRelicIds: ['solar-clock'] };
+  const recoverableBackup = { droughtRelicProgressVersion: 1, ownedRelicIds: ['misfortune-mark'], equippedRelicIds: ['drought-heart'] };
+  const recovered = migrateRemovedMisfortuneRelics(primaryAlreadyStripped, recoverableBackup);
+  assert.equal(recovered.fragmentBalance, '50400', 'backup-only ownership is compensated once');
+  assert.deepEqual(recovered.ownedRelicIds, ['solar-clock']);
+  assert.equal(recovered.sinceSingular, 27_047);
 });
 
 test('hidden random drops use 8k-12k targets, reset only themselves, and convert duplicates', () => {
@@ -748,10 +812,13 @@ test('the game is reachable from Home, exposes the Fragmentos shop, and uses iso
   const html = fs.readFileSync(path.join(root, 'src', 'index.html'), 'utf8');
   const app = fs.readFileSync(path.join(root, 'src', 'app.js'), 'utf8');
   const styles = fs.readFileSync(path.join(root, 'src', 'styles.css'), 'utf8');
+  const theme = fs.readFileSync(path.join(root, 'src', 'theme.css'), 'utf8');
   const rng = fs.readFileSync(path.join(root, 'src', 'rng.cjs'), 'utf8');
+  const canonicalCatalog = fs.readFileSync(path.join(root, 'content', 'rng-title-catalog.json'), 'utf8');
   const preload = fs.readFileSync(path.join(root, 'preload.cjs'), 'utf8');
   const main = fs.readFileSync(path.join(root, 'main.cjs'), 'utf8');
   assert.match(html, /data-view="rng"/);
+  assert.match(html, /href="\.\/theme\.css"/);
   assert.match(html, /data-open-tool="rng"/);
   assert.match(html, /id="rngView"/);
   assert.match(html, /id="rngCatalog"/);
@@ -764,7 +831,7 @@ test('the game is reachable from Home, exposes the Fragmentos shop, and uses iso
   assert.match(html, /id="rngTitleUnlockSound" src="\.\/assets\/rng-title-deep\.mp3"/);
   assert.match(html, /data-rng-section="shop"/);
   assert.match(html, /data-rng-section="shop"[\s\S]*data-rng-section="inventory"/);
-  assert.match(html, /data-rng-section="patch-notes">Atualizações/);
+  assert.match(html, /data-rng-section="patch-notes"><span class="rng-section-tab-icon"[^>]*><\/span>Atualizações/);
   assert.match(html, /data-rng-panel="patch-notes"[\s\S]*id="rngPatchNotes"/);
   assert.match(html, /rng-changelog\.js/);
   const rngChangelog = fs.readFileSync(path.join(root, 'src', 'rng-changelog.js'), 'utf8');
@@ -810,14 +877,47 @@ test('the game is reachable from Home, exposes the Fragmentos shop, and uses iso
   assert.match(app, /getEqualHourClockStatus/);
   assert.match(app, /<small>Rolagem<\/small>/);
   assert.match(app, /Chance na rolagem/);
-  assert.match(app, /Chance atual/);
+  assert.match(html, /class="rng-main-title-line"[\s\S]*<h1>Além do Acaso<\/h1>[\s\S]*id="rngOddsHelpButton"[^>]*aria-haspopup="dialog"[\s\S]*?<svg viewBox="0 0 20 20"/);
+  assert.match(html, /class="section-heading rng-collection-heading"><h2>Coleção<\/h2>/);
+  assert.doesNotMatch(html, /rng-collection-title/);
+  assert.match(html, /id="rngOddsHelpDialog"[^>]*aria-labelledby="rngOddsHelpTitle"/);
+  assert.match(html, /conjunto total <code>POOL = 10⁸⁰<\/code>/);
+  assert.match(html, /Σ wᵢ = POOL/);
+  assert.match(html, /Amostragem sem viés de módulo/);
+  assert.match(html, /f\(b\) = b \/ \(b \+ 25\.000\)/);
+  assert.match(html, /permanece abaixo de <code>1 \/ 10\.000\.000<\/code> por rolagem/);
+  assert.match(html, /Sem garantia por sequência|Teto e ausência de “pity”/);
+  assert.match(app, /\$\('#rngOddsHelpButton'\)\.onclick = \(\) => rngOddsHelpDialog\.showModal\(\)/);
+  assert.match(app, /class="rng-title-odds"><strong>\$\{formatRngOdds\(title\.baseOdds\)\}/);
+  assert.match(app, /class="rng-title-mark" aria-hidden="true"[\s\S]*rng-title-locked-mark/);
+  assert.match(app, /formatRngOdds\(record\.currentOdds \|\| title\.baseOdds\)/);
+  assert.match(app, /class="rng-result-oddsline"[\s\S]*formatRngOdds\(latest\.currentOdds\)/);
+  assert.match(app, /function formatRngOdds[\s\S]*return `\$\{safeText\(match\[1\]\)\}<sup>/);
+  assert.doesNotMatch(app, /<small>Odds de catálogo<\/small>/);
+  assert.doesNotMatch(html, /rng-catalog-note|Odds de catálogo/);
+  assert.match(theme, /\.rng-info-card\.unlocked/);
+  assert.match(theme, /\.rng-title-reveal\[data-tier="transcendent"\][^}]*--rng-reveal-accent:\s*#[0-9a-f]{6}/);
+  assert.doesNotMatch(theme, /rng-title-odds/);
+  assert.match(styles, /\.rng-title-odds\s*\{[^}]*justify-items:\s*center/);
+  assert.match(styles, /\.rng-title-odds\s*\{[^}]*min-width:\s*70px[^}]*font-variant-numeric:\s*lining-nums tabular-nums/);
+  assert.match(styles, /\.rng-title-odds strong\s*\{[^}]*font:\s*700 13px\/1\.15/);
+  assert.match(styles, /\.rng-title-odds sup\s*\{[^}]*font-size:\s*\.88em/);
+  assert.match(styles, /\.rng-info-button:hover[^}]*color:\s*var\(--text\)/);
+  assert.match(styles, /\.rng-info-button\.rng-main-info-button svg\s*\{\s*width:\s*18px;\s*height:\s*18px;/);
+  assert.match(styles, /\.rng-title-row\.collected\s*\{[^}]*box-shadow:\s*inset 3px 0 0 var\(--accent-violet\)/);
+  assert.match(styles, /\.rng-title-row\.locked \.rng-title-info strong\s*\{[^}]*color:\s*#626168/);
+  assert.match(styles, /\.rng-discovery-detail strong\s*\{[^}]*font:\s*700 13px\/1\.15 "Segoe UI Variable"/);
+  assert.match(styles, /\.rng-result-oddsline > strong\s*\{[^}]*font:\s*700 13px\/1\.15 "Segoe UI Variable"/);
   assert.match(styles, /\.rng-title-history-list\s*\{[^}]*grid-template-columns:\s*repeat\(2/);
   assert.match(app, /class="rng-discovery-meta"/);
   assert.match(styles, /\.rng-title-history-card\s*\{[^}]*min-height:\s*72px/);
   assert.match(styles, /\.rng-title-history-card \.rng-discovery-detail\s*\{[^}]*grid-template-columns:\s*repeat\(2/);
   assert.match(styles, /\.rng-title-history-card:not\(\.has-record\)\s*\{[^}]*min-height:\s*62px/);
   assert.doesNotMatch(styles, /\.rng-title-history-list\s*\{[^}]*grid-auto-flow:\s*column/);
-  assert.match(app, /showRngUnlock\(newlyUnlocked\)/);
+  assert.match(app, /collectCandidates\(unlockResults, previousRoll \?\? 0\)/);
+  assert.match(app, /showRngUnlockBatch\(revealCandidates, \{ defer: true \}\)/);
+  assert.match(app, /function enqueueRngUnlock\(item\)/);
+  assert.match(main, /rngLatestUnlocks = publicResults\.filter\(result => result\.isNew \|\| result\.specialUnlocks\?\.length\)\.map\(result => \(\{ \.\.\.result, specialUnlocks: result\.specialUnlocks \|\| \[\] \}\)\);/);
   assert.match(app, /isDevelopmentBuild\(\)/);
   assert.match(app, /rngDebugEnabled = await window\.ntc\.isDevelopmentBuild\(\);\s*if \(!rngDebugEnabled\) return;\s*\$\('#rngDebugTrigger'\)\.classList\.remove\('hidden'\)/);
   assert.match(preload, /getRngState:.*get-rng-state/);
@@ -864,8 +964,7 @@ test('the game is reachable from Home, exposes the Fragmentos shop, and uses iso
   assert.match(main, /ipcMain\.handle\('debug-rng-grant-tier'/);
   assert.match(preload, /debugGrantRngTotal:.*debug-rng-grant-total/);
   assert.match(main, /ipcMain\.handle\('debug-rng-grant-total'/);
-  assert.match(rng, /Lucky Lad/);
-  assert.match(rng, /Luckiest Lad/);
+  assert.match(canonicalCatalog, /O Favorito do Acaso/);
   assert.match(main, /ntc-rng-state\.json/);
 });
 
@@ -899,4 +998,174 @@ test('neutral relic luck is shown as zero contribution instead of implying an eq
   assert.equal(formatLuck(undefined), '+0% relíquias', 'missing legacy state is treated as neutral');
   assert.equal(formatLuck('11200'), '×1,12 relíquias', 'an active luck relic still shows its multiplier');
   assert.match(app, /\$\('#rngRelicLuck'\)\.textContent = formatRngRelicLuck\(state\.relicLuckMultiplierBps\)/);
+});
+
+test('rarity reveal motion has user controls, tier styling, and a debug preview', () => {
+  const root = path.join(__dirname, '..');
+  const html = fs.readFileSync(path.join(root, 'src', 'index.html'), 'utf8');
+  const app = fs.readFileSync(path.join(root, 'src', 'app.js'), 'utf8');
+  const styles = fs.readFileSync(path.join(root, 'src', 'styles.css'), 'utf8');
+  const iconStyles = fs.readFileSync(path.join(root, 'src', 'rng-icons.css'), 'utf8');
+  const rngTheme = fs.readFileSync(path.join(root, 'src', 'rng-theme.css'), 'utf8');
+  const eventScenes = fs.readFileSync(path.join(root, 'src', 'rng-event-scenes.css'), 'utf8');
+  const iconModule = fs.readFileSync(path.join(root, 'src', 'rng-icons.js'), 'utf8');
+  const iconWindow = { matchMedia: () => ({ matches: false }) };
+  const iconDocument = { documentElement: { dataset: { rngRevealMotion: 'full' } } };
+  vm.runInNewContext(iconModule, { window: iconWindow, document: iconDocument });
+  const tierIds = ['basic', 'epic', 'unique', 'legendary', 'mythic', 'exalted', 'glorious', 'transcendent', 'dimensional', 'ntc'];
+  const tierArtwork = tierIds.map(tier => iconWindow.NTCRngIcons.render(`tier-${tier}`, { size: 20 }));
+  const tierDefinitions = tierIds.map(tier => iconWindow.NTCRngIcons.definition(`tier-${tier}`));
+  assert.equal(new Set(tierDefinitions.map(item => item.src)).size, tierIds.length, 'every rarity has its own generated illustration');
+  assert.equal(iconWindow.NTCRngIcons.definition('tier-transcendent').src, './assets/rng/ruins/tiers/dimensional.webp', 'the Abissal tier uses the supplied dimensional relic art');
+  assert.equal(iconWindow.NTCRngIcons.definition('tier-dimensional').src, './assets/rng/ruins/tiers/transcendent.webp', 'the Inominável tier uses the supplied transcendent relic art');
+  assert.ok(tierArtwork.every(markup => /<img[^>]+assets\/rng\/ruins\/tiers\/[a-z]+\.webp/.test(markup)));
+  assert.ok(tierDefinitions.every(item => item.kind === 'raster'));
+  assert.ok(tierDefinitions.every(item => Array.isArray(item.opticalOffset) && item.opticalOffset.length === 2), 'each rarity has a subtle optical-centering correction');
+  assert.ok(tierDefinitions.find(item => item.id === 'tier-ntc').opticalOffset[0] < -3, 'the NTC art is optically shifted left to compensate for its right-heavy silhouette');
+  assert.ok(tierDefinitions.every(item => fs.existsSync(path.join(root, 'src', item.src.replace('./', '')))));
+  const gameArtIds = ['event-rain', 'event-eclipse', 'event-alignment', 'event-fragments', 'set-celestial', 'set-echoes', 'shop-fortune-rolls', 'shop-fortune-time', 'shop-enhanced-luck'];
+  for (const id of gameArtIds) {
+    const definition = iconWindow.NTCRngIcons.definition(id);
+    assert.equal(definition?.kind, 'raster', `${id} is registered as a reusable raster asset`);
+    assert.ok(fs.existsSync(path.join(root, 'src', definition.src.replace('./', ''))), `${id} asset exists`);
+  }
+  for (const id of ['ui-profile', 'ui-online', 'ui-history', 'ui-collection', 'ui-achievements', 'ui-statistics', 'ui-events', 'ui-shop', 'ui-inventory', 'ui-updates']) {
+    assert.equal(iconWindow.NTCRngIcons.definition(id)?.kind, 'vector', `${id} is registered for the remaining navigation tabs`);
+  }
+  const rasterDefinitions = iconWindow.NTCRngIcons.list().filter(item => item.kind === 'raster');
+  assert.equal(rasterDefinitions.length, 34, 'all 34 illustrated RNG assets have a registered identity');
+  for (const definition of rasterDefinitions) {
+    assert.ok(fs.existsSync(path.join(root, 'src', iconWindow.NTCRngIcons.definition(definition.id).src.replace('./', ''))), `${definition.id} artwork exists`);
+  }
+  const animationOptions = [];
+  iconWindow.NTCRngIcons.play({ animate: (_frames, options) => { animationOptions.push(options); return { cancel() {} }; } }, 'legendary', { force: true, delay: 360 });
+  assert.equal(animationOptions[0].delay, 360);
+  assert.match(html, /id="rngRevealMotion"[\s\S]*value="reduced"[\s\S]*value="off"[\s\S]*value="full"/);
+  assert.match(html, /id="rngDebugSimulate"[^>]*>Prévia da revelação/);
+  assert.match(app, /const RNG_REVEAL_MOTION_KEY = 'ntc-rng-reveal-motion'/);
+  assert.match(app, /applyRngRevealPreference\(\)/);
+  assert.match(app, /showRngUnlock\(result, \{ forceFullMotion = false \} = \{\}\)/);
+  assert.match(app, /simulation: true \}, \{ forceFullMotion: true \}\)/);
+  assert.match(app, /function rngCatalogOddsForTitle\(titleId\)[\s\S]*\?\.baseOdds/);
+  assert.match(app, /const titleOdds = eventKind === 'special'[\s\S]*rngCatalogOddsForTitle\(result\.title\.id\) \|\| result\.baseOdds/);
+  assert.match(app, /const resolvedIconId = iconDefinition \? iconId : `tier-\$\{tier\}`/);
+  assert.match(app, /function rngTitleIcon\(title, options = \{\}\)[\s\S]*title\?\.assetId[\s\S]*window\.NTCRngIcons\?\.definition\(candidate\)/);
+  assert.match(app, /rngTitleIcon\(title, \{ size: 19 \}\)/);
+  assert.match(app, /baseOdds: title\.baseOdds, simulation: true/);
+  assert.match(app, /Chance base \$\{title\.baseOdds\}/);
+  assert.match(html, /<dialog class="rng-title-reveal" id="rngUnlockNotice"[^>]*aria-labelledby="rngUnlockTitle"/);
+  assert.match(html, /class="rng-reveal-art-host"[\s\S]*class="rng-reveal-icon-shimmer"/);
+  assert.doesNotMatch(html, /class="rng-reveal-ritual"/, 'the old wireframe is removed from the reveal DOM');
+  assert.match(html, /class="rng-reveal-particles rng-reveal-particles-back"/);
+  assert.match(html, /class="rng-reveal-particles rng-reveal-particles-mid"/);
+  assert.match(html, /class="rng-reveal-particles rng-reveal-particles-front"/);
+  assert.match(app, /render\(resolvedIconId,[\s\S]*className: 'rng-reveal-art'/);
+  assert.match(app, /const rngRevealBands = Object\.freeze\(\{ basic: 1, epic: 2, unique: 3, legendary: 3, mythic: 4, exalted: 4, glorious: 4, transcendent: 5, dimensional: 5, ntc: 5 \}\)/);
+  assert.match(app, /rngRevealSettleMs = Object\.freeze\(\{ 1: 900, 2: 1650, 3: 2350, 4: 4150, 5: 6000 \}\)/);
+  assert.match(app, /function cancelRngRevealMotion\(/);
+  assert.match(app, /function hideRngDebugForReveal\(\)/);
+  assert.match(app, /function restoreRngDebugAfterReveal\(\)/);
+  assert.match(app, /rngRevealSettleMs\[revealBand\]/);
+  assert.match(app, /notice\.dataset\.revealBand = String\(revealBand\)/);
+  assert.match(app, /cancelRngRevealMotion\(notice\)/);
+  assert.match(app, /rngTitleIcon\(title, \{ size: 19, animation: 'none' \}\)/);
+  assert.match(html, /class="rng-reveal-odds" id="rngUnlockDetails"/);
+  assert.match(html, /NTC <span>RNG<\/span>/);
+  assert.match(app, /\$\('#rngUnlockDetails'\)\.textContent = titleOdds/);
+  assert.doesNotMatch(app, /Simulação visual, sem rolagem|Rolagem #\$\{new Intl\.NumberFormat\('pt-BR'\)/);
+  assert.doesNotMatch(html, /rng-reveal-orbit/);
+  assert.match(styles, /\.rng-title-reveal #rngUnlockDetails\s*\{[^}]*border-radius:\s*999px/);
+  assert.match(styles, /\.rng-reveal-continue\s*\{[^}]*margin:\s*0/);
+  assert.match(iconStyles, /\.rng-result-icon > \.ntc-rng-icon \{ width: 30px; height: 30px; \}/);
+  assert.match(iconStyles, /\.rng-title-mark > \.ntc-rng-icon \{ width: 25px; height: 25px; \}/);
+  assert.match(iconStyles, /\.rng-discovery-mark > \.ntc-rng-icon \{ width: 28px; height: 28px; \}/);
+  assert.match(iconStyles, /\.rng-title-history-card \.rng-discovery-mark > \.ntc-rng-icon \{ width: 30px; height: 30px; \}/);
+  assert.match(iconStyles, /\.rng-relic-slot > span > \.ntc-rng-icon \{ width: 42px; height: 42px; \}/);
+  assert.match(html, /id="rngDebugIconSelect"/);
+  assert.match(html, /href="\.\/rng-theme\.css"/);
+  assert.match(rngTheme, /\.rng-view\s*\{[\s\S]*--rng-wine:/);
+  assert.doesNotMatch(rngTheme, /^(?!\s*\/\*)[^\n]*\b(?:body|\.sidebar|\.view)\s*\{/m);
+  assert.match(app, /\['event-', 'Eventos'\][\s\S]*\['ui-', 'Coleção e histórico'\][\s\S]*\['set-', 'Conjuntos'\][\s\S]*\['shop-', 'Loja e consumíveis'\]/);
+  assert.match(html, /option value="hover">Destaque ao passar o mouse/);
+  assert.match(html, /data-rng-section="achievements"><span class="rng-section-tab-icon"/);
+  assert.match(html, /data-rng-section="statistics"><span class="rng-section-tab-icon"/);
+  assert.match(html, /data-rng-section="events"><span class="rng-section-tab-icon"/);
+  assert.match(html, /data-rng-section="shop"><span class="rng-section-tab-icon"/);
+  assert.match(html, /data-rng-section="inventory"><span class="rng-section-tab-icon"/);
+  assert.match(html, /data-rng-section="patch-notes"><span class="rng-section-tab-icon"/);
+  assert.match(app, /'patch-notes': 'ui-updates'/);
+  assert.match(eventScenes, /data-reveal-mode="result"\]\[data-tier="basic"\] \.rng-reveal-card\s*\{[^}]*min-height: 278px/);
+  assert.match(eventScenes, /data-reveal-mode="result"\]\[data-tier="epic"\] #rngUnlockDetails\s*\{[^}]*font-size: 13px/);
+  assert.match(eventScenes, /data-reveal-mode="discovery"\]\[data-tier="legendary"\] \.rng-reveal-visual\s*\{[^}]*clamp\(300px/);
+  assert.match(eventScenes, /data-reveal-mode="result"\]\[data-event-kind="special"\] \.rng-reveal-card\s*\{\s*grid-template-columns: 112px/);
+  assert.match(eventScenes, /\.rng-section-tab-icon > \.ntc-rng-icon \{ width: 25px; height: 25px; \}/);
+  assert.match(iconModule, /window\.NTCRngIcons = Object\.freeze\(\{ render, play, cancel, list,/);
+  assert.match(iconModule, /const tierAssetNames = \{ transcendent: 'dimensional', dimensional: 'transcendent' \}/);
+  assert.match(iconModule, /kind: 'raster', src: `\.\/assets\/rng\/ruins\/tiers\/\$\{tierAssetNames\[id\] \|\| id\}\.webp`/);
+  assert.match(iconModule, /shop-fortune-rolls/);
+  assert.match(iconModule, /event-alignment/);
+  assert.match(iconModule, /ui-history/);
+  assert.match(iconModule, /ui-collection/);
+  assert.match(app, /set-celestial/);
+  assert.match(app, /rngShopEnhancedLuckIcon/);
+  assert.match(html, /rngShopFortuneRollsIcon/);
+  assert.match(iconModule, /'achievement-luck-milestones'/);
+  assert.doesNotMatch(iconStyles, /rng-crystal-light-sweep|rng-reveal-shard-flight|rng-reveal-crystal-frame::after/);
+  assert.doesNotMatch(iconStyles, /data-reveal-phase="(?:reveal|idle)"\]\[data-reveal-band="5"\] \.rng-reveal-crystal-frame \.ntc-rng-icon > img/, 'the rarest image has one continuous animation owner');
+  assert.match(iconStyles, /@keyframes rng-icon-surface-shimmer/);
+  assert.doesNotMatch(iconStyles, /@keyframes rng-reveal-ntc-seal/);
+  assert.doesNotMatch(iconStyles, /@keyframes rng-reveal-ash-idle/);
+  assert.match(iconStyles, /@supports \(mask: url\(""\) center \/ contain no-repeat\)/);
+  assert.match(iconStyles, /prefers-reduced-motion/);
+  assert.equal(fs.existsSync(path.join(root, 'src', 'assets', 'rng', 'reveal', 'crystal.webp')), true);
+  assert.match(html, /id="rngUnlockContinue"[^>]*>Continuar/);
+  assert.match(app, /appendToQueue\(rngUnlockQueue, item\)/);
+  assert.match(app, /notice\.showModal\(\)/);
+  assert.match(app, /function dismissRngUnlock\(\)/);
+  assert.match(app, /addEventListener\('cancel', event => \{ event\.preventDefault\(\); dismissRngUnlock\(\); \}\)/);
+  assert.match(styles, /\.rng-title-reveal\.show \.rng-reveal-card/);
+  assert.match(styles, /\.rng-title-reveal\.show \.rng-reveal-visual::before/);
+  assert.match(rngTheme, /\.rng-title-reveal\[data-reveal-mode="event"\] \{ --rng-copy-delay: 880ms; \}/);
+  assert.match(eventScenes, /\.rng-title-reveal\.show\[data-reveal-mode="event"\]::before\s*\{\s*opacity: 1;\s*animation: none;/, 'the full-screen event background remains fixed');
+  assert.doesNotMatch(eventScenes, /rng-event-air-idle|rng-abyssal-object-arrive|rng-unnamable-object-arrive|rng-beyond-object-arrive|rng-beyond-beam-idle|rng-relic-drift/, 'no crystal or fullscreen background drift keyframes remain');
+  assert.doesNotMatch(rngTheme, /rng-abyssal-inhale/, 'Abyssal uses only the shared simple-particle motion during stability testing');
+  assert.doesNotMatch(rngTheme, /rng-scene-lantern|rng-event-corelight/, 'obsolete aura-transform animations are removed rather than left competing in the stylesheets');
+  assert.doesNotMatch(eventScenes, /@keyframes rng-upper-object-arrive\s*\{[^}]*transform:/, 'scene reveal does not translate or scale the crystal');
+  assert.match(eventScenes, /\.rng-title-reveal\.show\[data-reveal-mode="event"\] \.rng-reveal-art-host\s*\{\s*animation: rng-art-materialize/, 'event tiers reveal the fixed artwork through opacity only');
+  assert.match(eventScenes, /\.rng-title-reveal\.show\[data-reveal-mode="event"\]\[data-reveal-identity="beyond"\] \.rng-reveal-ntc-fracture\s*\{\s*animation: rng-beyond-rupture/);
+  assert.match(eventScenes, /@keyframes rng-beyond-rupture\s*\{[^}]*opacity:[^}]*\}/, 'Beyond keeps its exclusive rupture without translating the crystal or scene');
+  assert.match(eventScenes, /\.rng-title-reveal\.show\[data-reveal-mode="event"\] \.rng-reveal-crystal-frame \.ntc-rng-icon > img\s*\{\s*animation: rng-relic-light-idle 8\.4s/);
+  assert.match(eventScenes, /\.rng-title-reveal\.show\[data-reveal-mode="scene"\] \.rng-reveal-crystal-frame \.ntc-rng-icon > img\s*\{\s*animation: rng-relic-light-idle 7\.2s/);
+  assert.match(eventScenes, /@keyframes rng-relic-light-idle\s*\{\s*0%, 100% \{ filter:/, 'the idle keeps image opacity fixed while breathing through light');
+  assert.doesNotMatch(eventScenes, /rng-relic-surface-idle|rng-surface-mask/, 'surface light must not paint over the square raster canvas');
+  assert.match(eventScenes, /\[data-reveal-mode="event"\]\[data-reveal-identity="unnamable"\] \.rng-reveal-visual \{ left: 50%; \}/, 'Unnamable relic is centered on the same axis as the copy');
+  assert.match(eventScenes, /\[data-reveal-mode="event"\]\[data-reveal-identity="unnamable"\] \.rng-reveal-copy \{ left: 50%; \}/, 'Unnamable title remains on the centered axis');
+  assert.doesNotMatch(eventScenes, /data-reveal-identity="unnamable"\] #rngUnlockDetails\s*\{\s*transform:/, 'Unnamable odds retain one fixed position in both phases');
+  assert.match(app, /function startRngRevealParticles\(notice, tier, identity, enabled\)/);
+  assert.match(app, /particle\.animate\(frames, \{ duration: rngRevealRandom\(\.\.\.plane\.duration\), easing: 'linear', fill: 'forwards' \}\)/);
+  assert.match(app, /animation\.onfinish = \(\) => \{[\s\S]*schedule\(particle, planeIndex, rngRevealRandom\(\.\.\.plane\.gap\)\)/);
+  assert.match(app, /function cancelRngRevealParticles\(\)/);
+  assert.doesNotMatch(app.slice(app.indexOf('function cancelRngRevealParticles('), app.indexOf('function rngRevealParticlePath(')), /replaceChildren\(/, 'closing a reveal must retain the particle pool for the next discovery');
+  assert.doesNotMatch(iconStyles, /rng-reveal-ash-idle|animation: rng-reveal-ash/);
+  assert.doesNotMatch(eventScenes, /rng-reveal-particles.*infinite|rng-reveal-particles.*alternate/);
+  assert.match(eventScenes, /rng-art-materialize \.46s/);
+  assert.match(eventScenes, /rng-art-materialize \.78s/);
+  assert.match(eventScenes, /rng-art-materialize 1\.25s/);
+  assert.doesNotMatch(iconStyles, /data-reveal-phase="reveal"\]\[data-reveal-band="(?:1|2|3|4|5)"\].*rng-reveal-ash-rise/, 'particles do not switch from a reveal timeline to a different idle timeline');
+  assert.doesNotMatch(eventScenes, /rng-reveal-ritual/, 'wireframe styling is removed rather than only dimmed');
+  assert.doesNotMatch(eventScenes, /data-reveal-phase="(?:reveal|idle)"[^}]*\.ntc-rng-icon > img/, 'phase handoff must not restart the crystal filter');
+  assert.doesNotMatch(app.slice(app.indexOf('function showRngUnlock('), app.indexOf('function dismissRngUnlock(')), /NTCRngIcons\?\.play/, 'title reveals use a single CSS wrapper owner rather than a competing WAAPI transform');
+  assert.doesNotMatch(rngTheme, /@keyframes rng-(?:ntc-fracture|unnameable-mark|event-atmosphere)/, 'obsolete event animations must not compete with phase-owned scenes');
+  assert.doesNotMatch(eventScenes, /0 8px 30px rgba\(0,0,0,\.25\)/, 'Continue has no large outer halo');
+  assert.match(rngTheme, /\.rng-title-reveal\[data-reveal-mode="scene"\]/);
+  assert.match(rngTheme, /\.rng-title-reveal\[data-reveal-mode="event"\]/);
+  assert.match(rngTheme, /\.rng-title-reveal\[data-reveal-mode="result"\]\[data-tier="basic"\] \.rng-reveal-crystal-frame \{ translate: clamp\(12px, 3\.5vw, 24px\) 0; \}/, 'the Basic reveal gets a responsive rightward optical correction without changing other icon placements');
+  assert.match(styles, /\.rng-reveal-continue \{[^}]*opacity: 1; transform: none/);
+  assert.match(styles, /\.rng-title-reveal\.debug-force-motion \.rng-reveal-card\s*\{[^}]*transition-duration:\s*230ms, var\(--rng-reveal-duration\) !important/);
+  assert.match(styles, /@keyframes rng-reveal-aura/);
+  assert.match(styles, /\.rng-title-reveal:not\(\[open\]\)\s*\{\s*display:\s*none/);
+  for (const tier of ['basic', 'epic', 'unique', 'legendary', 'mythic', 'exalted', 'glorious', 'transcendent', 'dimensional', 'ntc']) assert.match(styles, new RegExp(`rng-title-reveal\\[data-tier="${tier}"\\]`));
+  assert.match(styles, /data-rng-reveal-motion="reduced"/);
+  assert.match(styles, /data-rng-reveal-motion="off"/);
+  assert.match(styles, /prefers-reduced-motion/);
 });

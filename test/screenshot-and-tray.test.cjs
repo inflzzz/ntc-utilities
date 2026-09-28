@@ -80,17 +80,18 @@ test('minimizing uses the taskbar while closing hides the window in the tray', (
   assert.match(main, /label: 'Sair do NTC Utilities', click: requestExitFromTray/);
   assert.match(main, /function requestExitFromTray\(\)[\s\S]*if \(recordingSessions\.size[\s\S]*screen-close-request[\s\S]*forceClose = true;[\s\S]*app\.quit\(\)/);
   assert.match(main, /rngClock = setInterval\(\(\) => \{[\s\S]*performRngRoll\(\)/);
-  assert.match(main, /Auto-roll \$\{active \? 'ativo em segundo plano' : 'pausado'\}/);
+  assert.match(main, /Rolagem automática \$\{active \? 'ativa em segundo plano' : 'pausada'\}/);
 });
 
-test('auto-roll starts only after the loading splash reveals the app', () => {
+test('auto-roll stays paused when the loading splash reveals the app', () => {
   const main = read('main.cjs');
   const preload = read('preload.cjs');
   const app = read('src/app.js');
   const clockBody = main.match(/function startRngClock\(\)\s*\{([\s\S]*?)\n\}/)?.[1] || '';
   assert.doesNotMatch(clockBody, /rngAutoRollStartedAt\s*=\s*now/);
-  assert.match(main, /function startRngAutoRoll\(\)[\s\S]*rngNextAutoRollAt = now \+ 1000/);
-  assert.match(main, /ipcMain\.handle\('app-entered',[\s\S]*event\.sender !== mainWindow\.webContents[\s\S]*startRngAutoRoll\(\)/);
+  assert.match(main, /ipcMain\.handle\('app-entered',[\s\S]*event\.sender !== mainWindow\.webContents[\s\S]*return false;/);
+  assert.doesNotMatch(main, /startRngAutoRoll/);
+  assert.match(main, /ipcMain\.handle\('set-rng-auto-roll',[\s\S]*rngAutoRollStartedAt = now/);
   assert.match(preload, /appEntered:.*app-entered/);
   assert.match(app, /appShell\.setAttribute\('aria-hidden', 'false'\); void window\.ntc\.appEntered\(\)/);
 });
@@ -110,6 +111,8 @@ test('maximized windows use available width across tools', () => {
   const preload = read('preload.cjs');
   const app = read('src/app.js');
   const css = read('src/styles.css');
+  assert.match(main, /function createWindow\(\)[\s\S]*?new BrowserWindow\([\s\S]*?\);\s*mainWindow\.maximize\(\);/, 'the primary native window starts maximized rather than fullscreen');
+  assert.doesNotMatch(main, /mainWindow\.setFullScreen\(true\)/);
   assert.match(main, /mainWindow\.on\('maximize',[\s\S]*window-maximized/);
   assert.match(preload, /onWindowMaximized/);
   assert.match(app, /window\.ntc\.onWindowMaximized\(updateMaximizedLayout\)/);
@@ -145,6 +148,6 @@ test('RNG progress is saved outside the installation with a recoverable local ba
   assert.match(main, /ntc-rng-state\.backup\.json/);
   assert.match(main, /JSON\.parse\(fs\.readFileSync\(rngBackupPath\(\), 'utf8'\)\)/);
   assert.match(main, /fs\.copyFileSync\(rngBackupPath\(\), rngStatePath\(\)\)/);
-  assert.match(main, /migrateDroughtRelicProgress\(savedState\)/);
+  assert.match(main, /migrateRemovedMisfortuneRelics\(savedState, backupState\)/);
   assert.match(main, /persistRngGame\(\);[\s\S]*globalShortcut\.unregisterAll\(\)/);
 });

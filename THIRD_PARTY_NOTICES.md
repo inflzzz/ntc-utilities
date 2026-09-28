@@ -27,3 +27,24 @@ The world clock uses SVG weather icons from [Meteocons](https://github.com/basmi
 ## Open-Meteo
 
 Weather conditions and city geocoding in the world clock are provided by [Open-Meteo](https://open-meteo.com/) and attributed in the app. Open-Meteo data is provided under CC BY 4.0; its free API is intended for non-commercial use and is subject to its published terms and rate limits.
+
+## pdf-lib
+
+The Security area uses [pdf-lib](https://github.com/Hopding/pdf-lib) to remove document information and XMP metadata from PDF copies. pdf-lib is distributed under the MIT License; its license text is included with the package.
+
+## PDF.js
+
+The dedicated PDF reader uses [PDF.js](https://github.com/mozilla/pdf.js) to render documents locally in the app. PDF.js is distributed under the Apache License, Version 2.0; the full license text is included with the package.
+
+## Supabase JavaScript
+
+The NTC Online service uses [`@supabase/supabase-js`](https://github.com/supabase/supabase-js) for authenticated database and Realtime access. It is distributed under the MIT License; the license text is included with the package.
+
+## gmp-wasm / GMP / MPFR
+
+The isolated Luck 2.0 precision-math infrastructure uses `gmp-wasm` 1.3.2,
+distributed under LGPL-3.0-only, with GMP 6.3.0 and MPFR 4.2.1 source materials.
+The replaceable runtime is shipped outside `app.asar`; versioned notices,
+source archives, and rebuild guidance are under
+[`resources/ntc-math-backend/1.3.2`](resources/ntc-math-backend/1.3.2). This is
+technical licensing information, not legal advice.

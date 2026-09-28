@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, shell, clipboard, desktopCapturer, globalShortcut, screen, nativeImage, Notification, Tray, Menu, powerMonitor } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell, clipboard, desktopCapturer, globalShortcut, screen, nativeImage, Notification, Tray, Menu, powerMonitor, safeStorage } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const fs = require('node:fs');
@@ -7,27 +7,61 @@ const { autoUpdater } = require('electron-updater');
 const sharp = require('sharp');
 const { normalizeQrUrl, normalizeQrOptions, renderQr, saveQrImage } = require('./src/qr.cjs');
 const { previewFileRenames, renameFiles } = require('./src/renamer-files.cjs');
-const { POOL: rngPool, TIERS: rngTiers, TITLES: rngTitles, SECRETS: rngSecrets, RNG_RELIC_DROUGHT_PROGRESS_VERSION, RNG_MANUAL_TIME_ACHIEVEMENT_SECONDS, RNG_AUTO_TIME_ACHIEVEMENT_SECONDS, normalizeState: normalizeRngState, migrateDroughtRelicProgress, achievementLuckRewardBps, luckForState, rollBatch: rollRngBatch, publicCatalog: publicRngCatalog, publicProgress: publicRngProgress, publicRelicState, purchasePermanentUpgrade, purchaseConsumable, activateConsumable, purchaseRelic, equipRelic, unequipRelic, advanceTimedBoost, debugGrantTitle, debugRemoveTitle, debugClearTitles, debugGrantTierTitles, debugGrantTotalTitles, debugReadyBonusRoll } = require('./src/rng.cjs');
+const mediaProject = require('./src/media-project.js');
+const videoProject = require('./src/video-project.js');
+const { buildRenderPlan: buildVideoProjectRenderPlan } = require('./src/video-project-render.cjs');
+const { writeTextPng } = require('./src/video-project-text.cjs');
+const { POOL: rngPool, TIERS: rngTiers, TITLES: rngTitles, CATALOG_VERSION: rngCatalogVersion, collectionCatalogCount, SECRETS: rngSecrets, RNG_RELIC_REMOVAL_VERSION, RNG_SAVE_SCHEMA_VERSION, RNG_MANUAL_TIME_ACHIEVEMENT_SECONDS, RNG_AUTO_TIME_ACHIEVEMENT_SECONDS, normalizeState: normalizeRngState, validateProfileDisplayName, migrateRemovedMisfortuneRelics, achievementLuckRewardBps, luckForState, rollBatch: rollRngBatch, publicCatalog: publicRngCatalog, publicProgress: publicRngProgress, publicRelicState, purchasePermanentUpgrade, purchaseConsumable, activateConsumable, purchaseRelic, equipRelic, unequipRelic, advanceTimedBoost, debugGrantTitle, debugRemoveTitle, debugClearTitles, debugGrantTierTitles, debugGrantTotalTitles, debugReadyBonusRoll } = require('./src/rng.cjs');
+const { createRngRollRouter } = require('./src/rng-engine-router.cjs');
+const { grantAccountXp, getAccountProgress, countProcessedRolls } = require('./src/rng-account-level.cjs');
+const { isFragmentRecyclingUnlocked, isAutoRollUnlocked, normalizeAcknowledgedSystemUnlocks, pendingAccountSystemUnlock, canAcknowledgeAccountSystemUnlock } = require('./src/rng-account-unlocks.cjs');
+const { FRAGMENT_RECYCLING_VERSION, applyFragmentRecycling, migrateLegacyFragmentSave } = require('./src/rng-fragments.cjs');
+const { normalizeRngAccountProgress, enhancedRecyclingSummary, purchaseEnhancedRecycling } = require('./src/rng-fragment-upgrades.cjs');
+const { createManualRollCycleGate } = require('./src/rng-manual-roll-gate.cjs');
+const { createInitialRngAccount, persistInitialRngAccount } = require('./src/rng-account-reset.cjs');
+const selectedRngRollBatch = createRngRollRouter({ legacyRollBatch: rollRngBatch });
+const { runLegacyRollWithShadow } = require('./src/rng-shadow-bridge.cjs');
+const { createRngShadowService, isShadowEnabled, isShadowLoggingEnabled } = require('./src/rng-shadow-service.cjs');
+const { buildPlayerProfileData } = require('./src/rng-profile.cjs');
+const { createRngOnlineService, readOnlineConfig } = require('./src/rng-online.cjs');
 const { TrustedClock } = require('./src/rng-time.cjs');
 const { LIMITED_REWARDS, eventSchedule, activeEvent, joinEvent } = require('./src/rng-events.cjs');
 const { initializeAutoClicker } = require('./src/autoclicker-main.cjs');
 const { initializeColorPicker } = require('./src/color-picker-main.cjs');
+const { initializeClipboardHistory } = require('./src/clipboard-main.cjs');
+const { createSecurityService } = require('./src/security.cjs');
+const { initializeDocumentsService } = require('./src/documents-main.cjs');
+const { createStudyService } = require('./src/study-main.cjs');
+const { initializeCatalogService } = require('./src/catalog-main.cjs');
 const { AUDIO_EXTENSIONS, normalizeMusicFolders, normalizeMusicFiles, scanMusicFolders, scanMusicFiles, deriveMusicSearchTerms, findMusicReleaseCandidates } = require('./src/music-library.cjs');
 
-// Evita artefatos visuais que alguns drivers de vídeo exibem apenas no monitor.
-// A captura de tela continua normal nesses casos porque ela lê o frame antes da
-// composição final da GPU.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-app.disableHardwareAcceleration();
 
 if (!app.isPackaged) app.setPath('userData', path.join(__dirname, '.ntc-data'));
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (hasSingleInstanceLock) {
+  app.on('second-instance', () => {
+    if (!showMainWindow() && app.isReady()) createWindow();
+  });
+}
 const downloadJobs = new Map();
 const conversionJobs = new Map();
 const videoJobs = new Map();
-const videoEditJobs = new Map();
 const imageJobs = new Map();
+const mediaProjectJobs = new Map();
+const videoProjectPreviewCache = new Map();
+const videoProjectPreviewJobs = new Map();
+const videoProjectFilmstripCache = new Map();
+let videoProjectFile = '';
+let videoProjectRecoveryQueue = Promise.resolve();
+let videoEditorWindowState = null;
 const recordingSessions = new Map();
 let mainWindow = null;
+let profileCardWindow = null;
+let rngOnlineService = null;
+let rngShadowService = null;
+let rngOnlineQuitReady = false;
+let rngOnlineQuitStarted = false;
 let trayIcon = null;
 let forceClose = false;
 let screenShortcut = null;
@@ -40,6 +74,9 @@ let shortcutRecorderFocused = false;
 let launchAtLoginEnabled = true;
 let updateState = { status: 'idle' };
 let rngGame = normalizeRngState();
+let rngAccountProgress = normalizeRngAccountProgress();
+let rngAccountSystemUnlocksAcknowledged = [];
+const rngManualRollGate = createManualRollCycleGate();
 let rngAppSessionStartedAt = 0;
 let rngAppAccountedAt = 0;
 let rngAutoRollStartedAt = 0;
@@ -65,16 +102,18 @@ let rngNextEventCheckAt = 0;
 let rngLastHeartbeatAt = 0;
 let autoClickerService = null;
 let colorPickerService = null;
+let clipboardHistoryService = null;
 let musicBrainzQueue = Promise.resolve();
 let musicBrainzLastRequestAt = 0;
 const musicOnlineSearchCache = new Map();
 const hosts = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'];
 const audioExtensions = ['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.opus', '.wma'];
 const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.webm', '.wmv', '.m4v'];
-const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff'];
+const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tif', '.tiff', '.avif', '.heic', '.heif'];
 
 function isSupportedUrl(value) { try { return hosts.includes(new URL(value).hostname); } catch { return false; } }
 function send(sender, channel, payload) { if (!sender.isDestroyed()) sender.send(channel, payload); }
+function assertMainWindowSender(event) { if (!mainWindow || mainWindow.isDestroyed() || event?.sender !== mainWindow.webContents) throw new Error('Solicitação de projeto de mídia inválida.'); }
 function rngStatePath() { return path.join(app.getPath('userData'), 'ntc-rng-state.json'); }
 function rngBackupPath() { return path.join(app.getPath('userData'), 'ntc-rng-state.backup.json'); }
 function musicFoldersPath() { return path.join(app.getPath('userData'), 'ntc-music-folders.json'); }
@@ -185,27 +224,45 @@ function removeMusicTrack(filePath) {
 }
 function loadRngGame() {
   let savedState = null;
+  let backupState = null;
+  try { backupState = JSON.parse(fs.readFileSync(rngBackupPath(), 'utf8')); } catch { backupState = null; }
   try {
     savedState = JSON.parse(fs.readFileSync(rngStatePath(), 'utf8'));
   } catch {
     try {
-      savedState = JSON.parse(fs.readFileSync(rngBackupPath(), 'utf8'));
+      savedState = backupState || JSON.parse(fs.readFileSync(rngBackupPath(), 'utf8'));
       fs.mkdirSync(path.dirname(rngStatePath()), { recursive: true });
       fs.copyFileSync(rngBackupPath(), rngStatePath());
     } catch { savedState = null; }
   }
-  const savedDroughtVersion = Number.isInteger(savedState?.droughtRelicProgressVersion) ? savedState.droughtRelicProgressVersion : 0;
-  const migratedSavedState = savedState ? migrateDroughtRelicProgress(savedState) : null;
-  rngGame = normalizeRngState(migratedSavedState || {});
-  if (savedState && savedDroughtVersion < RNG_RELIC_DROUGHT_PROGRESS_VERSION) persistRngGame();
+  const savedAccountProgress = savedState?.accountProgress
+    || (savedState && Object.hasOwn(savedState, 'lifetimeAccountXp') ? savedState : null)
+    || backupState?.accountProgress
+    || (backupState && Object.hasOwn(backupState, 'lifetimeAccountXp') ? backupState : null);
+  rngAccountProgress = normalizeRngAccountProgress(savedAccountProgress || {});
+  rngAccountSystemUnlocksAcknowledged = normalizeAcknowledgedSystemUnlocks(savedState?.accountSystemUnlocksAcknowledged ?? backupState?.accountSystemUnlocksAcknowledged);
+  const migrateEmbeddedAccountProgress = Boolean(savedState && !savedState.accountProgress && Object.hasOwn(savedState, 'lifetimeAccountXp'));
+  const savedRelicVersion = Math.max(Number(savedState?.relicRemovalVersion) || 0, Number(savedState?.droughtRelicProgressVersion) || 0);
+  const savedSchemaVersion = Number(savedState?.schemaVersion) || 0;
+  const relicMigratedState = savedState ? migrateRemovedMisfortuneRelics(savedState, backupState) : null;
+  const fragmentMigration = savedState ? migrateLegacyFragmentSave(relicMigratedState || {}) : { state: relicMigratedState, migrated: false };
+  rngGame = normalizeRngState(fragmentMigration.state || {});
+  if (savedState && (savedRelicVersion < RNG_RELIC_REMOVAL_VERSION || savedSchemaVersion < RNG_SAVE_SCHEMA_VERSION || migrateEmbeddedAccountProgress || fragmentMigration.migrated)) persistRngGame();
 }
 function accountRngTime(now = rngMonotonicMs()) {
   if (rngAppAccountedAt) { const elapsed = Math.floor((now - rngAppAccountedAt) / 1000); if (elapsed > 0) { rngGame.totalAppSeconds += elapsed; rngGame = advanceTimedBoost(rngGame, elapsed); rngAppAccountedAt += elapsed * 1000; } }
   if (rngAutoRollStartedAt && rngAutoAccountedAt) { const elapsed = Math.floor((now - rngAutoAccountedAt) / 1000); if (elapsed > 0) { rngGame.totalAutoRollSeconds += elapsed; rngAutoAccountedAt += elapsed * 1000; rngGame.lastAutoRollSessionSeconds = Math.floor((now - rngAutoRollStartedAt) / 1000); } }
 }
+function pauseRngAutoRoll(now = rngMonotonicMs()) {
+  if (!rngAutoRollStartedAt) return false;
+  accountRngTime(now);
+  rngGame.lastAutoRollSessionSeconds = Math.max(0, Math.floor((now - rngAutoRollStartedAt) / 1000));
+  rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0;
+  return true;
+}
 function persistRngGame() {
   try {
-    const file = rngStatePath(); const temporary = `${file}.tmp`; const backup = rngBackupPath(); const backupTemporary = `${backup}.tmp`; const serialized = JSON.stringify(rngGame);
+    const file = rngStatePath(); const temporary = `${file}.tmp`; const backup = rngBackupPath(); const backupTemporary = `${backup}.tmp`; const serialized = JSON.stringify({ ...rngGame, fragmentRecyclingVersion: FRAGMENT_RECYCLING_VERSION, accountProgress: { schemaVersion: 1, ...rngAccountProgress }, accountSystemUnlocksAcknowledged: rngAccountSystemUnlocksAcknowledged });
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(temporary, serialized);
     if (fs.existsSync(file)) {
@@ -219,6 +276,26 @@ function persistRngGame() {
     try { if (fs.existsSync(`${rngStatePath()}.tmp`)) fs.unlinkSync(`${rngStatePath()}.tmp`); } catch { /* Keep the previous durable save. */ }
     try { if (fs.existsSync(`${rngBackupPath()}.tmp`)) fs.unlinkSync(`${rngBackupPath()}.tmp`); } catch { /* Keep the previous backup. */ }
   }
+}
+function resetRngAccountState() {
+  const initial = createInitialRngAccount();
+  persistInitialRngAccount({ statePath: rngStatePath(), backupPath: rngBackupPath(), ...initial });
+
+  rngManualRollGate.cancel();
+  const now = rngMonotonicMs();
+  rngGame = initial.rngGame;
+  rngAccountProgress = initial.accountProgress;
+  rngAccountSystemUnlocksAcknowledged = [];
+  rngAppSessionStartedAt = now; rngAppAccountedAt = now; rngAppSessionBaselineSeconds = 0;
+  rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0;
+  rngSessionRolls = 0; rngSessionNewTitles = 0; rngSessionBestOdds = 0n;
+  rngLatestResult = null; rngLatestResults = []; rngLatestUnlocks = []; rngLatestBatchSize = 0;
+  rngLastEventWindowId = null; rngNextEventCheckAt = 0;
+  rngLastTimeSync = now; rngLastHeartbeatAt = now; rngLastBoostBroadcastAt = 0; rngLastPersistAt = now;
+
+  sendRngState();
+  updateTrayStatus();
+  return rngSnapshot(now);
 }
 function makeRngAchievement(id, category, name, description, value, goal, rewardText = '') {
   return { id, category, name, description, unlocked: value >= goal, progress: Math.min(value, goal), goal, rewardText, luckBonusBps: achievementLuckRewardBps(id) };
@@ -250,7 +327,7 @@ function buildRngAchievements() {
     makeRngAchievement('unique-100', 'Coleção', 'Metade do caminho', 'Descubra 100 títulos diferentes', collected.size, 100, 'Desbloqueia 3 rolagens por clique'),
     makeRngAchievement('unique-125', 'Coleção', 'Coleção avançada', 'Descubra 125 títulos diferentes', collected.size, 125),
     makeRngAchievement('unique-150', 'Coleção', 'Quase lendário', 'Descubra 150 títulos diferentes', collected.size, 150),
-    makeRngAchievement('unique-200', 'Coleção', 'Coleção completa', 'Descubra todos os 200 títulos', collected.size, 200, 'Receba o Atlas das Possibilidades')
+    makeRngAchievement('unique-200', 'Coleção', 'Marco de 200 títulos', 'Descubra 200 títulos diferentes', collected.size, 200, 'Receba o Atlas das Possibilidades')
   ];
   for (const tier of rngTiers) {
     if (tier.id === 'basic') continue;
@@ -260,7 +337,7 @@ function buildRngAchievements() {
   achievements.push(
     makeRngAchievement('streak-repeat-7', 'Marcos de sorte', 'Disco riscado', 'Consiga o mesmo título 7 vezes seguidas', rngGame.longestSameTitleStreak, 7),
     makeRngAchievement('drought-10000', 'Marcos de sorte', 'A maré vira', 'Passe 10.000 rolagens sem obter Singular+', rngGame.longestSingularDrought, 10_000),
-    makeRngAchievement('multiplier-100', 'Marcos de sorte', 'Sorte astronômica', 'Alcance um multiplicador de ×100', rngGame.maxMultiplier, 100),
+    makeRngAchievement('multiplier-100', 'Marcos de sorte', 'Sorte improvável', 'Alcance um multiplicador de ×100', rngGame.maxMultiplier, 100),
     makeRngAchievement('events-1', 'Eventos', 'Na hora certa', 'Participe de um evento', rngGame.eventsParticipated, 1),
     makeRngAchievement('events-5', 'Eventos', 'Presença frequente', 'Participe de 5 eventos', rngGame.eventsParticipated, 5),
     makeRngAchievement('events-10', 'Eventos', 'Presença constante', 'Participe de 10 eventos', rngGame.eventsParticipated, 10),
@@ -269,8 +346,8 @@ function buildRngAchievements() {
   );
   const manualSeconds = Math.max(0, rngGame.totalAppSeconds - rngGame.totalAutoRollSeconds);
   const timeSecrets = [
-    makeRngAchievement('time-manual-100h', 'Segredos', 'Guardião da Vigília', 'Mantenha o NTC aberto por 100 horas sem o Auto-roll ativo', Math.floor(manualSeconds / 3600), 100),
-    makeRngAchievement('time-auto-1000h', 'Segredos', 'Autômato Eterno', 'Acumule 1.000 horas com o Auto-roll ativo', Math.floor(rngGame.totalAutoRollSeconds / 3600), 1_000)
+    makeRngAchievement('time-manual-100h', 'Segredos', 'Guardião da Vigília', 'Mantenha o NTC aberto por 100 horas sem a rolagem automática', Math.floor(manualSeconds / 3600), 100),
+    makeRngAchievement('time-auto-1000h', 'Segredos', 'Autômato Eterno', 'Acumule 1.000 horas com a rolagem automática ativa', Math.floor(rngGame.totalAutoRollSeconds / 3600), 1_000)
   ].filter(achievement => achievement.unlocked);
   achievements.push(...timeSecrets);
   const completedAchievements = achievements.filter(achievement => achievement.unlocked).length;
@@ -288,7 +365,7 @@ function rngSnapshot(now = rngMonotonicMs()) {
   const trustedUtc = rngTrustedClock.now();
   const participation = activeEvent(trustedUtc, rngGame.participation);
   const achievements = buildRngAchievements();
-  return {
+  const snapshot = {
     tiers: rngTiers,
     catalog: publicRngCatalog(rngGame, { localHour }),
     debugCatalog: app.isPackaged ? undefined : rngTitles.map(title => ({ id: title.id, name: title.name, tier: title.tier })),
@@ -296,9 +373,11 @@ function rngSnapshot(now = rngMonotonicMs()) {
     recentDiscoveries: rngGame.recentDiscoveries,
     titleHistory: rngGame.titleHistory,
     achievements,
+    achievementsTotal: achievements.length + 2,
     secrets: rngSecrets.filter(secret => rngGame.unlockedSecrets.includes(secret.id)),
     limitedTitles: LIMITED_REWARDS.filter(reward => rngGame.limitedTitles.includes(reward.titleId)),
-    fragments: rngGame.fragmentBalance,
+    fragments: isFragmentRecyclingUnlocked(rngAccountProgress.accountLevel) ? rngGame.fragmentBalance : '0',
+    fragmentRecyclingUnlocked: isFragmentRecyclingUnlocked(rngAccountProgress.accountLevel),
     permanentUpgradeLevels: rngGame.permanentUpgradeLevels,
     permanentLuckBps: luck.permanentLuckBps,
     nextPermanentUpgradeCost: rngGame.nextPermanentUpgradeCost,
@@ -307,16 +386,24 @@ function rngSnapshot(now = rngMonotonicMs()) {
     parallelBoost: rngGame.parallelBoost,
     boostQueue: rngGame.boostQueue,
     relics: publicRelicState(rngGame, { localHour }),
-    statistics: { measuredRolls: rngGame.trackedRolls, tierRolls: rngGame.tierRolls, duplicates: rngGame.duplicateRolls, uniqueTitles: rngGame.collectedIds.length, averageLuck: rngGame.luckBpsSamples ? rngGame.luckBpsSum / rngGame.luckBpsSamples / 10_000 : null, maxMultiplier: rngGame.maxMultiplier, sinceSingular: rngGame.sinceSingular, longestSingularDrought: rngGame.longestSingularDrought, longestSameTitleStreak: rngGame.longestSameTitleStreak, rarestTitle: rngTitles.find(title => title.id === rngGame.rarestTitleId)?.name || null, rarestOdds: rngGame.rarestOdds, luckiestOdds: rngGame.luckiestOdds, luckiestRoll: rngGame.luckiestRoll, bestSession: rngGame.sessionBest },
+    statistics: { measuredRolls: rngGame.trackedRolls, tierRolls: rngGame.tierRolls, duplicates: rngGame.duplicateRolls, uniqueTitles: rngGame.collectedIds.length, averageLuck: rngGame.luckBpsSamples ? rngGame.luckBpsSum / rngGame.luckBpsSamples / 10_000 : null, maxMultiplier: rngGame.maxMultiplier, sinceSingular: rngGame.sinceSingular, longestSingularDrought: rngGame.longestSingularDrought, longestSameTitleStreak: rngGame.longestSameTitleStreak, rarestTitle: rngTitles.find(title => title.id === rngGame.rarestTitleId)?.name || null, rarestTitleId: rngGame.rarestTitleId, rarestOdds: rngGame.rarestOdds, luckiestOdds: rngGame.luckiestOdds, luckiestRoll: rngGame.luckiestRoll, bestSession: rngGame.sessionBest },
     session: { rolls: rngSessionRolls, newTitles: rngSessionNewTitles, bestOdds: String(rngSessionBestOdds) },
     timeVerification: rngTrustedClock.status(),
     eventSchedule: trustedUtc === null ? [] : eventSchedule(trustedUtc),
     activeEvent: participation,
     eventRollProgress: rngGame.eventRollProgress,
     ...publicRngProgress(rngGame, { localHour }),
+    profile: rngGame.profile,
+    eventsParticipated: rngGame.eventsParticipated,
     lastTitleId: rngGame.lastTitleId,
     totalRolls: rngGame.totalRolls,
-    totalTitles: rngTitles.length,
+    accountProgress: { ...getAccountProgress(rngAccountProgress), enhancedRecyclingLevel: rngAccountProgress.enhancedRecyclingLevel },
+    enhancedRecycling: enhancedRecyclingSummary(rngAccountProgress.enhancedRecyclingLevel, rngAccountProgress.accountLevel),
+    accountSystemUnlocksAcknowledged: [...rngAccountSystemUnlocksAcknowledged],
+    pendingAccountSystemUnlock: pendingAccountSystemUnlock(rngAccountProgress.accountLevel, rngAccountSystemUnlocksAcknowledged)?.id || null,
+    autoRollUnlocked: isAutoRollUnlocked(rngAccountProgress.accountLevel),
+    totalTitles: collectionCatalogCount(rngGame),
+    catalogVersion: rngCatalogVersion,
     totalAppSeconds: rngGame.totalAppSeconds,
     appSessionStartedAt: rngAppSessionStartedAt,
     appSessionSeconds: rngGame.totalAppSeconds - rngAppSessionBaselineSeconds,
@@ -339,17 +426,88 @@ function rngSnapshot(now = rngMonotonicMs()) {
     bonusRollEvery: luck.bonusRollEvery,
     snapshotAt: now
   };
+  snapshot.playerProfile = buildPlayerProfileData({ ...snapshot, luckMetrics: rngGame.luckMetrics });
+  return snapshot;
+}
+const RNG_PROFILE_CARD_FORMATS = Object.freeze({ landscape: { width: 1920, height: 1080 }, portrait: { width: 1080, height: 1350 } });
+async function renderRngProfileCard(format) {
+  const dimensions = RNG_PROFILE_CARD_FORMATS[format];
+  if (!dimensions) throw new Error('Formato de ficha inválido.');
+  if (profileCardWindow && !profileCardWindow.isDestroyed()) profileCardWindow.destroy();
+  const workArea = screen.getPrimaryDisplay().workAreaSize;
+  const renderScale = Math.min(1, Math.max(0.5, Math.min((workArea.width - 48) / dimensions.width, (workArea.height - 48) / dimensions.height)));
+  const renderWidth = Math.round(dimensions.width * renderScale);
+  const renderHeight = Math.round(dimensions.height * renderScale);
+  const cardWindow = new BrowserWindow({
+    show: false,
+    width: renderWidth,
+    height: renderHeight,
+    useContentSize: true,
+    frame: false,
+    resizable: false,
+    backgroundColor: '#090809',
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false }
+  });
+  profileCardWindow = cardWindow;
+  try {
+    await cardWindow.loadFile(path.join(__dirname, 'src', 'rng-profile-card.html'));
+    const profileData = buildPlayerProfileData({ ...rngSnapshot(), luckMetrics: rngGame.luckMetrics });
+    const payload = JSON.stringify(profileData).replace(/</g, '\\u003c');
+    const ready = await cardWindow.webContents.executeJavaScript(`window.renderRngProfileCard(${payload}, ${JSON.stringify(format)}, ${renderScale})`, true);
+    if (!ready) throw new Error('A ficha não terminou de renderizar.');
+    cardWindow.webContents.invalidate();
+    await new Promise(resolve => setTimeout(resolve, 120));
+    const image = await cardWindow.webContents.capturePage(undefined, { stayHidden: true });
+    if (image.isEmpty()) throw new Error('Não foi possível capturar a ficha renderizada.');
+    const png = await sharp(image.toPNG()).resize(dimensions.width, dimensions.height, { fit: 'fill', kernel: sharp.kernel.lanczos3 }).png({ compressionLevel: 9 }).toBuffer();
+    return { png: new Uint8Array(png), width: dimensions.width, height: dimensions.height };
+  } finally {
+    if (!cardWindow.isDestroyed()) cardWindow.destroy();
+    if (profileCardWindow === cardWindow) profileCardWindow = null;
+  }
+}
+async function validateRngProfileCard(value) {
+  if (!(Buffer.isBuffer(value) || value instanceof Uint8Array) || value.byteLength < 64 || value.byteLength > 30 * 1024 * 1024) throw new Error('Imagem da ficha inválida.');
+  const buffer = Buffer.from(value);
+  const metadata = await sharp(buffer, { limitInputPixels: 5_000_000 }).metadata();
+  const dimensions = Object.values(RNG_PROFILE_CARD_FORMATS).some(size => size.width === metadata.width && size.height === metadata.height);
+  if (metadata.format !== 'png' || !dimensions) throw new Error('A ficha precisa ser um PNG válido em uma das dimensões suportadas.');
+  return buffer;
 }
 function sendRngState() {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('rng-state', rngSnapshot());
+  const snapshot = rngSnapshot();
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('rng-state', snapshot);
+  rngOnlineService?.observe(snapshot);
 }
 function performRngRoll({ manual = false } = {}) {
+  if (pendingAccountSystemUnlock(rngAccountProgress.accountLevel, rngAccountSystemUnlocksAcknowledged)) {
+    if (pauseRngAutoRoll()) { persistRngGame(); sendRngState(); updateTrayStatus(); }
+    return [];
+  }
   const rolledAt = rngTrustedClock.now();
   const participation = activeEvent(rolledAt, rngGame.participation);
   const autoRollSeconds = rngAutoRollStartedAt ? Math.floor((rngMonotonicMs() - rngAutoRollStartedAt) / 1000) : 0;
-  const outcome = rollRngBatch(rngGame, undefined, { rolledAt, event: participation, autoRollSeconds, localHour: new Date().getHours() });
+  const rawOutcome = runLegacyRollWithShadow({
+    legacyRoll: () => selectedRngRollBatch(rngGame, undefined, { rolledAt, event: participation, autoRollSeconds, localHour: new Date().getHours() }),
+    manual,
+    shadowService: rngShadowService
+  });
+  const outcome = applyFragmentRecycling({
+    startingState: rngGame,
+    outcome: rawOutcome,
+    lifetimeXp: rngAccountProgress.lifetimeAccountXp,
+    pool: rngPool,
+    enhancedRecyclingLevel: rngAccountProgress.enhancedRecyclingLevel,
+    enhancedRecyclingRemainderBps: rngAccountProgress.enhancedRecyclingRemainderBps
+  });
+  rngAccountProgress.enhancedRecyclingRemainderBps = outcome.enhancedRecyclingRemainderBps;
+  const processedRollCount = countProcessedRolls(rngGame.totalRolls, outcome.state.totalRolls);
+  const processedRollCountForSession = Number(processedRollCount);
+  if (!Number.isSafeInteger(processedRollCountForSession)) throw new RangeError('Session roll count exceeds the safe integer limit.');
+  rngAccountProgress = grantAccountXp(rngAccountProgress, processedRollCount);
   rngGame = outcome.state;
-  rngSessionRolls += outcome.results.length;
+  const autoPausedForUnlock = Boolean(rngAutoRollStartedAt && pendingAccountSystemUnlock(rngAccountProgress.accountLevel, rngAccountSystemUnlocksAcknowledged) && pauseRngAutoRoll());
+  rngSessionRolls += processedRollCountForSession;
   rngSessionNewTitles += outcome.results.filter(result => result.isNew).length;
   for (const result of outcome.results) {
     const resultTitle = rngTitles.find(title => title.id === result.title.id);
@@ -384,12 +542,13 @@ function performRngRoll({ manual = false } = {}) {
     consumableBoostMultiplier: result.consumableBoostMultiplier
   }));
   rngLatestBatchSize = publicResults.length;
-  rngLatestUnlocks = publicResults.filter(result => result.isNew || result.specialUnlocks?.length).map(result => ({ ...result, specialUnlocks: result.specialUnlocks || [] })).slice(-20);
+  rngLatestUnlocks = publicResults.filter(result => result.isNew || result.specialUnlocks?.length).map(result => ({ ...result, specialUnlocks: result.specialUnlocks || [] }));
   rngLatestResults = publicResults.slice(-12);
   rngLatestResult = rngLatestResults[rngLatestResults.length - 1] || null;
   if (manual) rngGame.manualRolls++;
   persistRngGame();
   sendRngState();
+  if (autoPausedForUnlock) updateTrayStatus();
   return rngLatestResults;
 }
 function startRngClock() {
@@ -427,13 +586,6 @@ function startRngClock() {
       if (manualSecretJustUnlocked || autoSecretJustUnlocked) sendRngState();
     }
   }, 200);
-}
-function startRngAutoRoll() {
-  if (rngAutoRollStartedAt) return false;
-  const now = rngMonotonicMs();
-  rngAutoRollStartedAt = now; rngAutoAccountedAt = now; rngNextAutoRollAt = now + 1000; rngGame.lastAutoRollSessionSeconds = 0;
-  updateTrayStatus(); sendRngState();
-  return true;
 }
 function loginAtStartupPath() { return path.join(app.getPath('userData'), 'ntc-launch-at-login.json'); }
 function loginAtStartupOptions(enabled) { return app.isPackaged ? { openAtLogin: Boolean(enabled) } : { openAtLogin: Boolean(enabled), path: process.execPath, args: [app.getAppPath()] }; }
@@ -502,10 +654,10 @@ function ensureTray() {
 function updateTrayStatus() {
   if (!trayIcon) return;
   const active = Boolean(rngAutoRollStartedAt);
-  trayIcon.setToolTip(`NTC Utilities — Auto-roll ${active ? 'ativo' : 'pausado'}`);
+  trayIcon.setToolTip(`NTC Utilities — rolagem automática ${active ? 'ativa' : 'pausada'}`);
   trayIcon.setContextMenu(Menu.buildFromTemplate([
     { label: 'Abrir NTC Utilities', click: showMainWindow },
-    { label: `Auto-roll ${active ? 'ativo em segundo plano' : 'pausado'}`, enabled: false },
+    { label: `Rolagem automática ${active ? 'ativa em segundo plano' : 'pausada'}`, enabled: false },
     { type: 'separator' },
     { label: 'Sair do NTC Utilities', click: requestExitFromTray }
   ]));
@@ -776,18 +928,21 @@ async function inspectVideo(file) {
   const duration = Number(data.format?.duration || video.duration || 0);
   return { path: file, name: path.basename(file), baseName: path.basename(file, path.extname(file)), duration: Number.isFinite(duration) ? duration : 0, durationLabel: duration ? new Date(duration * 1000).toISOString().slice(11, 19) : '—', width: video.width || 0, height: video.height || 0, hasAudio: (data.streams || []).some(stream => stream.codec_type === 'audio'), format: path.extname(file).slice(1) };
 }
-function normalizedCuts(cuts, duration) {
-  const sorted = (Array.isArray(cuts) ? cuts : []).map(cut => ({ start: Math.max(0, Math.min(duration, Number(cut.start) || 0)), end: Math.max(0, Math.min(duration, Number(cut.end) || 0)) })).filter(cut => cut.end - cut.start > .05).sort((a, b) => a.start - b.start);
-  return sorted.reduce((result, cut) => { const previous = result.at(-1); if (previous && cut.start <= previous.end + .05) previous.end = Math.max(previous.end, cut.end); else result.push(cut); return result; }, []);
-}
-function keptVideoSegments(cuts, duration) {
-  const segments = []; let cursor = 0; normalizedCuts(cuts, duration).forEach(cut => { if (cut.start > cursor + .05) segments.push({ start: cursor, end: cut.start }); cursor = Math.max(cursor, cut.end); }); if (duration > cursor + .05) segments.push({ start: cursor, end: duration }); return segments;
-}
 async function inspectImage(file) {
   if (!file || !fs.existsSync(file)) throw new Error('Imagem não encontrada.');
-  const data = await sharp(file).metadata();
-  if (!data.width || !data.height) throw new Error('Não foi possível ler esta imagem.');
-  return { path: file, name: path.basename(file), baseName: path.basename(file, path.extname(file)), width: data.width, height: data.height, format: data.format || path.extname(file).slice(1), hasAlpha: Boolean(data.hasAlpha), size: fs.statSync(file).size };
+  const prepared = await prepareImageInput(file);
+  try {
+    const data = await sharp(prepared.file).metadata();
+    if (!data.width || !data.height) throw new Error('Não foi possível ler esta imagem.');
+    return { path: file, name: path.basename(file), baseName: path.basename(file, path.extname(file)), width: data.width, height: data.height, format: path.extname(file).slice(1), hasAlpha: Boolean(data.hasAlpha), size: fs.statSync(file).size };
+  } finally { await prepared.cleanup(); }
+}
+async function prepareImageInput(file) {
+  if (!/\.hei[cf]$/i.test(file)) return { file, cleanup: async () => {} };
+  const temporary = path.join(app.getPath('temp'), `ntc-heic-${require('node:crypto').randomUUID()}.png`);
+  try { await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-i', file, '-frames:v', '1', temporary]); }
+  catch (error) { throw new Error(`Não foi possível abrir esta imagem HEIC: ${error.message}`); }
+  return { file: temporary, cleanup: () => fs.promises.unlink(temporary).catch(() => {}) };
 }
 function imageDimensions(metadata, item) {
   const scale = Math.max(1, Math.min(10000, Number(item.scale) || 100)) / 100; const sourceWidth = Number(metadata.width || 0); const sourceHeight = Number(metadata.height || 0); let width = Number(item.width) || Math.round(sourceWidth * scale) || null; let height = Number(item.height) || Math.round(sourceHeight * scale) || null;
@@ -825,6 +980,7 @@ async function createWaveform(file) {
 }
 function createWindow() {
   mainWindow = new BrowserWindow({ width: 1160, height: 760, minWidth: 930, minHeight: 640, icon: path.join(__dirname, 'build', 'ntc-logo.png'), backgroundColor: '#090909', frame: false, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false } });
+  mainWindow.maximize();
   mainWindow.webContents.on('before-input-event', (event, input) => {
     // Windows does not emit a keyDown for Print Screen; ShareX captures this key on keyUp.
     if (!shortcutRecorderFocused || input.type !== 'keyUp') return;
@@ -846,17 +1002,39 @@ function createWindow() {
     event.preventDefault(); ensureTray(); mainWindow.hide();
   });
   mainWindow.on('maximize', () => { if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-maximized', true); });
-  mainWindow.on('unmaximize', () => { if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-maximized', false); });
+  mainWindow.on('unmaximize', () => {
+    if (videoEditorWindowState?.active) videoEditorWindowState.userOverride = true;
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window-maximized', false);
+  });
   mainWindow.on('closed', () => { mainWindow = null; });
   mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
 }
 
 app.whenReady().then(() => {
+  if (!hasSingleInstanceLock) { app.exit(0); return; }
   app.setAppUserModelId('com.ntccorporation.utilities');
   initializeLoginAtStartup();
   loadRngGame(); startRngClock();
+  rngShadowService = createRngShadowService({
+    enabled: isShadowEnabled({ env: process.env, packaged: app.isPackaged }),
+    logEnabled: isShadowLoggingEnabled({ env: process.env, packaged: app.isPackaged }),
+    userDataPath: app.getPath('userData')
+  });
+  rngOnlineService = createRngOnlineService({
+    app,
+    safeStorage,
+    config: readOnlineConfig({ rootDir: __dirname, packaged: app.isPackaged }),
+    getSnapshot: rngSnapshot,
+    onState: state => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('rng-online-state', state); }
+  });
+  void rngOnlineService.start();
   autoClickerService = initializeAutoClicker({ app, ipcMain, BrowserWindow, screen });
   colorPickerService = initializeColorPicker({ ipcMain, BrowserWindow, screen, desktopCapturer, getMainWindow: () => mainWindow });
+  clipboardHistoryService = initializeClipboardHistory({ app, ipcMain, getMainWindow: () => mainWindow, clipboard, nativeImage });
+  initializeDocumentsService({ app, ipcMain, dialog, getMainWindow: () => mainWindow });
+  createStudyService({ app, ipcMain, getMainWindow: () => mainWindow });
+  initializeCatalogService({ app, ipcMain, dialog, getMainWindow: () => mainWindow, ffmpegPath: () => binary('ffmpeg') });
+  createSecurityService({ ipcMain, getMainWindow: () => mainWindow, dialog, clipboard, sharp, runFfmpeg: args => run('ffmpeg', args), ignoreClipboardText: text => clipboardHistoryService?.ignoreNextText(text) });
   void rngTrustedClock.sync().then(sendRngState);
   powerMonitor.on('suspend', () => { autoClickerService?.suspend(); accountRngTime(); rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0; rngTrustedClock.invalidate(); persistRngGame(); sendRngState(); updateTrayStatus(); });
   powerMonitor.on('resume', () => { rngTrustedClock.invalidate(); rngAppAccountedAt = rngMonotonicMs(); rngLastHeartbeatAt = rngMonotonicMs(); rngLastTimeSync = rngMonotonicMs(); void rngTrustedClock.sync().then(sendRngState); });
@@ -877,11 +1055,90 @@ app.whenReady().then(() => {
     try { return saveWorldClockSettings(settings); } catch { return false; }
   });
   ipcMain.handle('get-rng-state', () => rngSnapshot());
+  ipcMain.handle('acknowledge-rng-system-unlock', (event, unlockId) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: false, reason: 'invalid-sender' };
+    if (!canAcknowledgeAccountSystemUnlock(unlockId, rngAccountProgress.accountLevel)) return { ok: false, reason: 'unlock-not-eligible' };
+    if (!rngAccountSystemUnlocksAcknowledged.includes(unlockId)) {
+      rngAccountSystemUnlocksAcknowledged = normalizeAcknowledgedSystemUnlocks([...rngAccountSystemUnlocksAcknowledged, unlockId]);
+      persistRngGame();
+    }
+    return { ok: true, state: rngSnapshot() };
+  });
+  ipcMain.handle('get-rng-online-state', event => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { status: 'error', message: 'Solicitação inválida.', leaderboard: [] };
+    return rngOnlineService?.getState() || { status: 'unconfigured', message: 'NTC Online indisponível.', leaderboard: [] };
+  });
+  ipcMain.handle('retry-rng-online', event => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { status: 'error', message: 'Solicitação inválida.', leaderboard: [] };
+    return rngOnlineService?.retry() || { status: 'unconfigured', message: 'NTC Online indisponível.', leaderboard: [] };
+  });
+  ipcMain.handle('set-rng-profile', (event, preferences) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: false, reason: 'invalid-sender' };
+    const currentProfile = rngGame.profile || { displayName: '', equippedTitleId: null };
+    let displayName = currentProfile.displayName;
+    if (Object.prototype.hasOwnProperty.call(preferences || {}, 'displayName')) {
+      const validation = validateProfileDisplayName(preferences.displayName);
+      if (!validation.ok) return { ok: false, reason: validation.reason };
+      if (currentProfile.displayName && validation.value !== currentProfile.displayName) return { ok: false, reason: 'name-locked' };
+      displayName = validation.value;
+    }
+    const equippedTitleId = Object.prototype.hasOwnProperty.call(preferences || {}, 'equippedTitleId')
+      ? (preferences.equippedTitleId == null || preferences.equippedTitleId === '' ? null : String(preferences.equippedTitleId))
+      : currentProfile.equippedTitleId;
+    if (equippedTitleId && !rngGame.collectedIds.includes(equippedTitleId)) return { ok: false, reason: 'title-not-owned' };
+    rngGame.profile = { displayName, equippedTitleId };
+    rngGame = normalizeRngState(rngGame);
+    persistRngGame();
+    sendRngState();
+    return { ok: true, state: rngSnapshot() };
+  });
+  ipcMain.handle('render-rng-profile-card', async (event, format) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('Solicitação de renderização inválida.');
+    return renderRngProfileCard(format);
+  });
+  ipcMain.handle('copy-rng-profile-card', async (event, imageBytes) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('Solicitação de cópia inválida.');
+    const data = await validateRngProfileCard(imageBytes);
+    const image = nativeImage.createFromBuffer(data);
+    if (image.isEmpty()) throw new Error('A imagem da ficha não pôde ser copiada.');
+    clipboard.writeImage(image);
+    return true;
+  });
+  ipcMain.handle('save-rng-profile-card', async (event, imageBytes) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('Solicitação de salvamento inválida.');
+    const data = await validateRngProfileCard(imageBytes);
+    const profileName = safeName(rngGame.profile.displayName || 'Viajante');
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'Salvar ficha do NTC RNG',
+      defaultPath: `NTC_Profile_${profileName}.png`,
+      filters: [{ name: 'Imagem PNG', extensions: ['png'] }]
+    });
+    if (result.canceled || !result.filePath) return { canceled: true };
+    const outputPath = /\.png$/i.test(result.filePath) ? result.filePath : `${result.filePath}.png`;
+    await fs.promises.writeFile(outputPath, data, { flag: 'w' });
+    return { canceled: false, filePath: outputPath };
+  });
   ipcMain.handle('purchase-rng-upgrade', event => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: false, reason: 'invalid-sender' };
     accountRngTime();
     const result = purchasePermanentUpgrade(rngGame);
     if (result.ok) { rngGame = result.state; persistRngGame(); sendRngState(); }
+    return { ...result, state: rngSnapshot() };
+  });
+  ipcMain.handle('purchase-rng-enhanced-recycling', event => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: false, reason: 'invalid-sender' };
+    accountRngTime();
+    const result = purchaseEnhancedRecycling({
+      accountLevel: rngAccountProgress.accountLevel,
+      level: rngAccountProgress.enhancedRecyclingLevel,
+      fragmentBalance: rngGame.fragmentBalance
+    });
+    if (result.ok) {
+      rngAccountProgress.enhancedRecyclingLevel = result.level;
+      rngGame.fragmentBalance = result.fragmentBalance;
+      persistRngGame();
+      sendRngState();
+    }
     return { ...result, state: rngSnapshot() };
   });
   ipcMain.handle('purchase-rng-consumable', (event, type) => {
@@ -919,19 +1176,36 @@ app.whenReady().then(() => {
   ipcMain.handle('join-rng-event', (_event, eventId) => { const joined = joinEvent(rngTrustedClock.now(), eventId); if (rngGame.participation !== joined) rngGame.eventsParticipated++; rngGame.participation = joined; persistRngGame(); sendRngState(); return rngSnapshot(); });
   ipcMain.handle('app-entered', event => {
     if (!mainWindow || event.sender !== mainWindow.webContents) return false;
-    return startRngAutoRoll();
+    // Auto Roll is always opt-in for the current app session; entering the UI never starts it.
+    return false;
   });
-  ipcMain.handle('roll-rng', () => {
-    if (rngAutoRollStartedAt) throw new Error('Pause o Auto-roll para fazer uma rolagem manual.');
-    return performRngRoll({ manual: true });
+  ipcMain.handle('roll-rng', event => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) throw new Error('Origem da rolagem inválida.');
+    if (pendingAccountSystemUnlock(rngAccountProgress.accountLevel, rngAccountSystemUnlocksAcknowledged)) return { accepted: false, reason: 'system-unlock-pending' };
+    if (rngAutoRollStartedAt) throw new Error('Pause a rolagem automática para fazer uma rolagem manual.');
+    const cycleId = rngManualRollGate.begin();
+    if (cycleId === null) return { accepted: false, reason: 'manual-roll-in-progress' };
+    try {
+      const results = performRngRoll({ manual: true });
+      return { accepted: true, cycleId, results };
+    } catch (error) {
+      rngManualRollGate.complete(cycleId);
+      throw error;
+    }
+  });
+  ipcMain.handle('complete-manual-rng-roll', (event, cycleId) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents) return false;
+    return rngManualRollGate.complete(cycleId);
   });
   ipcMain.handle('set-rng-auto-roll', (_event, active) => {
+    if (active && pendingAccountSystemUnlock(rngAccountProgress.accountLevel, rngAccountSystemUnlocksAcknowledged)) throw new Error('Continue pelo desbloqueio de sistema antes de iniciar as rolagens.');
+    if (active && !isAutoRollUnlocked(rngAccountProgress.accountLevel)) throw new Error('A Rolagem Automática é desbloqueada no Account Level 3.');
     const now = rngMonotonicMs();
     if (active && !rngAutoRollStartedAt) {
       rngAutoRollStartedAt = now; rngAutoAccountedAt = now; rngNextAutoRollAt = now + 1000; rngGame.lastAutoRollSessionSeconds = 0;
       const result = performRngRoll();
       updateTrayStatus();
-      return { active: true, result, state: rngSnapshot(now) };
+      return { active: Boolean(rngAutoRollStartedAt), result, state: rngSnapshot(now) };
     }
     if (!active && rngAutoRollStartedAt) {
       accountRngTime(now); rngGame.lastAutoRollSessionSeconds = Math.floor((now - rngAutoRollStartedAt) / 1000);
@@ -941,6 +1215,26 @@ app.whenReady().then(() => {
     return { active: Boolean(rngAutoRollStartedAt), state: rngSnapshot(now) };
   });
   if (!app.isPackaged) {
+    ipcMain.handle('debug-rng-reset-account', async event => {
+      if (!mainWindow || event.sender !== mainWindow.webContents) return { ok: false, message: 'Solicitação inválida.' };
+      let onlineReset = false;
+      let onlineResult = null;
+      try {
+        if (!rngOnlineService) throw new Error('O serviço NTC Online não está disponível.');
+        onlineResult = await rngOnlineService.resetOwnProfile();
+        onlineReset = onlineResult?.ok === true;
+        if (!onlineReset) throw new Error('O Supabase não confirmou a remoção do perfil Online.');
+        return { ok: true, state: resetRngAccountState(), online: onlineResult };
+      } catch {
+        return {
+          ok: false,
+          remoteReset: onlineReset,
+          message: onlineReset
+            ? 'O perfil Online foi removido, mas não foi possível gravar o reset local. O progresso local em memória foi preservado; tente novamente.'
+            : 'Não foi possível confirmar o reset Online. Nenhum progresso local foi alterado; reconecte ao NTC Online e tente novamente.'
+        };
+      }
+    });
     ipcMain.handle('debug-rng-add-title', (_event, titleId) => {
       const oddsBeforeAdd = publicRngCatalog(rngGame).find(title => title.id === titleId)?.currentOdds;
       const result = debugGrantTitle(rngGame, titleId);
@@ -1027,6 +1321,27 @@ app.whenReady().then(() => {
   ipcMain.handle('window-close', event => BrowserWindow.fromWebContents(event.sender)?.close());
   ipcMain.handle('window-force-close', event => { forceClose = true; BrowserWindow.fromWebContents(event.sender)?.close(); });
   ipcMain.handle('window-is-maximized', event => BrowserWindow.fromWebContents(event.sender)?.isMaximized() || false);
+  ipcMain.handle('window-enter-video-editor', event => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window) return false;
+    if (!videoEditorWindowState?.active) {
+      const wasMaximized = window.isMaximized();
+      videoEditorWindowState = { active: true, wasMaximized, bounds: window.getBounds(), userOverride: false };
+      if (!wasMaximized) window.maximize();
+    }
+    return window.isMaximized();
+  });
+  ipcMain.handle('window-leave-video-editor', event => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (!window || !videoEditorWindowState?.active) return window?.isMaximized() || false;
+    const previous = videoEditorWindowState;
+    videoEditorWindowState = null;
+    if (!previous.wasMaximized && !previous.userOverride && window.isMaximized()) {
+      window.unmaximize();
+      window.setBounds(previous.bounds);
+    }
+    return window.isMaximized();
+  });
   ipcMain.handle('choose-download-folder', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha a pasta de destino', properties: ['openDirectory', 'createDirectory'] }); return result.canceled ? null : result.filePaths[0]; });
   ipcMain.handle('choose-media-files', async () => {
     const result = await dialog.showOpenDialog({ title: 'Escolha arquivos de áudio ou vídeo', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Mídia', extensions: [...audioExtensions, ...videoExtensions].map(extension => extension.slice(1)) }] });
@@ -1044,8 +1359,11 @@ app.whenReady().then(() => {
   ipcMain.handle('inspect-image', (_event, file) => inspectImage(file));
   ipcMain.handle('preview-image', async (_event, item) => {
     if (!item?.source || !fs.existsSync(item.source)) throw new Error('Imagem não encontrada.');
-    const metadata = await sharp(item.source).metadata(); const { width, height } = imageDimensions(metadata, item);
-    const quality = Math.max(1, Math.min(100, Number(item.quality) || 85)); const format = ['jpg', 'png', 'webp'].includes(item.format) ? item.format : 'jpg'; let pipeline = sharp(item.source).rotate().resize(width, height, { fit: item.keepRatio === false ? 'fill' : 'inside', withoutEnlargement: false }); pipeline = applyLowQualityPixelation(pipeline, width, height, quality).resize({ width: 1100, height: 700, fit: 'inside', withoutEnlargement: true }); if (format === 'jpg') pipeline = pipeline.flatten({ background: '#ffffff' }).jpeg({ quality }); if (format === 'png') pipeline = pipeline.png({ palette: true, quality, compressionLevel: 9 }); if (format === 'webp') pipeline = pipeline.webp({ quality }); const output = await pipeline.toBuffer(); const mime = format === 'jpg' ? 'image/jpeg' : `image/${format}`; return { dataUrl: `data:${mime};base64,${output.toString('base64')}`, width, height };
+    const prepared = await prepareImageInput(item.source);
+    try {
+      const metadata = await sharp(prepared.file).metadata(); const { width, height } = imageDimensions(metadata, item);
+      const quality = Math.max(1, Math.min(100, Number(item.quality) || 85)); const format = ['jpg', 'png', 'webp'].includes(item.format) ? item.format : 'jpg'; let pipeline = sharp(prepared.file).rotate().resize(width, height, { fit: item.keepRatio === false ? 'fill' : 'inside', withoutEnlargement: false }); pipeline = applyLowQualityPixelation(pipeline, width, height, quality).resize({ width: 1100, height: 700, fit: 'inside', withoutEnlargement: true }); if (format === 'jpg') pipeline = pipeline.flatten({ background: '#ffffff' }).jpeg({ quality }); if (format === 'png') pipeline = pipeline.png({ palette: true, quality, compressionLevel: 9 }); if (format === 'webp') pipeline = pipeline.webp({ quality }); const output = await pipeline.toBuffer(); const mime = format === 'jpg' ? 'image/jpeg' : `image/${format}`; return { dataUrl: `data:${mime};base64,${output.toString('base64')}`, width, height };
+    } finally { await prepared.cleanup(); }
   });
   ipcMain.handle('preview-qr', async (_event, item) => {
     const result = await renderQr(item?.url, item);
@@ -1127,33 +1445,284 @@ app.whenReady().then(() => {
     return startFfmpegJob(event, videoJobs, item.id, args, output, Number(item.duration || 0), 'video-event');
   });
   ipcMain.handle('cancel-video-conversion', (_event, id) => videoJobs.get(id)?.cancel?.());
-  ipcMain.handle('choose-video-editor-file', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha um vídeo para editar', properties: ['openFile'], filters: [{ name: 'Vídeos', extensions: videoExtensions.map(extension => extension.slice(1)) }] }); return result.canceled ? null : result.filePaths[0]; });
-  ipcMain.handle('choose-video-editor-audio', async () => { const result = await dialog.showOpenDialog({ title: 'Adicionar áudios à timeline', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Áudios', extensions: audioExtensions.map(extension => extension.slice(1)) }] }); return result.canceled ? [] : result.filePaths; });
-  ipcMain.handle('start-video-edit', async (event, item) => {
-    if (!item?.id || !item.source || !item.folder || !fs.existsSync(item.source)) throw new Error('Escolha um vídeo e uma pasta de destino antes de exportar.');
-    const duration = Math.max(0, Number(item.duration) || 0); if (!duration) throw new Error('Não foi possível identificar a duração do vídeo.');
-    const segments = keptVideoSegments(item.cuts, duration); if (!segments.length) throw new Error('Os cortes removem o vídeo inteiro. Desfaça ao menos um trecho.');
-    const finalDuration = segments.reduce((total, segment) => total + segment.end - segment.start, 0); const outputName = safeName(item.outputName || `${path.basename(item.source, path.extname(item.source))} editado`); const filename = availableFilename(item.folder, `${outputName}.mp4`, item.duplicate || 'rename'); const output = path.join(item.folder, filename);
-    const tracks = (Array.isArray(item.audioTracks) ? item.audioTracks : []).filter(track => track?.source && fs.existsSync(track.source)); const args = ['-hide_banner', '-y', '-i', item.source]; tracks.forEach(track => { if (track.loop) args.push('-stream_loop', '-1'); args.push('-i', track.source); });
-    const filters = []; const hasOriginalAudio = Boolean(item.hasAudio); const videoParts = []; const audioParts = [];
-    segments.forEach((segment, index) => { filters.push(`[0:v:0]trim=start=${segment.start}:end=${segment.end},setpts=PTS-STARTPTS[v${index}]`); videoParts.push(`[v${index}]`); if (hasOriginalAudio) { filters.push(`[0:a:0]atrim=start=${segment.start}:end=${segment.end},asetpts=PTS-STARTPTS[a${index}]`); audioParts.push(`[a${index}]`); } });
-    filters.push(`${videoParts.join('')}concat=n=${segments.length}:v=1:a=0[vbase]`);
-    if (hasOriginalAudio) { filters.push(`${audioParts.join('')}concat=n=${segments.length}:v=0:a=1[abase]`); const originalVolume = item.muteOriginal ? 0 : Math.max(0, Math.min(300, Number(item.originalVolume) || 100)); filters.push(`[abase]volume=${originalVolume / 100},atrim=duration=${finalDuration}[amaster]`); }
-    const mixInputs = hasOriginalAudio ? ['[amaster]'] : [];
-    tracks.forEach((track, index) => { const inputIndex = index + 1; const position = Math.max(0, Math.min(finalDuration, Number(track.position) || 0)); const trimStart = Math.max(0, Number(track.trimStart) || 0); const requestedDuration = Math.max(.05, Number(track.duration) || finalDuration); const usableDuration = Math.max(.05, Math.min(requestedDuration, finalDuration - position)); const volume = Math.max(0, Math.min(300, Number(track.volume) || 100)); filters.push(`[${inputIndex}:a:0]atrim=start=${trimStart}:duration=${usableDuration},asetpts=PTS-STARTPTS,volume=${volume / 100},adelay=${Math.round(position * 1000)}:all=1[aext${index}]`); mixInputs.push(`[aext${index}]`); });
-    if (mixInputs.length) filters.push(`${mixInputs.join('')}amix=inputs=${mixInputs.length}:duration=longest:dropout_transition=0,atrim=duration=${finalDuration}[aout]`);
-    args.push('-filter_complex', filters.join(';'), '-map', '[vbase]'); if (mixInputs.length) args.push('-map', '[aout]'); else args.push('-an'); args.push('-c:v', 'libx264', '-preset', 'medium', '-crf', '20', '-pix_fmt', 'yuv420p'); if (mixInputs.length) args.push('-c:a', 'aac', '-b:a', '192k'); args.push('-movflags', '+faststart', '-progress', 'pipe:1', '-nostats', output);
-    return startFfmpegJob(event, videoEditJobs, item.id, args, output, finalDuration, 'video-editor-event');
+  ipcMain.handle('choose-media-project-audio', async event => { assertMainWindowSender(event); const result = await dialog.showOpenDialog({ title: 'Adicionar faixas de áudio ao projeto', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Áudios', extensions: audioExtensions.map(extension => extension.slice(1)) }] }); return result.canceled ? [] : result.filePaths; });
+  ipcMain.handle('open-media-project', async event => {
+    assertMainWindowSender(event);
+    const result = await dialog.showOpenDialog({ title: 'Abrir projeto NTC', properties: ['openFile'], filters: [{ name: 'Projetos NTC', extensions: ['ntcmp'] }] });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const stat = fs.statSync(result.filePaths[0]);
+    if (stat.size > 5 * 1024 * 1024) throw new Error('O projeto excede o limite seguro de 5 MB.');
+    return mediaProject.normalizeProject(JSON.parse(await fs.promises.readFile(result.filePaths[0], 'utf8')));
   });
-  ipcMain.handle('cancel-video-edit', (_event, id) => videoEditJobs.get(id)?.cancel?.());
+  ipcMain.handle('save-media-project', async (event, value) => {
+    assertMainWindowSender(event);
+    const project = mediaProject.normalizeProject(value);
+    const result = await dialog.showSaveDialog({ title: 'Salvar projeto NTC', defaultPath: `${safeName(project.name)}.ntcmp`, filters: [{ name: 'Projeto NTC', extensions: ['ntcmp'] }] });
+    if (result.canceled || !result.filePath) return null;
+    const target = path.extname(result.filePath).toLowerCase() === '.ntcmp' ? result.filePath : `${result.filePath}.ntcmp`;
+    const temporary = `${target}.${require('node:crypto').randomUUID()}.tmp`;
+    try { await fs.promises.writeFile(temporary, `${JSON.stringify(project, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' }); await fs.promises.rename(temporary, target); }
+    catch (error) { await fs.promises.unlink(temporary).catch(() => {}); throw error; }
+    return { file: target, name: path.basename(target) };
+  });
+  ipcMain.handle('start-media-project-render', async (event, item) => {
+    assertMainWindowSender(event);
+    if (!item?.id || mediaProjectJobs.has(item.id)) throw new Error('Identificador de renderização inválido ou já em uso.');
+    if (mediaProjectJobs.size) throw new Error('Já existe uma exportação de projeto em andamento.');
+    const project = mediaProject.normalizeProject(item.project);
+    if (!item.folder || !fs.existsSync(item.folder) || !fs.statSync(item.folder).isDirectory()) throw new Error('Escolha uma pasta de destino existente.');
+    const sourcePaths = new Set();
+    const preparedImages = [];
+    project.assets = project.assets.map(asset => {
+      const extension = path.extname(asset.path).toLowerCase();
+      const allowed = asset.kind === 'audio' ? audioExtensions : asset.kind === 'image' ? imageExtensions : [];
+      if (!allowed.includes(extension)) throw new Error(`Formato não permitido para ${asset.name || 'a mídia selecionada'}.`);
+      let source;
+      try { source = fs.realpathSync(path.resolve(asset.path)); } catch { throw new Error(`A mídia “${asset.name || path.basename(asset.path)}” não foi encontrada.`); }
+      if (!fs.statSync(source).isFile()) throw new Error('Uma das mídias não é um arquivo.');
+      sourcePaths.add(source.toLocaleLowerCase('en-US'));
+      return { ...asset, path: source };
+    });
+    const format = project.kind === 'audio' ? (item.format === 'mp3' ? 'mp3' : 'wav') : 'mp4';
+    const outputName = safeName(item.outputName || project.name || (project.kind === 'audio' ? 'Mix NTC' : 'Vídeo NTC'));
+    const extension = format;
+    let filename = availableFilename(item.folder, `${outputName}.${extension}`, 'rename');
+    let output = path.join(item.folder, filename);
+    while (sourcePaths.has(path.resolve(output).toLocaleLowerCase('en-US'))) { filename = availableFilename(item.folder, `${outputName} (exportado).${extension}`, 'rename'); output = path.join(item.folder, filename); }
+    try {
+      if (project.kind === 'video') {
+        project.assets = await Promise.all(project.assets.map(async asset => {
+          if (asset.kind !== 'image') return asset;
+          const prepared = await prepareImageInput(asset.path);
+          if (prepared.file !== asset.path) preparedImages.push(prepared);
+          return { ...asset, path: prepared.file };
+        }));
+      }
+      const plan = project.kind === 'audio'
+        ? mediaProject.audioRenderPlan(project, output, format)
+        : mediaProject.videoRenderPlan(project, output, item.resolution);
+      return await startFfmpegJob(event, mediaProjectJobs, item.id, plan.args, output, plan.duration, 'media-project-event');
+    } catch (error) {
+      if (fs.existsSync(output)) await fs.promises.unlink(output).catch(() => {});
+      throw error;
+    } finally {
+      await Promise.all(preparedImages.map(prepared => prepared.cleanup()));
+    }
+  });
+  ipcMain.handle('cancel-media-project-render', (event, id) => { assertMainWindowSender(event); return mediaProjectJobs.get(id)?.cancel?.(); });
+  // Editor de vídeo v2: mantém o caminho de projeto sob autoridade do processo principal.
+  const checkedVideoAsset = async file => {
+    const original = String(file || '');
+    const extension = path.extname(original).toLowerCase();
+    const kind = imageExtensions.includes(extension) ? 'image' : videoExtensions.includes(extension) ? 'video' : audioExtensions.includes(extension) ? 'audio' : null;
+    if (!kind) throw new Error('Formato de mídia não suportado.');
+    const resolved = await fs.promises.realpath(path.resolve(original));
+    if (!(await fs.promises.stat(resolved)).isFile()) throw new Error('Mídia não é um arquivo.');
+    return { resolved, kind };
+  };
+  const inspectVideoProjectAsset = async file => {
+    const { resolved, kind } = await checkedVideoAsset(file);
+    if (kind === 'image') {
+      const prepared = await prepareImageInput(resolved);
+      try {
+        const meta = await sharp(prepared.file, { limitInputPixels: 268_402_689 }).metadata();
+        if (!meta.width || !meta.height) throw new Error('Imagem inválida.');
+        return { path: resolved, kind, name: path.basename(resolved), durationMs: 0, width: meta.width, height: meta.height, fps: 0, hasAudio: false };
+      } finally { await prepared.cleanup(); }
+    }
+    const probe = JSON.parse(await run('ffprobe', ['-v', 'error', '-show_format', '-show_streams', '-of', 'json', resolved]));
+    const streams = probe.streams || [];
+    const visual = streams.find(stream => stream.codec_type === 'video' && !stream.disposition?.attached_pic);
+    const audio = streams.find(stream => stream.codec_type === 'audio');
+    if (kind === 'video' && !visual || kind === 'audio' && !audio) throw new Error('A mídia não contém a faixa esperada.');
+    const durationMs = Math.round(Number(probe.format?.duration || visual?.duration || audio?.duration || 0) * 1000);
+    if (!Number.isSafeInteger(durationMs) || durationMs < videoProject.MIN_CLIP_MS || durationMs > videoProject.MAX_PROJECT_MS) throw new Error('Duração da mídia inválida.');
+    const rate = String(visual?.avg_frame_rate || '0/1').split('/').map(Number);
+    return { path: resolved, kind, name: path.basename(resolved), durationMs, width: visual?.width || 0, height: visual?.height || 0, fps: rate[1] ? rate[0] / rate[1] : 0, hasAudio: Boolean(audio) };
+  };
+  ipcMain.handle('video-project-choose-media', async event => {
+    assertMainWindowSender(event);
+    const result = await dialog.showOpenDialog({ title: 'Importar mídia', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Imagens, vídeos e áudios', extensions: [...new Set([...imageExtensions, ...videoExtensions, ...audioExtensions].map(ext => ext.slice(1)))] }] });
+    return result.canceled ? [] : result.filePaths;
+  });
+  ipcMain.handle('video-project-inspect-media', async (event, file) => { assertMainWindowSender(event); return inspectVideoProjectAsset(file); });
+  ipcMain.handle('video-project-thumbnail', async (event, file) => {
+    assertMainWindowSender(event);
+    const { resolved, kind } = await checkedVideoAsset(file);
+    if (kind === 'audio') return '';
+    if (kind === 'image') {
+      const prepared = await prepareImageInput(resolved);
+      try {
+        const data = await sharp(prepared.file).rotate().resize(180, 104, { fit: 'contain', background: '#111111' }).jpeg({ quality: 70 }).toBuffer();
+        return `data:image/jpeg;base64,${data.toString('base64')}`;
+      } finally { await prepared.cleanup(); }
+    }
+    const data = await runBuffer('ffmpeg', ['-v', 'error', '-ss', '0', '-i', resolved, '-frames:v', '1', '-vf', 'scale=180:104:force_original_aspect_ratio=decrease,pad=180:104:(ow-iw)/2:(oh-ih)/2', '-f', 'image2pipe', '-vcodec', 'mjpeg', 'pipe:1']);
+    return `data:image/jpeg;base64,${data.toString('base64')}`;
+  });
+  ipcMain.handle('video-project-filmstrip', async (event, value) => {
+    assertMainWindowSender(event);
+    const count = Math.max(1, Math.min(8, Math.round(Number(value?.count) || 1)));
+    const { resolved, kind } = await checkedVideoAsset(value?.file);
+    if (kind !== 'video') throw new Error('Filmstrip disponível apenas para vídeo.');
+    const stat = await fs.promises.stat(resolved);
+    const inspected = await inspectVideoProjectAsset(resolved);
+    const durationSeconds = inspected.durationMs / 1000;
+    const startSeconds = Math.max(0, Math.min(durationSeconds, Number(value?.startMs) / 1000 || 0));
+    const requestedSeconds = Math.max(0.001, Number(value?.durationMs) / 1000 || durationSeconds - startSeconds);
+    const spanSeconds = Math.max(0.001, Math.min(requestedSeconds, durationSeconds - startSeconds));
+    const key = `${resolved}:${stat.mtimeMs}:${stat.size}:${startSeconds}:${spanSeconds}:${count}`;
+    if (videoProjectFilmstripCache.has(key)) return videoProjectFilmstripCache.get(key);
+    const frames = [];
+    for (let index = 0; index < count; index++) {
+      const at = Math.max(0, Math.min(durationSeconds, startSeconds + spanSeconds * (index + 0.5) / count));
+      const data = await runBuffer('ffmpeg', ['-v', 'error', '-ss', at.toFixed(3), '-i', resolved, '-frames:v', '1', '-vf', 'scale=184:104:force_original_aspect_ratio=increase,crop=184:104', '-f', 'image2pipe', '-vcodec', 'mjpeg', 'pipe:1']);
+      frames.push(`data:image/jpeg;base64,${data.toString('base64')}`);
+    }
+    if (videoProjectFilmstripCache.size >= 48) videoProjectFilmstripCache.delete(videoProjectFilmstripCache.keys().next().value);
+    videoProjectFilmstripCache.set(key, frames);
+    return frames;
+  });
+  ipcMain.handle('video-project-preview-source', async (event, file) => {
+    assertMainWindowSender(event);
+    const { resolved, kind } = await checkedVideoAsset(file);
+    const convertedImage = kind === 'image' && ['.heic', '.heif', '.tif', '.tiff', '.avif'].includes(path.extname(resolved).toLowerCase());
+    const convertedVideo = kind === 'video' && !['.mp4', '.m4v', '.webm'].includes(path.extname(resolved).toLowerCase());
+    if (!convertedImage && !convertedVideo) return resolved;
+    const stat = await fs.promises.stat(resolved);
+    const key = `${resolved}:${stat.mtimeMs}:${stat.size}`;
+    if (videoProjectPreviewCache.has(key)) return videoProjectPreviewCache.get(key);
+    if (videoProjectPreviewJobs.has(key)) return videoProjectPreviewJobs.get(key);
+    const pending = (async () => {
+      const digest = require('node:crypto').createHash('sha256').update(key).digest('hex');
+      const destination = path.join(app.getPath('temp'), convertedImage ? `ntc-image-preview-${digest}.png` : `ntc-video-preview-${digest}.mp4`);
+      if (!fs.existsSync(destination)) {
+        const temporary = `${destination}.${require('node:crypto').randomUUID()}${convertedImage ? '.png' : '.mp4'}`;
+        try {
+          if (convertedImage) {
+            const prepared = await prepareImageInput(resolved);
+            try { await sharp(prepared.file).rotate().png().toFile(temporary); }
+            finally { await prepared.cleanup(); }
+          } else await run('ffmpeg', ['-v', 'error', '-y', '-i', resolved, '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease:force_divisible_by=2', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '29', '-c:a', 'aac', '-movflags', '+faststart', temporary]);
+          await fs.promises.rename(temporary, destination);
+        } catch (failure) { await fs.promises.unlink(temporary).catch(() => {}); throw failure; }
+      }
+      videoProjectPreviewCache.set(key, destination);
+      return destination;
+    })();
+    videoProjectPreviewJobs.set(key, pending);
+    try { return await pending; } finally { videoProjectPreviewJobs.delete(key); }
+  });
+  ipcMain.handle('video-project-new', event => { assertMainWindowSender(event); videoProjectFile = ''; return true; });
+  ipcMain.handle('video-project-confirm-changes', async event => {
+    assertMainWindowSender(event);
+    const result = await dialog.showMessageBox(mainWindow, { type: 'warning', title: 'Alterações não salvas', message: 'Salvar alterações no projeto antes de continuar?', buttons: ['Salvar', 'Descartar', 'Cancelar'], defaultId: 0, cancelId: 2, noLink: true });
+    return ['save', 'discard', 'cancel'][result.response] || 'cancel';
+  });
+  ipcMain.handle('video-project-open', async event => {
+    assertMainWindowSender(event);
+    const result = await dialog.showOpenDialog({ title: 'Abrir projeto de vídeo', properties: ['openFile'], filters: [{ name: 'Projeto NTC', extensions: ['ntcmp'] }] });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const file = result.filePaths[0];
+    if ((await fs.promises.stat(file)).size > 5 * 1024 * 1024) throw new Error('Projeto excede o limite seguro de 5 MB.');
+    const source = JSON.parse(await fs.promises.readFile(file, 'utf8'));
+    const project = videoProject.normalizeProject(source);
+    videoProjectFile = file;
+    return { project, file, migrated: project.schemaVersion !== source.schemaVersion };
+  });
+  ipcMain.handle('video-project-save', async (event, value) => {
+    assertMainWindowSender(event);
+    const project = videoProject.normalizeProject(value.project);
+    let target = value.saveAs ? '' : videoProjectFile;
+    if (!target) {
+      const result = await dialog.showSaveDialog({ title: 'Salvar projeto de vídeo', defaultPath: videoProjectFile || `${safeName(project.name)}.ntcmp`, filters: [{ name: 'Projeto NTC', extensions: ['ntcmp'] }] });
+      if (result.canceled || !result.filePath) return null;
+      target = path.extname(result.filePath).toLowerCase() === '.ntcmp' ? result.filePath : `${result.filePath}.ntcmp`;
+    }
+    const temporary = `${target}.${require('node:crypto').randomUUID()}.tmp`;
+    try { await fs.promises.writeFile(temporary, `${JSON.stringify(project, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' }); await fs.promises.rename(temporary, target); }
+    catch (error) { await fs.promises.unlink(temporary).catch(() => {}); throw error; }
+    videoProjectFile = target;
+    return { file: target, name: path.basename(target) };
+  });
+  const recoveryFile = path.join(app.getPath('userData'), 'ntc-video-project-recovery.json');
+  const queueRecovery = task => {
+    const current = videoProjectRecoveryQueue.then(task);
+    videoProjectRecoveryQueue = current.catch(() => {});
+    return current;
+  };
+  ipcMain.handle('video-project-save-recovery', (event, value) => {
+    assertMainWindowSender(event);
+    const project = videoProject.normalizeProject(value);
+    const contents = `${JSON.stringify(project)}\n`;
+    if (Buffer.byteLength(contents) > 5 * 1024 * 1024) throw new Error('Projeto excede o limite de recuperação de 5 MB.');
+    return queueRecovery(async () => {
+      const temporary = `${recoveryFile}.${require('node:crypto').randomUUID()}.tmp`;
+      try { await fs.promises.writeFile(temporary, contents, { encoding: 'utf8', flag: 'wx' }); await fs.promises.rename(temporary, recoveryFile); }
+      catch (failure) { await fs.promises.unlink(temporary).catch(() => {}); throw failure; }
+      return true;
+    });
+  });
+  ipcMain.handle('video-project-clear-recovery', event => { assertMainWindowSender(event); return queueRecovery(async () => { await fs.promises.unlink(recoveryFile).catch(error => { if (error.code !== 'ENOENT') throw error; }); return true; }); });
+  ipcMain.handle('video-project-load-recovery', event => {
+    assertMainWindowSender(event);
+    return queueRecovery(async () => {
+      if (!fs.existsSync(recoveryFile)) return null;
+      if ((await fs.promises.stat(recoveryFile)).size > 5 * 1024 * 1024) return null;
+      let project;
+      try { project = videoProject.normalizeProject(JSON.parse(await fs.promises.readFile(recoveryFile, 'utf8'))); }
+      catch { return null; }
+      const choice = await dialog.showMessageBox(mainWindow, { type: 'question', title: 'Projeto não salvo', message: 'Foi encontrada uma edição não salva do Editor de Vídeo.', detail: 'Restaurar não altera o arquivo .ntcmp original.', buttons: ['Restaurar', 'Descartar recuperação'], defaultId: 0, cancelId: 0, noLink: true });
+      if (choice.response === 1) await fs.promises.unlink(recoveryFile).catch(() => {});
+      return choice.response === 0 ? project : null;
+    });
+  });
+  ipcMain.handle('video-project-render', async (event, item) => {
+    assertMainWindowSender(event);
+    if (!item?.id || mediaProjectJobs.has(item.id) || mediaProjectJobs.size) throw new Error('Já existe uma exportação em andamento.');
+    const project = videoProject.normalizeProject(item.project);
+    const folder = path.resolve(String(item.folder || ''));
+    if (!fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) throw new Error('Escolha uma pasta de destino existente.');
+    const sourcePaths = new Set();
+    const usedAssets = new Set(project.tracks.flatMap(track => track.clips.map(clip => clip.assetId)).filter(Boolean));
+    for (const asset of project.assets) {
+      if (!usedAssets.has(asset.id)) continue;
+      const checked = await checkedVideoAsset(asset.path).catch(() => { throw new Error(`Mídia não encontrada: ${asset.name}`); });
+      if (checked.kind !== asset.kind) throw new Error(`Tipo de mídia incorreto: ${asset.name}`);
+      asset.path = checked.resolved;
+      sourcePaths.add(checked.resolved.toLocaleLowerCase('en-US'));
+    }
+    const name = safeName(item.outputName || project.name || 'Vídeo NTC');
+    let filename = availableFilename(folder, `${name}.mp4`, 'rename');
+    let output = path.join(folder, filename);
+    if (sourcePaths.has(output.toLocaleLowerCase('en-US'))) { filename = availableFilename(folder, `${name} (exportado).mp4`, 'rename'); output = path.join(folder, filename); }
+    const temporaryFiles = [];
+    try {
+      const textFiles = {};
+      for (const track of project.tracks) for (const clip of track.clips) if (clip.type === 'text') {
+        const file = path.join(app.getPath('temp'), `ntc-title-${require('node:crypto').randomUUID()}.png`);
+        await writeTextPng(clip.text, file);
+        temporaryFiles.push(file); textFiles[clip.id] = file;
+      }
+      for (const asset of project.assets) if (usedAssets.has(asset.id) && asset.kind === 'image' && ['.heic', '.heif', '.avif'].includes(path.extname(asset.path).toLowerCase())) {
+        const prepared = await prepareImageInput(asset.path);
+        if (prepared.file !== asset.path) { temporaryFiles.push(prepared.file); asset.path = prepared.file; }
+      }
+      const plan = buildVideoProjectRenderPlan(project, output, { ...item.options, textFiles });
+      return await startFfmpegJob(event, mediaProjectJobs, item.id, plan.args, output, plan.duration, 'video-project-event');
+    } catch (error) { await fs.promises.unlink(output).catch(() => {}); throw error; }
+    finally { await Promise.all(temporaryFiles.map(file => fs.promises.unlink(file).catch(() => {}))); }
+  });
+  ipcMain.handle('video-project-cancel-render', (event, id) => { assertMainWindowSender(event); return mediaProjectJobs.get(id)?.cancel?.(); });
   ipcMain.handle('start-image-conversion', async (event, item) => {
     if (!item?.id || !item.source || !item.folder || !fs.existsSync(item.source)) throw new Error('Dados da imagem inválidos.'); const format = ['jpg', 'png', 'webp'].includes(item.format) ? item.format : 'jpg'; const filename = availableFilename(item.folder, `${safeName(item.outputName || path.basename(item.source, path.extname(item.source)))}.${format}`, item.duplicate); const output = path.join(item.folder, filename); let cancelled = false; imageJobs.set(item.id, { cancel: () => { cancelled = true; } }); send(event.sender, 'image-event', { id: item.id, status: 'converting', percent: 10 });
-    try { let pipeline = sharp(item.source).rotate(); const metadata = await sharp(item.source).metadata(); const { width, height } = imageDimensions(metadata, item); const quality = Math.max(1, Math.min(100, Number(item.quality) || 85)); if (width || height) pipeline = pipeline.resize(width, height, { fit: item.keepRatio === false ? 'fill' : 'inside', withoutEnlargement: false }); pipeline = applyLowQualityPixelation(pipeline, width, height, quality); if (format === 'jpg') pipeline = pipeline.flatten({ background: '#ffffff' }).jpeg({ quality }); if (format === 'png') pipeline = pipeline.png({ palette: true, quality, compressionLevel: 9 }); if (format === 'webp') pipeline = pipeline.webp({ quality }); await pipeline.toFile(output); imageJobs.delete(item.id); if (cancelled) { if (fs.existsSync(output)) fs.unlinkSync(output); throw new Error('Operação cancelada.'); } const stat = fs.statSync(output); send(event.sender, 'image-event', { id: item.id, status: 'complete', file: output, size: stat.size, filename }); return { file: output, size: stat.size, filename }; } catch (error) { imageJobs.delete(item.id); throw error; }
+    let prepared;
+    try { prepared = await prepareImageInput(item.source); let pipeline = sharp(prepared.file).rotate(); const metadata = await sharp(prepared.file).metadata(); const { width, height } = imageDimensions(metadata, item); const quality = Math.max(1, Math.min(100, Number(item.quality) || 85)); if (width || height) pipeline = pipeline.resize(width, height, { fit: item.keepRatio === false ? 'fill' : 'inside', withoutEnlargement: false }); pipeline = applyLowQualityPixelation(pipeline, width, height, quality); if (format === 'jpg') pipeline = pipeline.flatten({ background: '#ffffff' }).jpeg({ quality }); if (format === 'png') pipeline = pipeline.png({ palette: true, quality, compressionLevel: 9 }); if (format === 'webp') pipeline = pipeline.webp({ quality }); await pipeline.toFile(output); imageJobs.delete(item.id); if (cancelled) { if (fs.existsSync(output)) fs.unlinkSync(output); throw new Error('Operação cancelada.'); } const stat = fs.statSync(output); send(event.sender, 'image-event', { id: item.id, status: 'complete', file: output, size: stat.size, filename }); return { file: output, size: stat.size, filename }; } catch (error) { imageJobs.delete(item.id); throw error; } finally { await prepared?.cleanup(); }
   });
   ipcMain.handle('cancel-image-conversion', (_event, id) => imageJobs.get(id)?.cancel?.());
   ipcMain.handle('start-compression', async (_event, item) => {
     if (!item?.source || !item?.folder || !fs.existsSync(item.source)) throw new Error('Arquivo ou pasta de destino inválidos.'); const ext = path.extname(item.source).toLowerCase(); const base = safeName(path.basename(item.source, ext));
-    if (imageExtensions.includes(ext)) { const output = path.join(item.folder, availableFilename(item.folder, `${base} comprimido.jpg`, item.duplicate)); const quality = Math.max(1, Math.min(100, Number(item.imageQuality) || 60)); const scale = Math.max(.01, Number(item.imageScale || 100) / 100); const meta = await sharp(item.source).metadata(); await sharp(item.source).rotate().resize(Math.max(1, Math.round((meta.width || 1) * scale)), Math.max(1, Math.round((meta.height || 1) * scale))).jpeg({ quality }).toFile(output); const stat = fs.statSync(output); return { file: output, size: stat.size, kind: 'image' }; }
+    if (imageExtensions.includes(ext)) { const output = path.join(item.folder, availableFilename(item.folder, `${base} comprimido.jpg`, item.duplicate)); const quality = Math.max(1, Math.min(100, Number(item.imageQuality) || 60)); const scale = Math.max(.01, Number(item.imageScale || 100) / 100); const prepared = await prepareImageInput(item.source); try { const meta = await sharp(prepared.file).metadata(); await sharp(prepared.file).rotate().resize(Math.max(1, Math.round((meta.width || 1) * scale)), Math.max(1, Math.round((meta.height || 1) * scale))).jpeg({ quality }).toFile(output); const stat = fs.statSync(output); return { file: output, size: stat.size, kind: 'image' }; } finally { await prepared.cleanup(); } }
     const probe = JSON.parse(await run('ffprobe', ['-v', 'error', '-show_streams', '-of', 'json', item.source])); const isVideo = (probe.streams || []).some(stream => stream.codec_type === 'video'); const audioFormat = item.audioFormat === 'opus' ? 'opus' : 'mp3'; const output = path.join(item.folder, availableFilename(item.folder, `${base} comprimido.${isVideo ? 'mp4' : audioFormat}`, item.duplicate)); const args = ['-hide_banner', '-y', '-i', item.source];
     if (isVideo) { if (item.resolution && item.resolution !== 'original') args.push('-vf', `scale=-2:${Number(item.resolution)}`); if (item.fps) args.push('-r', String(Math.max(1, Number(item.fps)))); args.push('-c:v', 'libx264', '-crf', String(Math.max(0, Number(item.crf) || 30)), '-preset', 'veryfast', '-c:a', 'aac', '-b:a', `${Math.max(8, Number(item.audioBitrate) || 64)}k`); } else { args.push('-ac', item.mono ? '1' : '2', '-ar', String(Math.max(8000, Number(item.sampleRate) || 22050)), '-c:a', audioFormat === 'opus' ? 'libopus' : 'libmp3lame', '-b:a', `${Math.max(8, Number(item.audioBitrate) || 64)}k`); }
     args.push(output); await run('ffmpeg', args); const stat = fs.statSync(output); return { file: output, size: stat.size, kind: isVideo ? 'video' : 'audio' };
@@ -1232,7 +1801,19 @@ app.whenReady().then(() => {
   ipcMain.handle('unregister-quick-screenshot-shortcut', () => { if (quickScreenshotShortcut) globalShortcut.unregister(quickScreenshotShortcut); quickScreenshotShortcut = null; quickScreenshotFolder = ''; return true; });
   configureUpdater(); createWindow(); if (app.isPackaged) setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 2500); app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
-app.on('before-quit', () => {
+app.on('before-quit', event => {
+  if (!rngOnlineQuitReady && rngOnlineService) {
+    event.preventDefault();
+    if (rngOnlineQuitStarted) return;
+    rngOnlineQuitStarted = true;
+    void rngOnlineService.flush(1200).finally(() => {
+      rngOnlineService?.dispose();
+      rngOnlineQuitReady = true;
+      app.quit();
+    });
+  }
+  rngShadowService?.dispose();
+  clipboardHistoryService?.dispose();
   autoClickerService?.dispose();
   colorPickerService?.dispose();
   if (rngShutdownSaved) return;
@@ -1244,5 +1825,12 @@ app.on('before-quit', () => {
   globalShortcut.unregisterAll();
   if (trayIcon) { trayIcon.destroy(); trayIcon = null; }
   persistRngGame();
+});
+app.on('will-quit', () => {
+  for (const file of videoProjectPreviewCache.values()) {
+    try { if (file.startsWith(app.getPath('temp')) && fs.existsSync(file)) fs.unlinkSync(file); } catch { /* Um player ainda pode manter o proxy aberto no Windows. */ }
+  }
+  videoProjectPreviewCache.clear();
+  videoProjectFilmstripCache.clear();
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
