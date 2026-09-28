@@ -145,7 +145,8 @@
     });
   }
   function renderTimeline() {
-    const width = timeWidth();
+    const scroll = $('ntcvTimelineScroll');
+    const width = Math.max(timeWidth(), scroll.clientWidth - 124);
     $('ntcvTimelineContent').style.width = `${width + 124}px`;
     const steps = timelineModel.rulerStepSeconds(pxPerSecond, duration());
     const markers = [];
@@ -209,7 +210,7 @@
     const found = selectedClip();
     if (!found) {
       const s = project.settings;
-      const projectFields = `<label class="ntcv-field-row"><span>Nome</span><span class="ntcv-field-control"><input data-project-field="name" maxlength="100" value="${escape(project.name)}"></span></label><label class="ntcv-field-row"><span>Resolução</span><span class="ntcv-field-control"><select data-project-field="resolution"><option value="1080" ${s.resolution === '1080' ? 'selected' : ''}>1080p</option><option value="720" ${s.resolution === '720' ? 'selected' : ''}>720p</option></select></span></label><label class="ntcv-field-row"><span>Proporção</span><span class="ntcv-field-control"><select data-project-field="aspectRatio">${Object.keys(model.ASPECTS).map(value => `<option ${s.aspectRatio === value ? 'selected' : ''}>${value}</option>`).join('')}</select></span></label><label class="ntcv-field-row"><span>FPS</span><span class="ntcv-field-control"><select data-project-field="fps">${model.FPS.map(value => `<option ${s.fps === value ? 'selected' : ''}>${value}</option>`).join('')}</select></span></label><label class="ntcv-field-row"><span>Fundo</span><span class="ntcv-field-control"><input data-project-field="background" type="color" value="${escape(s.background)}"></span></label>`;
+      const projectFields = `<label class="ntcv-field-row"><span>Nome</span><span class="ntcv-field-control"><input data-project-field="name" maxlength="100" value="${escape(project.name)}"></span></label><label class="ntcv-field-row"><span>Resolução</span><span class="ntcv-field-control"><select data-project-field="resolution"><option value="2160" ${s.resolution === '2160' ? 'selected' : ''}>2160p · 4K</option><option value="1080" ${s.resolution === '1080' ? 'selected' : ''}>1080p</option><option value="720" ${s.resolution === '720' ? 'selected' : ''}>720p</option></select></span></label><label class="ntcv-field-row"><span>Proporção</span><span class="ntcv-field-control"><select data-project-field="aspectRatio">${Object.keys(model.ASPECTS).map(value => `<option ${s.aspectRatio === value ? 'selected' : ''}>${value}</option>`).join('')}</select></span></label><label class="ntcv-field-row"><span>FPS</span><span class="ntcv-field-control"><select data-project-field="fps">${model.FPS.map(value => `<option ${value === s.fps ? 'selected' : ''}>${value}</option>`).join('')}</select></span></label><label class="ntcv-field-row"><span>Fundo</span><span class="ntcv-field-control"><input data-project-field="background" type="color" value="${escape(s.background)}"></span></label>`;
       $('ntcvInspector').innerHTML = `<div class="ntcv-inspector-fields"><div class="ntcv-inspector-header"><strong>${escape(project.name)}</strong><small>${project.assets.length} mídia(s) · ${labelTime(duration())}</small></div>${section('PROJETO', projectFields)}</div>`;
       return;
     }
@@ -227,7 +228,10 @@
     const at = position();
     $('ntcvClock').textContent = `${labelTime(at)} / ${labelTime(duration())}`;
     $('ntcvSeek').value = duration() ? String(Math.round(at / duration() * 1000)) : '0';
-    $('ntcvPlay').textContent = playback.playing ? 'Ⅱ' : '▶';
+    $('ntcvPlay').innerHTML = playback.playing
+      ? '<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 4h4v12H5zM11 4h4v12h-4z"/></svg>'
+      : '<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5 3.5 16 10 5 16.5z"/></svg>';
+    $('ntcvPlay').setAttribute('aria-label', playback.playing ? 'Pausar reprodução' : 'Reproduzir prévia');
     updatePlayhead();
   }
   function refresh() {

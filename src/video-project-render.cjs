@@ -12,7 +12,7 @@ function buildRenderPlan(input, output, options = {}) {
   const settings = { ...project.settings, resolution: String(options.resolution || project.settings.resolution), fps: Number(options.fps || project.settings.fps) };
   const { width, height } = projectModel.canvasDimensions(settings);
   const fps = settings.fps;
-  if (!projectModel.FPS.includes(fps) || !['720', '1080'].includes(settings.resolution)) throw new Error('Configurações de exportação inválidas.');
+  if (!projectModel.FPS.includes(fps) || !['720', '1080', '2160'].includes(settings.resolution)) throw new Error('Configurações de exportação inválidas.');
   const args = ['-hide_banner', '-y', '-f', 'lavfi', '-i', `color=c=${settings.background}:s=${width}x${height}:r=${fps}:d=${seconds(durationMs)}`];
   const filters = [`[0:v]format=yuv420p,setsar=1[base0]`];
   const videoClips = [];
@@ -76,11 +76,12 @@ function buildRenderPlan(input, output, options = {}) {
     audioLabels.push(`[aud${ordinal}]`);
   });
   if (audioLabels.length) filters.push(`${audioLabels.join('')}amix=inputs=${audioLabels.length}:duration=longest:dropout_transition=0:normalize=0,atrim=duration=${seconds(durationMs)}[aout]`);
-  const crf = { low: '30', medium: '23', high: '18' }[options.quality || 'medium'];
+  const quality = options.quality || 'medium';
+  const crf = { low: '30', medium: '23', high: '18', maximum: '12' }[quality];
   if (!crf) throw new Error('Qualidade de exportação inválida.');
   args.push('-filter_complex', filters.join(';'), '-map', `[${base}]`);
-  if (audioLabels.length) args.push('-map', '[aout]', '-c:a', 'aac', '-b:a', '192k'); else args.push('-an');
-  args.push('-c:v', 'libx264', '-preset', 'medium', '-crf', crf, '-r', String(fps), '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-t', seconds(durationMs), '-progress', 'pipe:1', '-nostats', output);
+  if (audioLabels.length) args.push('-map', '[aout]', '-c:a', 'aac', '-b:a', quality === 'maximum' ? '320k' : '192k'); else args.push('-an');
+  args.push('-c:v', 'libx264', '-preset', quality === 'maximum' ? 'slow' : 'medium', '-crf', crf, '-r', String(fps), '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-t', seconds(durationMs), '-progress', 'pipe:1', '-nostats', output);
   return { args, duration: durationMs / 1000, width, height, fps, project };
 }
 

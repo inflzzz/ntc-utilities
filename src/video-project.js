@@ -58,7 +58,7 @@
   function normalizeSettings(input) {
     const source = input || {};
     const resolution = String(source.resolution ?? '1080');
-    if (!['720', '1080'].includes(resolution)) fail('resolução não suportada.');
+    if (!['720', '1080', '2160'].includes(resolution)) fail('resolução não suportada.');
     const aspectRatio = String(source.aspectRatio ?? '16:9');
     if (!ASPECTS[aspectRatio]) fail('proporção não suportada.');
     const fps = bounded(source.fps ?? 30, 1, 120, 'FPS', true);

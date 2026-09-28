@@ -30,18 +30,18 @@ function videoFixture() {
   return project;
 }
 
-test('media project schema v1 normalizes safe fields and round-trips', () => {
+test('audio project schema v2 normalizes safe fields and round-trips', () => {
   const project = audioFixture();
   const normalized = mediaProject.normalizeProject(project);
-  assert.equal(normalized.schemaVersion, 1);
+  assert.equal(normalized.schemaVersion, 2);
   assert.equal(normalized.kind, 'audio');
   assert.equal(mediaProject.durationMs(normalized), 12000);
   assert.deepEqual(mediaProject.normalizeProject(JSON.parse(JSON.stringify(normalized))), normalized);
 });
 
 test('media project validation rejects unsupported versions, missing assets and clips outside source duration', () => {
-  const wrongVersion = audioFixture(); wrongVersion.schemaVersion = 2;
-  assert.throws(() => mediaProject.normalizeProject(wrongVersion), /versão 2 não suportada/);
+  const wrongVersion = audioFixture(); wrongVersion.schemaVersion = 3;
+  assert.throws(() => mediaProject.normalizeProject(wrongVersion), /versão 3 não suportada/);
   const missingAsset = audioFixture(); missingAsset.tracks[0].clips[0].assetId = 'missing';
   assert.throws(() => mediaProject.normalizeProject(missingAsset), /não existe/);
   const tooLong = audioFixture(); tooLong.tracks[0].clips[0].durationMs = 13000;
@@ -61,7 +61,7 @@ test('audio project mixdown overlaps stems and honors per-clip and per-track gai
   assert.match(mediaProject.audioFilterGraph(project, new Map([['stem-vocal', 0], ['stem-drum', 1]]), 12).filters[1], /volume=0\.0000/);
 });
 
-test('audio render plan uses explicit FFmpeg argv and supports WAV and MP3 mixdowns', () => {
+test('audio render plan uses explicit FFmpeg argv and supports all classic output formats', () => {
   const project = audioFixture();
   const wav = mediaProject.audioRenderPlan(project, 'C:\\Output\\My Mix.wav', 'wav');
   assert.equal(wav.duration, 12);
@@ -72,7 +72,8 @@ test('audio render plan uses explicit FFmpeg argv and supports WAV and MP3 mixdo
   assert.ok(wav.args.includes('pipe:1'));
   const mp3 = mediaProject.audioRenderPlan(project, 'mix.mp3', 'mp3');
   assert.ok(mp3.args.includes('libmp3lame'));
-  assert.throws(() => mediaProject.audioRenderPlan(project, 'mix.ogg', 'ogg'), /formato de mixdown/);
+  assert.ok(mediaProject.audioRenderPlan(project, 'mix.ogg', 'ogg').args.includes('libvorbis'));
+  assert.throws(() => mediaProject.audioRenderPlan(project, 'mix.xyz', 'xyz'), /formato de mixdown/);
 });
 
 test('video project builds a synchronized 720p image-and-audio MP4 timeline', () => {
@@ -119,14 +120,15 @@ test('video project workspace is the only video editor and keeps dedicated prelo
   const preload = fs.readFileSync(path.join(root, 'preload.cjs'), 'utf8');
   const allIds = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
   assert.equal(new Set(allIds).size, allIds.length, 'the updated page keeps every DOM id unique');
-  for (const id of ['audioProjectTimeline', 'audioProjectExport', 'audioLegacyMode', 'videoEditorView', 'videoProjectPanel', 'ntcvTimelineContent', 'ntcvCanvas', 'ntcvInspector']) assert.match(html, new RegExp(`id="${id}"`));
+  for (const id of ['audioProjectTimeline', 'audioProjectExport', 'videoEditorView', 'videoProjectPanel', 'ntcvTimelineContent', 'ntcvCanvas', 'ntcvInspector']) assert.match(html, new RegExp(`id="${id}"`));
+  assert.doesNotMatch(html, /id="audioLegacyMode"/);
   for (const id of ['videoProjectVisualTimeline', 'videoProjectAudioTimeline', 'videoProjectExport', 'videoLegacyMode', 'videoProjectMode', 'videoEditorImport', 'videoEditorWorkspace']) assert.doesNotMatch(html, new RegExp(`id="${id}"`));
   assert.match(html, /data-view="videoEditor"/);
   assert.match(html, /id="videoView"[\s\S]*?Conversor de vídeo[\s\S]*?id="videoEditorView"/, 'the separate video converter and project editor remain distinct routes');
   assert.doesNotMatch(html, /Editor clássico de vídeo|Editor clássico continua disponível|id="videoProjectMode"|id="videoLegacyMode"/);
   assert.match(preload, /startMediaProjectRender: payload => ipcRenderer\.invoke\('start-media-project-render', payload\)/);
   assert.match(preload, /cancelMediaProjectRender: id => ipcRenderer\.invoke\('cancel-media-project-render', id\)/);
-  assert.match(main, /ipcMain\.handle\('start-conversion'/);
+  assert.match(main, /ipcMain\.handle\('start-media-project-render'/);
   assert.match(main, /ipcMain\.handle\('start-media-project-render'/);
   assert.match(main, /ipcMain\.handle\('start-media-project-render', async \(event, item\) => \{\s*assertMainWindowSender\(event\);/);
   assert.doesNotMatch(preload, /chooseVideoEditorFile|chooseVideoEditorAudio|startVideoEdit|cancelVideoEdit|onVideoEditorEvent/);
@@ -140,6 +142,7 @@ test('video project workspace is the only video editor and keeps dedicated prelo
 test('new video workspace keeps editor hierarchy, export states and audio tool separate', () => {
   const root = path.resolve(__dirname, '..');
   const html = fs.readFileSync(path.join(root, 'src/index.html'), 'utf8');
+  const audioUi = fs.readFileSync(path.join(root, 'src/media-project-ui.js'), 'utf8');
   const ui = fs.readFileSync(path.join(root, 'src/video-project-ui.js'), 'utf8');
   const styles = fs.readFileSync(path.join(root, 'src/video-project.css'), 'utf8');
   for (const id of ['ntcvMediaPanel', 'ntcvCanvas', 'ntcvPreviewEmpty', 'ntcvTransformOverlay', 'ntcvInspector', 'ntcvTimelineDrop', 'ntcvZoom', 'ntcvExportDialog', 'ntcvOpenOutputFolder']) {
@@ -149,6 +152,8 @@ test('new video workspace keeps editor hierarchy, export states and audio tool s
   assert.match(html, /id="audioProjectOpenFolder"/);
   assert.match(html, /id="audioProjectRetry"/);
   assert.match(html, /id="audioProjectZoom"/);
+  assert.match(audioUi, /const drawWidth = kind === 'audio' \? Math\.min\(rect\.width, 2000\) : rect\.width/);
+  assert.match(audioUi, /Math\.min\(8000, Math\.max\(600/);
   assert.match(html, /class="ntcv-media-panel"[\s\S]*class="ntcv-view-panel"[\s\S]*class="ntcv-inspector"[\s\S]*class="ntcv-timeline-panel"/);
   assert.doesNotMatch(html, /seletor de editor|modo de edição|Editor clássico de vídeo/);
   assert.match(ui, /ntcvCancelRender'\)\.hidden = false/);
@@ -162,6 +167,15 @@ test('new video workspace keeps editor hierarchy, export states and audio tool s
   assert.match(styles, /\.app-shell\.video-editor-shell\.sidebar-compact \{ grid-template-columns: minmax\(0, 1fr\); \}/);
   assert.match(styles, /\.ntcv-timeline-panel \{ height: 38%; min-height: 220px; max-height: 72%; \}/);
   assert.match(styles, /\.ntcv-timeline-toolbar input \{ width: clamp\(70px, 8vw, 120px\); \}/);
+});
+
+test('audio mixdown never depends on removed video-project controls and renders every saved clip', () => {
+  const ui = fs.readFileSync(path.resolve(__dirname, '../src/media-project-ui.js'), 'utf8');
+  assert.match(ui, /resolution: byId\('videoProjectResolution'\)\.value \} : \{ range: options\.range, trackId: options\.trackId \}/);
+  assert.doesNotMatch(ui, /resolution: byId\('videoProjectResolution'\)\.value \}\);/);
+  assert.match(ui, /const clips = track\.clips\.map\(item => \{/);
+  assert.match(ui, /const key = project\.kind === 'audio' \? clip\.id : clip\.assetId;/);
+  assert.match(ui, /renderProject\(kind\);\s*try \{\s*const result = await window\.ntc\.startMediaProjectRender/);
 });
 
 test('bundled FFmpeg renders a real WAV mixdown and synchronized image-plus-music MP4', { skip: !fs.existsSync(path.resolve(__dirname, '../resources/bin/ffmpeg.exe')) }, t => {
@@ -211,6 +225,11 @@ test('bundled FFmpeg renders a real WAV mixdown and synchronized image-plus-musi
   const sixProbe = JSON.parse(run(ffprobe, ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', sixOutput]));
   assert.equal(sixProbe.streams.filter(stream => stream.codec_type === 'audio').length, 1, 'seis stems geram um único stream mixado');
   assert.ok(Number(sixProbe.format.duration) > .9 && Number(sixProbe.format.duration) < 1.1);
+  const sixMp3 = path.join(directory, 'six-stems.mp3');
+  run(ffmpeg, mediaProject.audioRenderPlan(sixStems, sixMp3, 'mp3').args);
+  const sixMp3Probe = JSON.parse(run(ffprobe, ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', sixMp3]));
+  assert.equal(sixMp3Probe.streams.filter(stream => stream.codec_type === 'audio').length, 1, 'MP3 também contém um único mix de seis stems');
+  assert.equal(sixMp3Probe.streams.find(stream => stream.codec_type === 'audio').codec_name, 'mp3');
 
   const video = videoFixture();
   video.assets[0].path = still; video.assets[0].durationMs = 0;

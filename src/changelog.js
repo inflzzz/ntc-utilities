@@ -1,5 +1,31 @@
 window.NTC_CHANGELOG = [
   {
+    version: '1.1.0',
+    date: '28 set. 2026',
+    changes: [
+      'Editor de vídeo: exportação UHD 4K (2160p) e opção Máxima, com H.264 CRF 12, codificação mais lenta e AAC 320 kb/s; arquivos podem ficar maiores e levar mais tempo.',
+      'A resolução 4K amplia a saída, mas não recupera detalhes ausentes nos arquivos de origem.',
+      'Controles de reprodução centralizados; a timeline vazia ocupa a área visível sem alterar a edição ou o relógio de reprodução.',
+      'Histórico completo da série 1.0 mantido abaixo, incluindo o Editor de Áudio multifaixa, manutenção temporária do jogo, melhorias na Área de transferência e correções do Auto-clicker.'
+    ]
+  },
+  {
+    version: '1.0.1',
+    date: '28 set. 2026',
+    changes: [
+      'O Editor de Áudio agora é único: o multifaixa substitui o clássico e oferece dez formatos, efeitos por clipe, trechos marcados, presets, metadados, capas e exportações separadas.',
+      'Projetos antigos abrem no novo schema sem sobrescrita automática; o histórico e os downloads abrem diretamente no editor definitivo.',
+      'Validados mixdowns reais de seis instrumentos, formatos de saída, metadados e capas com o FFmpeg incluído.',
+      'Projetos de áudio longos mantêm a waveform leve e estável ao usar zoom na timeline.',
+      'Corrigida a exportação multifaixa: um controle antigo de vídeo não interfere mais no áudio. Mixdowns WAV e MP3 com seis faixas foram validados.',
+      'O editor de áudio exibe todos os clipes da faixa, mostra nomes longos por tooltip e permite usar o mesmo arquivo em mais de um clipe.',
+      'Miniaturas da Área de transferência carregam ao entrar na região visível e preservam a proporção da imagem.',
+      'Refinados os estados de ações dos conversores, o tempo de leitura dos avisos, a navegação e as larguras das páginas em janelas grandes.',
+      'Auto-clicker instalado encontra os scripts PowerShell fora do app.asar; ambos os arquivos auxiliares são extraídos no pacote.',
+      'O X mantém o aplicativo na bandeja; o menu do ícone oferece Sair do NTC Utilities.'
+    ]
+  },
+  {
     version: '1.0.0',
     date: '28 set. 2026',
     changes: [

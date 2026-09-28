@@ -64,7 +64,6 @@ contextBridge.exposeInMainWorld('ntc', {
   leaveVideoEditorWindowMode: () => ipcRenderer.invoke('window-leave-video-editor'),
   onWindowMaximized: callback => { const listener = (_event, maximized) => callback(maximized); ipcRenderer.on('window-maximized', listener); return () => ipcRenderer.removeListener('window-maximized', listener); },
   chooseDownloadFolder: () => ipcRenderer.invoke('choose-download-folder'),
-  chooseMediaFiles: () => ipcRenderer.invoke('choose-media-files'),
   getMusicFolders: () => ipcRenderer.invoke('music-library-get-folders'),
   addMusicFolders: () => ipcRenderer.invoke('music-library-add-folders'),
   chooseMusicFiles: () => ipcRenderer.invoke('music-library-choose-files'),
@@ -159,8 +158,6 @@ contextBridge.exposeInMainWorld('ntc', {
   playlistPreview: (url) => ipcRenderer.invoke('playlist-preview', url),
   startDownload: (payload) => ipcRenderer.invoke('start-download', payload),
   cancelDownload: (downloadId) => ipcRenderer.invoke('cancel-download', downloadId),
-  startConversion: (payload) => ipcRenderer.invoke('start-conversion', payload),
-  cancelConversion: (conversionId) => ipcRenderer.invoke('cancel-conversion', conversionId),
   startVideoConversion: (payload) => ipcRenderer.invoke('start-video-conversion', payload),
   cancelVideoConversion: (id) => ipcRenderer.invoke('cancel-video-conversion', id),
   startImageConversion: (payload) => ipcRenderer.invoke('start-image-conversion', payload),
@@ -195,11 +192,6 @@ contextBridge.exposeInMainWorld('ntc', {
     const listener = (_event, payload) => callback(payload);
     ipcRenderer.on('download-event', listener);
     return () => ipcRenderer.removeListener('download-event', listener);
-  },
-  onConversionEvent: (callback) => {
-    const listener = (_event, payload) => callback(payload);
-    ipcRenderer.on('conversion-event', listener);
-    return () => ipcRenderer.removeListener('conversion-event', listener);
   },
   onVideoEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('video-event', listener); return () => ipcRenderer.removeListener('video-event', listener); },
   onImageEvent: (callback) => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('image-event', listener); return () => ipcRenderer.removeListener('image-event', listener); },

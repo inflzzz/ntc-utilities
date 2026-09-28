@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.1.0 — NTC Utilities · 28 set. 2026
+
+- **Editor de vídeo:** exportação em UHD 4K (2160p) e opção **Máxima**, com H.264 CRF 12, preset de codificação lento e AAC 320 kb/s. A saída pode ser maior e demorar mais; aumentar a resolução não recupera detalhes ausentes na mídia original.
+- Centralizados os controles de reprodução e preenchida a largura visível da timeline vazia, sem alterar a mecânica de edição ou reprodução.
+- Mantidos no mesmo histórico os recursos e correções da série 1.0, incluindo o Editor de Áudio multifaixa, manutenção temporária do NTC RNG, melhorias na Área de transferência e correções do Auto-clicker.
+
+## 1.0.1 — NTC Utilities · 28 set. 2026
+
+- O Editor de Áudio agora é único: o multifaixa substitui o clássico, com dez formatos de saída, qualidade contextual, efeitos por clipe, marcadores/trechos, presets existentes, metadados, capas e exportação de faixas separadas.
+- Projetos de áudio antigos abrem com migração em memória para o schema v2, sem sobrescrever automaticamente o arquivo; o histórico e a sugestão após download abrem direto no editor definitivo.
+- Validados mixdowns reais com seis instrumentos, formatos WAV/MP3 e os demais contêineres, metadados e capas usando o FFmpeg incluído.
+- A waveform de projetos de áudio longos agora usa uma superfície de desenho limitada, evitando canvas excessivamente grande sem alterar o áudio exportado.
+- Corrigida a exportação multifaixa: o fluxo de áudio não tenta mais ler um controle antigo de resolução de vídeo. Validada a saída WAV e MP3 com seis faixas em um único mix.
+- Projetos de áudio mostram todos os clipes da faixa, preservam nomes longos com tooltip e mantêm reproduções independentes quando o mesmo arquivo é usado mais de uma vez.
+- Miniaturas da Área de transferência agora aparecem imediatamente ao entrar na região visível, sem distorcer imagens verticais ou horizontais.
+- Refinados estados desabilitados e ações de conclusão dos conversores, tempo de leitura dos avisos, alinhamento da navegação e largura das páginas em janelas grandes.
+- O Auto-clicker instalado localiza corretamente o host PowerShell fora do `app.asar`; os arquivos `.ps1` e `.cs` são incluídos no caminho executável do pacote.
+- O botão X mantém o aplicativo na bandeja; o menu da bandeja oferece a opção **Sair do NTC Utilities**.
+
 ## 1.0.0 — NTC Utilities · 28 set. 2026
 
 - **NTC RNG em manutenção:** o jogo continua na navegação, mas abre apenas a tela de manutenção. O código e o progresso existente foram preservados.

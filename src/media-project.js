@@ -6,6 +6,10 @@
   'use strict';
 
   const VERSION = 1;
+  const AUDIO_VERSION = 2;
+  const audioFeatures = typeof module === 'object' && module.exports
+    ? require('./audio-editor-features.js')
+    : globalThis.NTCAudioEditorFeatures;
   const MAX_ASSETS = 64;
   const MAX_TRACKS = 32;
   const MAX_CLIPS = 256;
@@ -24,13 +28,13 @@
 
   function createProject(kind, name = 'Novo projeto') {
     if (!['audio', 'video'].includes(kind)) invalid('tipo não reconhecido.');
-    return { schemaVersion: VERSION, id: `project-${Date.now()}-${Math.random().toString(16).slice(2)}`, kind, name: String(name).slice(0, 100), fps: 30, resolution: '1080', assets: [], tracks: [] };
+    return { schemaVersion: kind === 'audio' ? AUDIO_VERSION : VERSION, id: `project-${Date.now()}-${Math.random().toString(16).slice(2)}`, kind, name: String(name).slice(0, 100), fps: 30, resolution: '1080', assets: [], tracks: [], ...(kind === 'audio' ? { output: audioFeatures.normalizeOutput(), markers: [] } : {}) };
   }
 
   function normalizeProject(input) {
     if (!input || typeof input !== 'object' || Array.isArray(input)) invalid('documento ausente.');
-    if (input.schemaVersion !== VERSION) invalid(`versão ${input.schemaVersion ?? 'ausente'} não suportada.`);
     if (!['audio', 'video'].includes(input.kind)) invalid('tipo não reconhecido.');
+    if (input.kind === 'video' ? input.schemaVersion !== VERSION : ![VERSION, AUDIO_VERSION].includes(input.schemaVersion)) invalid(`versão ${input.schemaVersion ?? 'ausente'} não suportada.`);
     if (!Array.isArray(input.assets) || input.assets.length > MAX_ASSETS) invalid(`máximo de ${MAX_ASSETS} mídias excedido.`);
     if (!Array.isArray(input.tracks) || input.tracks.length > MAX_TRACKS) invalid(`máximo de ${MAX_TRACKS} faixas excedido.`);
 
@@ -41,7 +45,7 @@
       if (input.kind === 'audio' && kind !== 'audio') invalid('o projeto de áudio só aceita áudio.');
       if (input.kind === 'video' && !['audio', 'image', 'video'].includes(kind)) invalid('mídia incompatível com vídeo.');
       if (typeof asset.path !== 'string' || !asset.path.trim() || asset.path.length > 32768) invalid('caminho de mídia inválido.');
-      return { id: projectId(asset.id, 'id da mídia'), path: asset.path, name: String(asset.name || '').slice(0, 260), kind, durationMs: positiveInt(asset.durationMs, 'duração da mídia', true), width: Math.max(0, Number(asset.width) || 0), height: Math.max(0, Number(asset.height) || 0) };
+      return { id: projectId(asset.id, 'id da mídia'), path: asset.path, name: String(asset.name || '').slice(0, 260), kind, durationMs: positiveInt(asset.durationMs, 'duração da mídia', true), width: Math.max(0, Number(asset.width) || 0), height: Math.max(0, Number(asset.height) || 0), ...(input.kind === 'audio' ? { coverStreamIndex: Number.isSafeInteger(asset.coverStreamIndex) && asset.coverStreamIndex >= 0 ? asset.coverStreamIndex : null } : {}) };
     });
     const assetIds = new Set(assets.map(asset => asset.id));
     if (assetIds.size !== assets.length) invalid('ids de mídia duplicados.');
@@ -61,25 +65,39 @@
         const durationMs = positiveInt(clip.durationMs, 'duração do clipe');
         if (positionMs + durationMs > MAX_PROJECT_MS || sourceStartMs + durationMs > MAX_PROJECT_MS) invalid('clipe excede o limite de 24 horas.');
         if (asset.durationMs && sourceStartMs + durationMs > asset.durationMs + 100) invalid('clipe excede a duração da mídia de origem.');
-        return { id: projectId(clip.id, 'id do clipe'), assetId, positionMs, sourceStartMs, durationMs, volume: Math.max(0, Math.min(300, Number.isFinite(Number(clip.volume)) ? Number(clip.volume) : 100)), muted: Boolean(clip.muted) };
+        return { id: projectId(clip.id, 'id do clipe'), assetId, positionMs, sourceStartMs, durationMs, volume: Math.max(0, Math.min(300, Number.isFinite(Number(clip.volume)) ? Number(clip.volume) : 100)), muted: Boolean(clip.muted), ...(input.kind === 'audio' ? { effects: audioFeatures.normalizeEffects(clip.effects) } : {}) };
       });
       if (new Set(clips.map(clip => clip.id)).size !== clips.length) invalid('ids de clipe duplicados na faixa.');
       return { id: projectId(track.id, 'id da faixa'), kind: track.kind, name: String(track.name || '').slice(0, 100), muted: Boolean(track.muted), volume: Math.max(0, Math.min(300, Number.isFinite(Number(track.volume)) ? Number(track.volume) : 100)), clips };
     });
     if (clipCount > MAX_CLIPS) invalid(`máximo de ${MAX_CLIPS} clipes excedido.`);
     if (new Set(tracks.map(track => track.id)).size !== tracks.length) invalid('ids de faixa duplicados.');
-    return { schemaVersion: VERSION, id: projectId(input.id, 'id do projeto'), kind: input.kind, name: String(input.name || 'Projeto sem nome').slice(0, 100), fps: [24, 25, 30, 50, 60].includes(Number(input.fps)) ? Number(input.fps) : 30, resolution: ['720', '1080'].includes(String(input.resolution)) ? String(input.resolution) : '1080', assets, tracks };
+    const base = { schemaVersion: input.kind === 'audio' ? AUDIO_VERSION : VERSION, id: projectId(input.id, 'id do projeto'), kind: input.kind, name: String(input.name || 'Projeto sem nome').slice(0, 100), fps: [24, 25, 30, 50, 60].includes(Number(input.fps)) ? Number(input.fps) : 30, resolution: ['720', '1080'].includes(String(input.resolution)) ? String(input.resolution) : '1080', assets, tracks };
+    if (input.kind !== 'audio') return base;
+    const allClipIds = tracks.flatMap(track => track.clips.map(clip => clip.id));
+    if (new Set(allClipIds).size !== allClipIds.length) invalid('ids de clipe duplicados no projeto.');
+    if (input.markers !== undefined && (!Array.isArray(input.markers) || input.markers.length > 128)) invalid('marcadores inválidos.');
+    const markers = (input.markers || []).map(marker => {
+      if (!marker || typeof marker !== 'object') invalid('marcador inválido.');
+      const startMs = positiveInt(marker?.startMs, 'início do marcador', true);
+      const endMs = positiveInt(marker?.endMs, 'fim do marcador');
+      if (endMs <= startMs) invalid('marcador sem duração.');
+      return { id: projectId(marker.id, 'id do marcador'), name: String(marker.name || 'Trecho').slice(0, 80), startMs, endMs };
+    });
+    if (new Set(markers.map(marker => marker.id)).size !== markers.length) invalid('ids de marcador duplicados.');
+    return { ...base, output: audioFeatures.normalizeOutput(input.output), markers };
   }
 
   function durationMs(project) {
     return normalizeProject(project).tracks.reduce((total, track) => Math.max(total, ...track.clips.map(clip => clip.positionMs + clip.durationMs)), 0);
   }
 
-  function audioFilterGraph(projectInput, audioInputIndexes, duration) {
+  function audioFilterGraph(projectInput, audioInputIndexes, duration, options = {}) {
     const project = normalizeProject(projectInput);
     const durationSeconds = Number(duration);
     if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) invalid('duração de exportação inválida.');
-    const clips = project.tracks.filter(track => track.kind === 'audio').flatMap(track => track.clips.map(clip => ({ ...clip, track })));
+    if (options.trackId && !project.tracks.some(track => track.id === options.trackId && track.kind === 'audio')) invalid('faixa de exportação ausente.');
+    const clips = project.tracks.filter(track => track.kind === 'audio' && (!options.trackId || track.id === options.trackId)).flatMap(track => track.clips.map(clip => ({ ...clip, track })));
     const filters = [];
     const labels = [];
     clips.forEach((clip, index) => {
@@ -87,29 +105,47 @@
       if (!Number.isInteger(inputIndex) || inputIndex < 0) invalid(`entrada de áudio ausente para ${clip.assetId}.`);
       const gain = clip.muted || clip.track.muted ? 0 : clip.volume * clip.track.volume / 10000;
       const label = `audio_clip_${index}`;
-      filters.push(`[${inputIndex}:a:0]atrim=start=${(clip.sourceStartMs / 1000).toFixed(3)}:duration=${(clip.durationMs / 1000).toFixed(3)},asetpts=PTS-STARTPTS,volume=${gain.toFixed(4)},adelay=${clip.positionMs}:all=1[${label}]`);
+      const effects = project.kind === 'audio' ? audioFeatures.effectFilters(clip.effects) : [];
+      filters.push(`[${inputIndex}:a:0]atrim=start=${(clip.sourceStartMs / 1000).toFixed(3)}:duration=${(clip.durationMs / 1000).toFixed(3)},asetpts=PTS-STARTPTS,${effects.length ? `${effects.join(',')},` : ''}volume=${gain.toFixed(4)},adelay=${clip.positionMs}:all=1[${label}]`);
       labels.push(`[${label}]`);
     });
     if (!labels.length) return { filters, labels, output: null, hasAudio: false };
-    filters.push(`${labels.join('')}amix=inputs=${labels.length}:duration=longest:dropout_transition=0:normalize=0,atrim=duration=${durationSeconds.toFixed(3)},asetpts=PTS-STARTPTS[aout]`);
+    const range = options.range;
+    const rangeFilter = range ? `,atrim=start=${(range.startMs / 1000).toFixed(3)}:end=${(range.endMs / 1000).toFixed(3)},asetpts=PTS-STARTPTS` : '';
+    filters.push(`${labels.join('')}amix=inputs=${labels.length}:duration=longest:dropout_transition=0:normalize=0,atrim=duration=${durationSeconds.toFixed(3)},asetpts=PTS-STARTPTS${rangeFilter}[aout]`);
     return { filters, labels, output: '[aout]', hasAudio: true };
   }
 
-  function audioRenderPlan(projectInput, output, format = 'wav') {
+  function audioRenderPlan(projectInput, output, format = 'wav', options = {}) {
     const project = normalizeProject(projectInput);
     if (project.kind !== 'audio') invalid('esperado um projeto de áudio.');
-    if (!['wav', 'mp3'].includes(format)) invalid('formato de mixdown não suportado.');
+    if (!Object.hasOwn(audioFeatures.FORMATS, format)) invalid('formato de mixdown não suportado.');
     const duration = durationMs(project) / 1000;
     if (!duration) invalid('adicione ao menos um clipe de áudio.');
-    const assetIds = [...new Set(project.tracks.filter(track => track.kind === 'audio').flatMap(track => track.clips.map(clip => clip.assetId)))];
+    const selectedTracks = project.tracks.filter(track => track.kind === 'audio' && (!options.trackId || track.id === options.trackId));
+    if (options.trackId && !selectedTracks.length) invalid('faixa de exportação ausente.');
+    const assetIds = [...new Set(selectedTracks.flatMap(track => track.clips.map(clip => clip.assetId)))];
     if (!assetIds.length) invalid('adicione ao menos um clipe de áudio.');
+    const range = options.range;
+    if (range && (!Number.isSafeInteger(range.startMs) || !Number.isSafeInteger(range.endMs) || range.startMs < 0 || range.endMs <= range.startMs || range.endMs > duration * 1000)) invalid('trecho de exportação inválido.');
     const args = ['-hide_banner', '-y'];
     const indexes = new Map();
     assetIds.forEach((id, index) => { indexes.set(id, index); args.push('-i', project.assets.find(asset => asset.id === id).path); });
-    const graph = audioFilterGraph(project, indexes, duration);
+    const graph = audioFilterGraph(project, indexes, duration, { range, trackId: options.trackId });
     args.push('-filter_complex', graph.filters.join(';'), '-map', graph.output);
-    args.push(...(format === 'wav' ? ['-c:a', 'pcm_s16le'] : ['-c:a', 'libmp3lame', '-b:a', '192k']), '-t', duration.toFixed(3), '-progress', 'pipe:1', '-nostats', output);
-    return { args, duration, output, kind: 'audio', format };
+    const outputSettings = project.output || audioFeatures.normalizeOutput();
+    args.push(...audioFeatures.codecArgs(format, outputSettings.quality));
+    for (const field of audioFeatures.METADATA_FIELDS) if (outputSettings.metadata[field]) args.push('-metadata', `${field === 'year' ? 'date' : field}=${outputSettings.metadata[field]}`);
+    const cover = options.cover;
+    if (cover && audioFeatures.FORMATS[format].cover) {
+      if (cover.kind === 'file') args.splice(args.indexOf('-filter_complex'), 0, '-i', cover.path);
+      const coverIndex = cover.kind === 'file' ? assetIds.length : indexes.get(cover.assetId);
+      if (!Number.isInteger(coverIndex) || !Number.isInteger(cover.streamIndex)) invalid('capa inválida.');
+      args.push('-map', cover.kind === 'file' ? `${coverIndex}:v:0` : `${coverIndex}:${cover.streamIndex}`, '-c:v', 'mjpeg', '-disposition:v:0', 'attached_pic');
+    }
+    const exportDuration = range ? (range.endMs - range.startMs) / 1000 : duration;
+    args.push('-t', exportDuration.toFixed(3), '-progress', 'pipe:1', '-nostats', output);
+    return { args, duration: exportDuration, output, kind: 'audio', format };
   }
 
   function videoRenderPlan(projectInput, output, resolution = '1080') {
@@ -166,5 +202,5 @@
     return { args, duration, output, kind: 'video', format: 'mp4' };
   }
 
-  return { VERSION, MAX_ASSETS, MAX_TRACKS, MAX_CLIPS, MAX_PROJECT_MS, createProject, normalizeProject, durationMs, audioFilterGraph, audioRenderPlan, videoRenderPlan };
+  return { VERSION, AUDIO_VERSION, MAX_ASSETS, MAX_TRACKS, MAX_CLIPS, MAX_PROJECT_MS, createProject, normalizeProject, durationMs, audioFilterGraph, audioRenderPlan, videoRenderPlan };
 });

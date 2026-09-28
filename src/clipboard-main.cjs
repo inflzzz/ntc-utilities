@@ -188,8 +188,10 @@ function initializeClipboardHistory({ app, ipcMain, getMainWindow, clipboard, na
     let imageDataUrl = '';
     if (item.image) {
       const image = nativeImage.createFromBuffer(item.image);
-      imageDataUrl = (image.getSize().width > 480 || image.getSize().height > 360)
-        ? image.resize({ width: 480, height: 360, quality: 'good' }).toDataURL()
+      const size = image.getSize();
+      const scale = Math.min(1, 480 / Math.max(1, size.width), 360 / Math.max(1, size.height));
+      imageDataUrl = scale < 1
+        ? image.resize({ width: Math.max(1, Math.floor(size.width * scale)), height: Math.max(1, Math.floor(size.height * scale)), quality: 'good' }).toDataURL()
         : image.toDataURL();
     }
     return { text: item.text.slice(0, 20_000), hasMoreText: item.text.length > 20_000, imageDataUrl };

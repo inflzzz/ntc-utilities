@@ -93,6 +93,7 @@
   function renderList() {
     const list = $('#clipboardHistoryList');
     thumbnailObserver?.disconnect();
+    thumbnailQueue.length = 0;
     if (!ui.items.length) {
       const isFiltered = Boolean(ui.query) || ui.filter !== 'all';
       list.innerHTML = `<div class="empty-state"><div class="empty-icon">▤</div><p>${isFiltered ? 'Nenhum item corresponde a essa busca ou filtro.' : 'Copie um texto ou uma imagem em qualquer aplicativo enquanto o NTC estiver aberto. O histórico aparecerá aqui.'}</p></div>`;
@@ -152,7 +153,8 @@
         const image = document.createElement('img');
         image.src = dataUrl;
         image.alt = '';
-        image.loading = 'lazy';
+        // IntersectionObserver already defers the request until the tile approaches
+        // the viewport. Native lazy loading can defer it again in hidden windows.
         target.replaceChildren(image);
         target.classList.add('is-loaded');
       }).catch(() => {

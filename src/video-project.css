@@ -197,7 +197,8 @@
 .ntcv-canvas:has(.ntcv-transform-overlay:not([hidden])) { cursor: move; }
 .ntcv-transport { justify-content: center; min-height: 45px; padding: 5px 10px; background: #171518; }
 .ntcv-transport button { width: 31px; padding: 0; }
-.ntcv-transport #ntcvPlay { width: 37px; height: 33px; border-color: #5c4d53; border-radius: 50%; background: #2b2529; color: #fff; font-size: 14px; }
+.ntcv-transport #ntcvPlay { display: grid; place-items: center; width: 37px; height: 37px; min-height: 37px; padding: 0; border-color: #5c4d53; border-radius: 50%; background: #2b2529; color: #fff; font-size: 0; line-height: 0; }
+.ntcv-transport #ntcvPlay svg { display: block; width: 16px; height: 16px; fill: currentColor; }
 .ntcv-transport #ntcvPlay:hover { background: #3b3036; }
 .ntcv-transport > input { max-width: 720px; }
 .ntcv-transport > span { min-width: 118px; font-size: 11px; }

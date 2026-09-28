@@ -5,6 +5,12 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { normalizeClickerSettings, DEFAULT_CLICKER_SETTINGS } = require('./autoclicker.cjs');
 
+function resolveAutoClickerHostScript({ packaged, resourcesPath, moduleDirectory = __dirname }) {
+  return packaged
+    ? path.join(resourcesPath, 'app.asar.unpacked', 'src', 'autoclicker-host.ps1')
+    : path.join(moduleDirectory, 'autoclicker-host.ps1');
+}
+
 function initializeAutoClicker({ app, ipcMain, BrowserWindow, screen }) {
   const settingsFile = path.join(app.getPath('userData'), 'ntc-autoclicker.json');
   let settings = { ...DEFAULT_CLICKER_SETTINGS };
@@ -166,7 +172,7 @@ function initializeAutoClicker({ app, ipcMain, BrowserWindow, screen }) {
     if (process.platform !== 'win32') return false;
     if (worker && !worker.killed) return true;
     stopping = false;
-    const script = path.join(__dirname, 'autoclicker-host.ps1');
+    const script = resolveAutoClickerHostScript({ packaged: app.isPackaged, resourcesPath: process.resourcesPath });
     worker = spawn('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], {
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe']
@@ -294,4 +300,4 @@ function initializeAutoClicker({ app, ipcMain, BrowserWindow, screen }) {
   };
 }
 
-module.exports = { initializeAutoClicker };
+module.exports = { initializeAutoClicker, resolveAutoClickerHostScript };

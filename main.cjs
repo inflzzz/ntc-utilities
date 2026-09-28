@@ -45,7 +45,6 @@ if (hasSingleInstanceLock) {
   });
 }
 const downloadJobs = new Map();
-const conversionJobs = new Map();
 const videoJobs = new Map();
 const imageJobs = new Map();
 const mediaProjectJobs = new Map();
@@ -773,28 +772,6 @@ function downloadErrorMessage(log) {
   return useful.replace(/^.*?(?:ERROR|WARNING):\s*/i, '') || 'Não foi possível concluir o download.';
 }
 function safeName(value) { return String(value || 'conversão').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').replace(/[. ]+$/, '').slice(0, 150) || 'conversão'; }
-function parseTime(value) {
-  if (value === undefined || value === null || value === '') return null;
-  if (/^\d+(?:\.\d+)?$/.test(String(value))) return Number(value);
-  const parts = String(value).trim().split(':').map(Number);
-  if (!parts.length || parts.length > 3 || parts.some(part => !Number.isFinite(part) || part < 0)) return NaN;
-  return parts.reduce((total, part) => total * 60 + part, 0);
-}
-function outputExtension(format) { return format === 'm4a' ? 'm4a' : format; }
-function codecArgs(format, quality) {
-  const bitrate = ['128', '192', '256', '320'].includes(String(quality)) ? `${quality}k` : '192k';
-  if (format === 'mp3') return ['-c:a', 'libmp3lame', '-b:a', bitrate];
-  if (format === 'm4a') return ['-c:a', 'aac', '-b:a', bitrate];
-  if (format === 'aac') return ['-c:a', 'aac', '-b:a', bitrate];
-  if (format === 'ogg') return ['-c:a', 'libvorbis', '-b:a', bitrate];
-  if (format === 'opus') return ['-c:a', 'libopus', '-b:a', bitrate];
-  if (format === 'wav') return ['-c:a', 'pcm_s16le'];
-  if (format === 'flac') return ['-c:a', 'flac'];
-  if (format === 'aiff') return ['-c:a', 'pcm_s16be'];
-  if (format === 'wma') return ['-c:a', 'wmav2', '-b:a', bitrate];
-  if (format === 'ac3') return ['-c:a', 'ac3', '-b:a', bitrate];
-  throw new Error('Formato de saída inválido.');
-}
 function estimateEta(seconds, percent) {
   if (!percent || percent <= 0 || !seconds) return '—';
   const remaining = Math.max(0, Math.round(seconds * (100 - percent) / percent));
@@ -1343,10 +1320,6 @@ app.whenReady().then(() => {
     return window.isMaximized();
   });
   ipcMain.handle('choose-download-folder', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha a pasta de destino', properties: ['openDirectory', 'createDirectory'] }); return result.canceled ? null : result.filePaths[0]; });
-  ipcMain.handle('choose-media-files', async () => {
-    const result = await dialog.showOpenDialog({ title: 'Escolha arquivos de áudio ou vídeo', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Mídia', extensions: [...audioExtensions, ...videoExtensions].map(extension => extension.slice(1)) }] });
-    return result.canceled ? [] : result.filePaths;
-  });
   ipcMain.handle('choose-video-files', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha vídeos', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Vídeos', extensions: videoExtensions.map(extension => extension.slice(1)) }] }); return result.canceled ? [] : result.filePaths; });
   ipcMain.handle('choose-image-files', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha imagens', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Imagens', extensions: imageExtensions.map(extension => extension.slice(1)) }] }); return result.canceled ? [] : result.filePaths; });
   ipcMain.handle('choose-compressor-files', async () => { const result = await dialog.showOpenDialog({ title: 'Escolha arquivos para comprimir', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Mídias e imagens', extensions: [...audioExtensions, ...videoExtensions, ...imageExtensions].map(extension => extension.slice(1)) }] }); return result.canceled ? [] : result.filePaths; });
@@ -1412,31 +1385,6 @@ app.whenReady().then(() => {
     });
   });
   ipcMain.handle('cancel-download', (_event, downloadId) => downloadJobs.get(downloadId)?.cancel?.());
-  ipcMain.handle('start-conversion', async (event, item) => {
-    if (!item?.conversionId || !item.source || !item.folder || !fs.existsSync(item.source)) throw new Error('Dados da conversão inválidos.');
-    const start = parseTime(item.trimStart); const end = parseTime(item.trimEnd); const duration = Number(item.duration || 0);
-    if (Number.isNaN(start) || Number.isNaN(end) || (start !== null && end !== null && end <= start) || (duration && ((start !== null && start >= duration) || (end !== null && end > duration)))) throw new Error('O corte informado é inválido.');
-    const supportsCover = ['mp3', 'm4a', 'flac'].includes(item.format); const preservedCover = !item.cover && Number.isInteger(item.coverStreamIndex) && supportsCover;
-    if (item.cover && !supportsCover) throw new Error('Capa é compatível com MP3, M4A e FLAC.');
-    const baseName = safeName(item.outputName || path.basename(item.source, path.extname(item.source))); const extension = outputExtension(item.format); let filename = availableFilename(item.folder, `${baseName}.${extension}`, item.duplicate);
-    if (path.resolve(item.folder, filename).toLowerCase() === path.resolve(item.source).toLowerCase()) filename = availableFilename(item.folder, `${baseName} (editado).${extension}`, 'rename');
-    const output = path.join(item.folder, filename); const args = ['-hide_banner', '-y']; const trimDuration = end !== null ? end - (start || 0) : null;
-    if (start !== null) args.push('-ss', String(start)); args.push('-i', item.source); if (item.cover) args.push('-i', item.cover); if (trimDuration !== null) args.push('-t', String(trimDuration));
-    args.push('-map', '0:a:0', '-map_metadata', '0');
-    if (item.cover) args.push('-map', '1:v:0', '-c:v', 'mjpeg', '-disposition:v', 'attached_pic');
-    else if (preservedCover) args.push('-map', `0:${item.coverStreamIndex}`, '-c:v', 'mjpeg', '-disposition:v', 'attached_pic');
-    const finite = value => Number.isFinite(Number(value)) ? Number(value) : 0; const filters = []; if (item.normalize) filters.push('loudnorm=I=-16:TP=-1.5:LRA=11'); if (finite(item.gain)) filters.push(`volume=${finite(item.gain)}dB`); if (finite(item.eqBass)) filters.push(`equalizer=f=100:t=q:w=1:g=${finite(item.eqBass)}`); if (finite(item.eqMid)) filters.push(`equalizer=f=1000:t=q:w=1:g=${finite(item.eqMid)}`); if (finite(item.eqTreble)) filters.push(`equalizer=f=6000:t=q:w=1:g=${finite(item.eqTreble)}`); if (item.removeSilence) filters.push('silenceremove=start_periods=1:start_duration=0.25:start_threshold=-45dB:stop_periods=-1:stop_duration=0.25:stop_threshold=-45dB'); if (filters.length) args.push('-af', filters.join(','));
-    ['title', 'artist', 'album', 'year', 'genre'].forEach(key => { if (item.metadata?.[key]) args.push('-metadata', `${key === 'year' ? 'date' : key}=${item.metadata[key]}`); });
-    args.push(...codecArgs(item.format, item.quality), '-progress', 'pipe:1', '-nostats', output);
-    return new Promise((resolve, reject) => {
-      const child = spawn(binary('ffmpeg'), args, { windowsHide: true }); let cancelled = false; let buffer = ''; let lastSeconds = 0; const started = Date.now();
-      conversionJobs.set(item.conversionId, { cancel: () => { cancelled = true; child.kill(); } }); send(event.sender, 'conversion-event', { conversionId: item.conversionId, status: 'starting' });
-      const line = raw => { const [key, ...rest] = raw.trim().split('='); const value = rest.join('='); if (key === 'out_time_ms') { lastSeconds = Number(value) / 1000000; const usableDuration = end !== null ? end - (start || 0) : duration; const percent = usableDuration ? Math.min(99, (lastSeconds / usableDuration) * 100) : 0; const elapsed = (Date.now() - started) / 1000; send(event.sender, 'conversion-event', { conversionId: item.conversionId, status: 'converting', percent, eta: estimateEta(elapsed, percent) }); } };
-      const data = chunk => { buffer += chunk.toString(); const lines = buffer.split(/\r?\n/); buffer = lines.pop() || ''; lines.forEach(line); };
-      child.stdout.on('data', data); child.stderr.on('data', data); child.on('error', error => { conversionJobs.delete(item.conversionId); reject(error); }); child.on('close', code => { conversionJobs.delete(item.conversionId); if (cancelled) { if (fs.existsSync(output)) fs.unlinkSync(output); return reject(new Error('Conversão cancelada.')); } if (code !== 0 || !fs.existsSync(output)) return reject(new Error('A conversão falhou. Verifique o arquivo, o corte ou o espaço disponível.')); const stat = fs.statSync(output); send(event.sender, 'conversion-event', { conversionId: item.conversionId, status: 'complete', file: output, size: stat.size, filename }); resolve({ file: output, size: stat.size, filename }); });
-    });
-  });
-  ipcMain.handle('cancel-conversion', (_event, conversionId) => conversionJobs.get(conversionId)?.cancel?.());
   ipcMain.handle('start-video-conversion', async (event, item) => {
     if (!item?.id || !item.source || !item.folder || !fs.existsSync(item.source)) throw new Error('Dados do vídeo inválidos.');
     const extension = ['mp4', 'mkv', 'webm'].includes(item.format) ? item.format : 'mp4'; const filename = availableFilename(item.folder, `${safeName(item.outputName || path.basename(item.source, path.extname(item.source)))}.${extension}`, item.duplicate); const output = path.join(item.folder, filename); const args = ['-hide_banner', '-y', '-i', item.source];
@@ -1445,7 +1393,7 @@ app.whenReady().then(() => {
     return startFfmpegJob(event, videoJobs, item.id, args, output, Number(item.duration || 0), 'video-event');
   });
   ipcMain.handle('cancel-video-conversion', (_event, id) => videoJobs.get(id)?.cancel?.());
-  ipcMain.handle('choose-media-project-audio', async event => { assertMainWindowSender(event); const result = await dialog.showOpenDialog({ title: 'Adicionar faixas de áudio ao projeto', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Áudios', extensions: audioExtensions.map(extension => extension.slice(1)) }] }); return result.canceled ? [] : result.filePaths; });
+  ipcMain.handle('choose-media-project-audio', async event => { assertMainWindowSender(event); const result = await dialog.showOpenDialog({ title: 'Adicionar áudio ou vídeo com áudio ao projeto', properties: ['openFile', 'multiSelections'], filters: [{ name: 'Mídias com áudio', extensions: [...new Set([...audioExtensions, ...videoExtensions].map(extension => extension.slice(1)))] }] }); return result.canceled ? [] : result.filePaths; });
   ipcMain.handle('open-media-project', async event => {
     assertMainWindowSender(event);
     const result = await dialog.showOpenDialog({ title: 'Abrir projeto NTC', properties: ['openFile'], filters: [{ name: 'Projetos NTC', extensions: ['ntcmp'] }] });
@@ -1475,7 +1423,7 @@ app.whenReady().then(() => {
     const preparedImages = [];
     project.assets = project.assets.map(asset => {
       const extension = path.extname(asset.path).toLowerCase();
-      const allowed = asset.kind === 'audio' ? audioExtensions : asset.kind === 'image' ? imageExtensions : [];
+      const allowed = asset.kind === 'audio' ? [...audioExtensions, ...videoExtensions] : asset.kind === 'image' ? imageExtensions : [];
       if (!allowed.includes(extension)) throw new Error(`Formato não permitido para ${asset.name || 'a mídia selecionada'}.`);
       let source;
       try { source = fs.realpathSync(path.resolve(asset.path)); } catch { throw new Error(`A mídia “${asset.name || path.basename(asset.path)}” não foi encontrada.`); }
@@ -1483,7 +1431,8 @@ app.whenReady().then(() => {
       sourcePaths.add(source.toLocaleLowerCase('en-US'));
       return { ...asset, path: source };
     });
-    const format = project.kind === 'audio' ? (item.format === 'mp3' ? 'mp3' : 'wav') : 'mp4';
+    const format = project.kind === 'audio' ? project.output.format : 'mp4';
+    if (project.kind === 'audio' && item.format !== format) throw new Error('Formato da exportação não corresponde ao projeto.');
     const outputName = safeName(item.outputName || project.name || (project.kind === 'audio' ? 'Mix NTC' : 'Vídeo NTC'));
     const extension = format;
     let filename = availableFilename(item.folder, `${outputName}.${extension}`, 'rename');
@@ -1498,8 +1447,20 @@ app.whenReady().then(() => {
           return { ...asset, path: prepared.file };
         }));
       }
+      let cover = null;
+      if (project.kind === 'audio' && ['mp3', 'm4a', 'flac'].includes(format)) {
+        if (project.output.coverPath) {
+          if (!['.jpg', '.jpeg', '.png'].includes(path.extname(project.output.coverPath).toLowerCase())) throw new Error('Formato de capa não suportado.');
+          const coverPath = fs.realpathSync(path.resolve(project.output.coverPath));
+          if (!fs.statSync(coverPath).isFile()) throw new Error('Capa não encontrada.');
+          cover = { kind: 'file', path: coverPath, streamIndex: 0 };
+        } else if (project.output.preserveSourceCover) {
+          const asset = project.assets.find(asset => Number.isInteger(asset.coverStreamIndex) && project.tracks.some(track => (!item.trackId || track.id === item.trackId) && track.clips.some(clip => clip.assetId === asset.id)));
+          if (asset) cover = { kind: 'source', assetId: asset.id, streamIndex: asset.coverStreamIndex };
+        }
+      }
       const plan = project.kind === 'audio'
-        ? mediaProject.audioRenderPlan(project, output, format)
+        ? mediaProject.audioRenderPlan(project, output, format, { range: item.range, trackId: item.trackId, cover })
         : mediaProject.videoRenderPlan(project, output, item.resolution);
       return await startFfmpegJob(event, mediaProjectJobs, item.id, plan.args, output, plan.duration, 'media-project-event');
     } catch (error) {

@@ -197,6 +197,10 @@ test('video editor polish is wired without replacing the monotonic playback cloc
   assert.match(ui, /timelineModel\.rulerStepSeconds/);
   assert.match(ui, /model\.addTrackRelative/);
   assert.match(ui, /videoProjectFilmstrip/);
+  assert.match(ui, /ntcvPlay'\)\.innerHTML = playback\.playing/);
+  assert.match(ui, /<svg viewBox="0 0 20 20"/);
+  assert.match(ui, /Reproduzir prévia/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'src', 'video-project.css'), 'utf8'), /#ntcvPlay svg \{ display: block; width: 16px; height: 16px;/);
   assert.match(html, /id="ntcvMediaSearch"/);
   assert.match(html, /id="ntcvTrackMenu"/);
   assert.match(main, /window-enter-video-editor/);
@@ -295,6 +299,23 @@ test('render plan includes visual/audio tracks, speed, trim, fades, transforms a
   assert.ok(silent.args.includes('-an'));
 });
 
+test('export maximum renders 4K and uses higher-quality video/audio encoding', () => {
+  const p = model.createProject();
+  const image = asset(p, 'image', 'C:/foto.png');
+  const audio = asset(p, 'audio', 'C:/music.wav', 1000);
+  model.addClip(p, image.id).durationMs = 1000;
+  model.addClip(p, audio.id).durationMs = 1000;
+
+  const maximum = buildRenderPlan(p, 'C:/maximum.mp4', { resolution: '2160', fps: 30, quality: 'maximum' });
+  assert.deepEqual([maximum.width, maximum.height], [3840, 2160]);
+  assert.equal(maximum.args[maximum.args.indexOf('-crf') + 1], '12');
+  assert.equal(maximum.args[maximum.args.indexOf('-preset') + 1], 'slow');
+  assert.equal(maximum.args[maximum.args.indexOf('-b:a') + 1], '320k');
+
+  const high = buildRenderPlan(p, 'C:/high.mp4', { quality: 'high' });
+  assert.equal(high.args[high.args.indexOf('-crf') + 1], '18');
+});
+
 test('real FFmpeg renders image, video, audio and text in mixed timeline', { skip: !fs.existsSync(ffmpeg) || !fs.existsSync(ffprobe) }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ntc-video-v2-test-'));
   try {
@@ -350,5 +371,9 @@ test('real FFmpeg renders image, video, audio and text in mixed timeline', { ski
     const hdOut = path.join(dir, 'hd.mp4'); run(ffmpeg, buildRenderPlan(fullHd, hdOut).args);
     const hdProbe = JSON.parse(run(ffprobe, ['-v', 'error', '-show_streams', '-of', 'json', hdOut]));
     assert.ok(hdProbe.streams.some(stream => stream.codec_type === 'video' && stream.width === 1920 && stream.height === 1080));
+    const maximumOut = path.join(dir, 'maximum-4k.mp4');
+    run(ffmpeg, buildRenderPlan(fullHd, maximumOut, { resolution: '2160', fps: 24, quality: 'maximum' }).args);
+    const maximumProbe = JSON.parse(run(ffprobe, ['-v', 'error', '-show_streams', '-of', 'json', maximumOut]));
+    assert.ok(maximumProbe.streams.some(stream => stream.codec_type === 'video' && stream.width === 3840 && stream.height === 2160));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

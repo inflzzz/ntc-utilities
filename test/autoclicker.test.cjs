@@ -11,6 +11,7 @@ const {
   normalizeClickerSettings,
   normalizeHotkey
 } = require('../src/autoclicker.cjs');
+const { resolveAutoClickerHostScript } = require('../src/autoclicker-main.cjs');
 
 test('default settings are safe and start with a moderate 10 clicks per second', () => {
   assert.equal(intervalMilliseconds(DEFAULT_CLICKER_SETTINGS), 100);
@@ -97,6 +98,19 @@ test('screen pickers show live overlays and process filters use detected applica
   assert.doesNotMatch(html, /autoclickerProcessName|autoclickerAddProcess/);
   assert.match(overlay, /Arraste com o botão direito/);
   assert.match(overlay, /Ponto \$\{index \+ 1\}/);
+});
+
+test('packaged Auto Clicker host scripts are unpacked for PowerShell -File', () => {
+  const root = path.join(__dirname, '..');
+  const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const main = fs.readFileSync(path.join(root, 'src/autoclicker-main.cjs'), 'utf8');
+  for (const file of ['src/autoclicker-host.ps1', 'src/autoclicker-host.cs']) {
+    assert.ok(fs.existsSync(path.join(root, file)), `${file} exists in source`);
+    assert.ok(packageJson.build.asarUnpack.includes(file), `${file} is unpacked from app.asar`);
+  }
+  assert.equal(resolveAutoClickerHostScript({ packaged: true, resourcesPath: 'C:/App/resources' }), path.join('C:/App/resources', 'app.asar.unpacked', 'src', 'autoclicker-host.ps1'));
+  assert.equal(resolveAutoClickerHostScript({ packaged: false, moduleDirectory: 'C:/repo/src' }), path.join('C:/repo/src', 'autoclicker-host.ps1'));
+  assert.match(main, /resolveAutoClickerHostScript\(\{ packaged: app\.isPackaged, resourcesPath: process\.resourcesPath \}\)/);
 });
 
 test('lifetime auto-click total is labeled, restored on startup, and persisted as it changes', () => {

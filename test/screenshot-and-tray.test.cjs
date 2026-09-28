@@ -76,6 +76,7 @@ test('minimizing uses the taskbar while closing hides the window in the tray', (
   assert.doesNotMatch(minimizeHandler, /ensureTray|window\.hide\(\)/);
   assert.doesNotMatch(main, /mainWindow\.on\('minimize'/);
   assert.match(main, /mainWindow\.on\('close',[\s\S]*event\.preventDefault\(\); ensureTray\(\); mainWindow\.hide\(\)/);
+  assert.match(main, /ipcMain\.handle\('window-close',[^\n]+BrowserWindow\.fromWebContents\(event\.sender\)\?\.close\(\)/);
   assert.match(main, /trayIcon\.on\('click', showMainWindow\)/);
   assert.match(main, /label: 'Sair do NTC Utilities', click: requestExitFromTray/);
   assert.match(main, /function requestExitFromTray\(\)[\s\S]*if \(recordingSessions\.size[\s\S]*screen-close-request[\s\S]*forceClose = true;[\s\S]*app\.quit\(\)/);

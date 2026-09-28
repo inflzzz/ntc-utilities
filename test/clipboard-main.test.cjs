@@ -119,6 +119,11 @@ test('clipboard thumbnail IPC is bounded, read-only and restricted to the app wi
     const large = await service.store.record({ image: Buffer.from([5, 2, 3]) });
     await thumbnail({ sender: webContents }, large.item.id);
     assert.deepEqual(resized.at(-1), { width: 160, height: 160, quality: 'good' });
+    const preview = handlers.get(CLIPBOARD_CHANNELS.preview);
+    await preview({ sender: webContents }, saved.item.id);
+    assert.deepEqual(resized.at(-1), { width: 480, height: 320, quality: 'good' }, 'landscape preview keeps its aspect ratio');
+    await preview({ sender: webContents }, vertical.item.id);
+    assert.deepEqual(resized.at(-1), { width: 120, height: 360, quality: 'good' }, 'portrait preview keeps its aspect ratio');
     assert.deepEqual(await thumbnail({ sender: webContents }, 'missing'), { imageDataUrl: '' });
     assert.equal(Object.keys(await thumbnail({ sender: webContents }, saved.item.id)).some(key => /path|file|buffer/i.test(key)), false);
   } finally {
