@@ -1,5 +1,10 @@
 # Changelog
 
+## Em desenvolvimento — após 1.1.0 · 29 set. 2026
+
+- **Ambient Mixer:** 24 gravações reais NOX SOUND CC0 distribuídas em três pacotes opcionais (Ambient Essentials, Nature e Water), hospedados em release própria do GitHub. Download com progresso, SHA-256, instalação atômica, uso offline, atualização/remover/reinstalar; sons próprios por referência ou importação; loops com crossfade. Ruídos branco, rosa e marrom continuam disponíveis sem download. Presets antigos são migrados sem apagar sons sem equivalência.
+- Consolidadas no código as ferramentas locais pendentes do NTC Labs, os testes de microfone/webcam, Jogos e Sorteios e o player de música offline. O NTC RNG permanece em manutenção; não foi publicada uma nova versão do instalador.
+
 ## 1.1.0 — NTC Utilities · 28 set. 2026
 
 - **Editor de vídeo:** exportação em UHD 4K (2160p) e opção **Máxima**, com H.264 CRF 12, preset de codificação lento e AAC 320 kb/s. A saída pode ser maior e demorar mais; aumentar a resolução não recupera detalhes ausentes na mídia original.
