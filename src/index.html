@@ -6,6 +6,7 @@
     <meta name="color-scheme" content="dark" />
     <title>NTC Utilities</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./music-player-v2.css" />
     <link rel="stylesheet" href="./video-project.css" />
     <link rel="stylesheet" href="./catalog.css" />
     <link rel="stylesheet" href="./theme.css" />
@@ -13,6 +14,10 @@
     <link rel="stylesheet" href="./rng-theme.css" />
     <link rel="stylesheet" href="./rng-event-scenes.css" />
     <link rel="stylesheet" href="./rng-roll-experience.css" />
+    <link rel="stylesheet" href="./random-tools.css" />
+    <link rel="stylesheet" href="./microphone-test.css" />
+    <link rel="stylesheet" href="./webcam-test.css" />
+    <link rel="stylesheet" href="./ntc-labs.css" />
   </head>
   <body>
     <div class="splash" id="splash" aria-label="Carregando NTC Utilities">
@@ -100,12 +105,18 @@
             <button class="tool-card available" data-open-tool="compressor"><span class="tool-icon">⇣</span><span><strong>Compressor</strong><small>Reduza o tamanho de vídeos e áudios.</small></span></button>
             <button class="tool-card available" data-open-tool="renamer"><span class="tool-icon">↔</span><span><strong>Renomear arquivos</strong><small>Renomeie vários arquivos com uma prévia.</small></span></button>
             <button class="tool-card available" data-open-tool="qrGenerator"><span class="tool-icon">▦</span><span><strong>Gerador de QR Code</strong><small>Crie QR Codes de links em PNG ou SVG.</small></span></button>
+            <button class="tool-card available" data-open-tool="randomTools"><span class="tool-icon">⚄</span><span><strong>Sorteios &amp; Jogos</strong><small>Decida, sorteie, embaralhe listas e jogue localmente.</small></span></button>
             <button class="tool-card available" data-open-tool="clipboardHistory"><span class="tool-icon">▤</span><span><strong>Área de transferência</strong><small>Consulte e reutilize textos e imagens copiados.</small></span></button>
             <button class="tool-card available" data-open-tool="security"><span class="tool-icon">◇</span><span><strong>Segurança</strong><small>Gere segredos, limpe metadados e proteja arquivos.</small></span></button>
             <button class="tool-card available" data-open-tool="documents"><span class="tool-icon">▤</span><span><strong>Documentos</strong><small>Escreva e formate textos; organize notas rápidas.</small></span></button>
             <button class="tool-card available" data-open-tool="pdf"><span class="tool-icon">▧</span><span><strong>PDF</strong><small>Leia, organize, edite e converta documentos PDF.</small></span></button>
             <button class="tool-card available" data-open-tool="studyTools"><span class="tool-icon">▤</span><span><strong>Estudos</strong><small>Organize sessões de foco e revise flashcards.</small></span></button>
           </div>
+        </section>
+
+        <section class="view random-tools-view" id="randomToolsView" aria-labelledby="randomToolsTitle">
+          <div class="hero compact random-tools-heading"><div><div class="eyebrow">UTILIDADE LOCAL</div><h1 id="randomToolsTitle">Sorteios &amp; Jogos</h1><p>Pequenas decisões, sorteios e jogos rápidos — tudo neste dispositivo.</p></div><label class="random-tools-motion"><input id="randomToolsSkipMotion" type="checkbox"> Pular animações</label></div>
+          <div id="randomToolsApp"></div>
         </section>
 
         <section class="view documents-view" id="documentsView">
@@ -736,6 +747,123 @@
           </section>
         </section>
 
+        <section class="view webcam-test-view" id="webcamTestView">
+          <div class="hero compact"><div class="eyebrow">VÍDEO</div><h1>Teste de webcam</h1><p>Confira a imagem da câmera, veja os modos informados pelo dispositivo e capture uma foto de teste. Tudo acontece localmente.</p></div>
+          <section class="webcam-test-layout" aria-label="Teste de webcam">
+            <div class="webcam-test-card webcam-preview-card">
+              <div class="webcam-test-heading"><div><span class="webcam-test-eyebrow">PRÉVIA AO VIVO</span><h2>Câmera</h2></div><span class="webcam-live-indicator" id="webcamLiveIndicator">Desativada</span></div>
+              <div class="webcam-preview-frame" id="webcamPreviewFrame"><video id="webcamPreview" autoplay muted playsinline aria-label="Prévia da webcam"></video><div class="webcam-preview-placeholder" id="webcamPreviewPlaceholder"><span aria-hidden="true">◉</span><strong>A prévia aparecerá aqui</strong><small>Ative a câmera para começar o teste.</small></div></div>
+              <div class="webcam-test-heading webcam-settings-line"><span id="webcamActualSettings">Resolução e FPS —</span><span id="webcamPhotoDimensions"></span></div>
+              <div class="webcam-actions"><button class="primary-button" id="webcamActivate" type="button">Ativar câmera</button><button class="outline-button" id="webcamDeactivate" type="button" disabled>Desativar</button><button class="outline-button" id="webcamCapture" type="button" disabled>Capturar foto</button></div>
+              <p class="webcam-test-note" id="webcamPermissionStatus" role="status" aria-live="polite">A câmera só será acessada depois que você ativar o teste.</p>
+            </div>
+            <div class="webcam-test-card webcam-controls-card">
+              <div class="webcam-test-heading"><div><span class="webcam-test-eyebrow">DISPOSITIVO</span><h2>Configuração de vídeo</h2></div></div>
+              <label class="webcam-test-field"><span>Câmera</span><select id="webcamDeviceSelect" aria-label="Dispositivo de webcam"><option value="">Câmera padrão</option></select></label>
+              <label class="webcam-test-field"><span>Resolução</span><select id="webcamResolutionSelect" disabled aria-label="Resolução da webcam"><option value="">Automática</option></select></label>
+              <label class="webcam-test-field"><span>Taxa de quadros (FPS)</span><select id="webcamFpsSelect" disabled aria-label="FPS da webcam"><option value="">Automática</option></select></label>
+              <dl class="webcam-capabilities">
+                <div><dt>Faixa informada pela câmera</dt><dd id="webcamCapabilityRange">Ative a câmera para consultar os recursos.</dd></div>
+                <div><dt>Modo capturado</dt><dd id="webcamCaptureMode">—</dd></div>
+              </dl>
+              <p class="webcam-test-note" id="webcamSettingsStatus" role="status" aria-live="polite">As opções de resolução e FPS dependem dos recursos expostos pela câmera.</p>
+            </div>
+            <div class="webcam-test-card webcam-photo-card">
+              <div class="webcam-test-heading"><div><span class="webcam-test-eyebrow">FOTO LOCAL</span><h2>Captura de teste</h2></div></div>
+              <div class="webcam-photo-output" id="webcamPhotoOutput"><span id="webcamPhotoPlaceholder">A foto capturada aparecerá aqui.</span><img class="hidden" id="webcamPhotoPreview" alt="Foto de teste capturada pela webcam" /></div>
+              <div class="webcam-actions"><button class="outline-button" id="webcamPhotoDownload" type="button" disabled>Baixar foto</button><button class="outline-button" id="webcamPhotoClear" type="button" disabled>Limpar foto</button></div>
+              <p class="webcam-test-note" id="webcamPhotoStatus" role="status" aria-live="polite">A captura não é enviada nem salva automaticamente.</p>
+            </div>
+          </section>
+        </section>
+
+        <section class="view labs-stats-view" id="ntcStatsView">
+          <div class="hero compact"><div class="eyebrow">NTC LABS · LOCAL</div><h1>Estatísticas do NTC</h1><p>Um resumo privado do seu uso neste dispositivo. A coleta começa agora; nenhum conteúdo digitado ou arquivo é registrado.</p></div>
+          <section class="labs-stats-summary" id="labsStatsSummary" aria-live="polite"></section>
+          <section class="labs-stats-panels">
+            <div class="labs-card"><div class="labs-section-heading"><div><span class="labs-eyebrow">USO LOCAL</span><h2>Ferramentas</h2></div><span id="labsStatsRange">Desde o primeiro uso</span></div><div id="labsStatsToolList" class="labs-stats-tool-list"></div></div>
+            <div class="labs-card"><div class="labs-section-heading"><div><span class="labs-eyebrow">RITMO</span><h2>Últimos 7 dias</h2></div></div><div id="labsStatsDays" class="labs-stats-days"></div><p class="labs-muted" id="labsStatsActivePeriod"></p></div>
+          </section>
+          <section class="labs-card labs-stats-controls"><label class="labs-toggle"><input id="labsStatsOptOut" type="checkbox" /><span>Desativar coleta local de estatísticas</span></label><button class="outline-button" id="labsStatsReset" type="button">Resetar estatísticas</button><p class="labs-muted">São guardados apenas contadores agregados e tempos aproximados de sessão. Você pode desativar ou apagar os dados quando quiser.</p></section>
+          <dialog class="labs-confirm-dialog" id="labsStatsConfirm"><form method="dialog"><h2>Resetar estatísticas?</h2><p>Os contadores e tempos locais do NTC serão apagados. Isso não altera seus projetos, arquivos, músicas ou configurações.</p><div class="labs-actions"><button class="outline-button" value="cancel">Cancelar</button><button class="primary-button" value="reset">Resetar estatísticas</button></div></form></dialog>
+        </section>
+
+        <section class="view labs-person-view" id="randomPersonView">
+          <div class="hero compact"><div class="eyebrow">NTC LABS · GERAÇÃO LOCAL</div><h1>Pessoa Aleatória</h1><p>Crie personagens fictícios e famílias com relações consistentes, sem IA ou conexão externa.</p></div>
+          <section class="labs-card labs-person-options">
+            <div class="labs-segmented" role="group" aria-label="Tipo de geração"><button type="button" class="active" data-person-mode="person" aria-pressed="true">Pessoa</button><button type="button" data-person-mode="family" aria-pressed="false">Família</button></div>
+            <div class="labs-fields-grid">
+              <label class="labs-field"><span>Estilo dos nomes</span><select id="labsPersonCulture"><option value="pt-BR">Brasil</option><option value="pt-PT">Portugal</option><option value="en">English</option></select></label>
+              <label class="labs-field"><span>Nível de detalhes</span><select id="labsPersonDetail"><option value="essencial">Essencial</option><option value="equilibrado" selected>Equilibrado</option><option value="detalhado">Detalhado</option></select></label>
+              <label class="labs-field"><span>Idade calculada em</span><input id="labsPersonReferenceDate" type="date" /></label>
+              <label class="labs-field labs-person-only"><span>Idade mínima</span><input id="labsPersonMinAge" type="number" min="0" max="110" value="18" /></label>
+              <label class="labs-field labs-person-only"><span>Idade máxima</span><input id="labsPersonMaxAge" type="number" min="0" max="110" value="75" /></label>
+              <label class="labs-field labs-person-only"><span>Gênero</span><select id="labsPersonGender"><option value="aleatório">Aleatório</option><option value="feminino">Feminino</option><option value="masculino">Masculino</option><option value="não binário">Não binário</option></select></label>
+              <label class="labs-field labs-family-only hidden"><span>Tamanho da família</span><input id="labsFamilySize" type="number" min="1" max="8" value="4" /></label>
+              <label class="labs-field"><span>Seed opcional</span><input id="labsPersonSeed" maxlength="80" placeholder="Vazio = resultado novo" /></label>
+            </div>
+            <div class="labs-actions"><button class="primary-button" id="labsGeneratePerson" type="button">Gerar pessoa</button><button class="outline-button" id="labsPersonNewSeed" type="button">Nova seed</button><span class="labs-muted">A mesma seed, opções e data de referência reproduzem os dados.</span></div>
+          </section>
+          <section class="labs-card labs-person-result" id="labsPersonResult"><div class="labs-empty">Gere uma pessoa ou família para começar.</div></section>
+          <section class="labs-card"><div class="labs-section-heading"><div><span class="labs-eyebrow">LOCAL</span><h2>Pessoas e famílias salvas</h2></div><span id="labsPeopleCount">0 itens</span></div><div id="labsSavedPeople" class="labs-saved-people"><p class="labs-muted">Ainda não há itens salvos.</p></div></section>
+        </section>
+
+        <section class="view labs-ambient-view" id="ambientMixerView">
+          <div class="hero compact"><div class="eyebrow">NTC LABS · ÁUDIO LOCAL</div><h1>Ambient Mixer</h1><p>Combine gravações reais, seus próprios sons e ruídos para criar seu ambiente.</p></div>
+          <section class="labs-ambient-toolbar labs-card">
+            <div class="labs-actions"><button class="primary-button" id="labsAmbientPlay" type="button">Iniciar ambiente</button><button class="outline-button" id="labsAmbientPause" type="button" disabled>Pausar</button><button class="outline-button" id="labsAmbientStop" type="button" disabled>Parar tudo</button></div>
+            <label class="labs-inline-range"><span>Volume master</span><input id="labsAmbientMaster" type="range" min="0" max="100" value="48" /><output id="labsAmbientMasterValue">48%</output></label>
+            <div class="labs-timer-controls"><label class="labs-field"><span>Timer</span><select id="labsAmbientTimer"><option value="0">Desligado</option><option value="15">15 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option><option value="90">90 min</option><option value="custom">Personalizado</option></select></label><label class="labs-field labs-timer-custom hidden"><span>Minutos</span><input id="labsAmbientCustomMinutes" type="number" min="1" max="720" value="20" /></label><button class="outline-button" id="labsAmbientTimerStart" type="button">Iniciar timer</button><span id="labsAmbientTimerStatus" class="labs-muted">Timer desligado</span></div>
+          </section>
+          <section class="labs-card labs-ambient-library"><div class="labs-section-heading"><div><span class="labs-eyebrow">BIBLIOTECA DE SONS</span><h2>Pacotes oficiais</h2></div><button class="outline-button" id="labsAmbientRefresh" type="button">Verificar atualizações</button></div><div id="labsAmbientEmpty" class="labs-ambient-empty"><p id="labsAmbientEmptyText">Verificando biblioteca...</p></div><div id="labsAmbientPacks" class="labs-pack-list"></div><p class="labs-muted">Os pacotes são opcionais, ficam fora do instalador e, depois de instalados, funcionam sem internet.</p></section>
+          <section class="labs-ambient-layout">
+            <div class="labs-card"><div class="labs-section-heading"><div><span class="labs-eyebrow">MIXER</span><h2>Camadas sonoras</h2></div><span id="labsAmbientActiveCount">0 ativas</span></div><div class="labs-actions"><button class="outline-button" id="labsAmbientAddReference" type="button">+ Referenciar meus sons</button><button class="outline-button" id="labsAmbientAddImport" type="button">+ Importar para NTC</button></div><p class="labs-muted">Arraste arquivos de áudio aqui para referenciar. Nenhum original é alterado.</p><div id="labsAmbientSounds" class="labs-sound-grid"></div></div>
+            <div class="labs-card"><div class="labs-section-heading"><div><span class="labs-eyebrow">COMBINAÇÕES</span><h2>Ambientes salvos</h2></div></div><div class="labs-preset-controls"><select id="labsAmbientPresetSelect" aria-label="Preset salvo"></select><button class="outline-button" id="labsAmbientPresetLoad" type="button">Carregar</button><button class="outline-button" id="labsAmbientPresetSave" type="button">Salvar alterações</button></div><div class="labs-actions labs-preset-actions"><button class="outline-button" id="labsAmbientPresetCreate" type="button">Salvar como novo</button><button class="outline-button" id="labsAmbientPresetDuplicate" type="button">Duplicar</button><button class="outline-button" id="labsAmbientPresetRename" type="button">Renomear</button><button class="outline-button" id="labsAmbientPresetDelete" type="button">Excluir</button></div><div id="labsAmbientPresetSummary" class="labs-preset-summary"></div></div>
+          </section>
+        </section>
+
+        <section class="view labs-daily-view" id="dailyRandomView">
+          <div class="hero compact"><div class="eyebrow">NTC LABS · EXPERIÊNCIA DIÁRIA</div><h1>Daily Random</h1><p>Uma coleção determinística de resultados divertidos. Cada data mantém os mesmos resultados, sem significado místico ou científico.</p></div>
+          <section class="labs-card labs-daily-toolbar"><label class="labs-field"><span>Consultar dia</span><input type="date" id="labsDailyDate" /></label><button class="outline-button" id="labsDailyToday" type="button">Ir para hoje</button><button class="primary-button" id="labsDailyCopyAll" type="button">Copiar tudo</button><span class="labs-muted" id="labsDailySeedNote">O mesmo dia sempre gera o mesmo conjunto.</span></section>
+          <section id="labsDailyResults" class="labs-daily-grid" aria-live="polite"></section>
+          <section class="labs-card"><div class="labs-section-heading"><div><span class="labs-eyebrow">DATAS CONSULTADAS</span><h2>Histórico local</h2></div><span>Escolha uma data para rever</span></div><div id="labsDailyHistory" class="labs-daily-history"></div></section>
+        </section>
+
+        <section class="view labs-reality-view" id="realLifeView">
+          <div class="hero compact"><div class="eyebrow">NTC LABS · ESCALA E CONTEXTO</div><h1>Quanto é isso na vida real?</h1><p>Converta uma grandeza em comparações intuitivas, com referências explícitas e aproximações sinalizadas.</p></div>
+          <section class="labs-card labs-reality-form"><label class="labs-field"><span>Quantidade, prefixo e unidade</span><input id="labsRealityInput" type="text" maxlength="120" placeholder="Ex.: 1 bilhão de segundos" /></label><button class="primary-button" id="labsRealityCompare" type="button">Comparar</button><div class="labs-example-chips" id="labsRealityExamples"><button type="button" data-example="1 bilhão de segundos">1 bilhão de segundos</button><button type="button" data-example="1 TB">1 TB</button><button type="button" data-example="1 milhão de horas">1 milhão de horas</button><button type="button" data-example="100 toneladas">100 toneladas</button><button type="button" data-example="384.400 km">384.400 km</button></div></section>
+          <section class="labs-card labs-reality-result" id="labsRealityResult" aria-live="polite"><div class="labs-empty">Digite uma medida ou escolha um exemplo.</div></section>
+        </section>
+
+        <section class="view microphone-test-view" id="microphoneTestView">
+          <div class="hero compact"><div class="eyebrow">ÁUDIO</div><h1>Teste de microfone</h1><p>Confira o nível de entrada, os detalhes do dispositivo e uma gravação de teste. O áudio permanece neste dispositivo.</p></div>
+          <section class="microphone-test-layout" aria-label="Teste de microfone">
+            <div class="microphone-test-card microphone-live-card">
+              <div class="microphone-test-heading"><div><span class="microphone-test-eyebrow">ENTRADA AO VIVO</span><h2>Monitor de áudio</h2></div><span class="microphone-live-indicator" id="microphoneLiveIndicator">Desativado</span></div>
+              <div class="microphone-meter" role="meter" aria-label="Nível do microfone" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="microphoneLevelMeter"><span id="microphoneLevelFill"></span></div>
+              <div class="microphone-level-caption"><span id="microphoneLevelText" aria-live="polite">Nível aguardando ativação</span><span id="microphonePeakText">— dB</span></div>
+              <div class="microphone-actions"><button class="primary-button" id="microphoneActivate" type="button">Ativar microfone</button><button class="outline-button" id="microphoneDeactivate" type="button" disabled>Desativar</button></div>
+              <p class="microphone-test-note" id="microphonePermissionStatus" role="status" aria-live="polite">O navegador solicitará acesso ao microfone quando você ativar o teste.</p>
+            </div>
+            <div class="microphone-test-card microphone-device-card">
+              <div class="microphone-test-heading"><div><span class="microphone-test-eyebrow">DISPOSITIVO</span><h2>Configuração de entrada</h2></div></div>
+              <label class="microphone-test-field"><span>Microfone</span><select id="microphoneDeviceSelect" aria-label="Dispositivo de microfone"><option value="">Microfone padrão</option></select></label>
+              <dl class="microphone-specs">
+                <div><dt>Canais</dt><dd id="microphoneChannels">—</dd></div>
+                <div><dt>Sample rate</dt><dd id="microphoneSampleRate">—</dd></div>
+                <div><dt>Dispositivo ativo</dt><dd id="microphoneDeviceName">Nenhum</dd></div>
+              </dl>
+            </div>
+            <div class="microphone-test-card microphone-record-card">
+              <div class="microphone-test-heading"><div><span class="microphone-test-eyebrow">GRAVAÇÃO LOCAL</span><h2>Gravação de teste</h2></div><span class="microphone-record-time" id="microphoneRecordTime">00:00</span></div>
+              <p>Grave até 30 segundos e reproduza o resultado para verificar como sua voz está sendo capturada.</p>
+              <div class="microphone-actions"><button class="primary-button" id="microphoneRecordToggle" type="button" disabled>Gravar teste</button><button class="outline-button" id="microphoneRecordingClear" type="button" disabled>Limpar gravação</button></div>
+              <audio class="microphone-playback hidden" id="microphonePlayback" controls aria-label="Reproduzir gravação de teste"></audio>
+              <p class="microphone-test-note" id="microphoneRecordingStatus" role="status" aria-live="polite">Ative o microfone para habilitar a gravação.</p>
+            </div>
+          </section>
+        </section>
+
         <section class="view screenshot-view" id="screenshotView">
           <div class="hero compact"><div class="eyebrow">CAPTURA</div><h1>Captura de tela</h1><p>Faça capturas, anote, recorte e copie ou salve a imagem.</p></div>
           <section class="recorder-card screenshot-capture-card">
@@ -1159,6 +1287,16 @@
     <dialog class="rng-profile-share-dialog" id="rngProfileShareDialog" aria-labelledby="rngProfileShareTitle">
       <section class="rng-profile-share-card"><header><div><span class="rng-profile-kicker">NTC RNG · FICHA DO JOGADOR</span><h2 id="rngProfileShareTitle">Prévia para compartilhar</h2></div><button class="suggestion-close" id="rngProfileShareClose" type="button" aria-label="Fechar prévia">×</button></header><div class="rng-profile-share-formats" role="group" aria-label="Formato da ficha"><button type="button" class="active" data-profile-format="landscape">Paisagem · 16:9</button><button type="button" data-profile-format="portrait">Retrato · 4:5</button></div><div class="rng-profile-share-preview"><img id="rngProfileShareImage" alt="Prévia da ficha compartilhável do NTC RNG"><span id="rngProfileShareLoading">Preparando a ficha…</span></div><p class="rng-profile-share-status" id="rngProfileShareStatus" role="status" aria-live="polite"></p><footer><button class="outline-button" id="rngProfileCopyImage" type="button">Copiar imagem</button><button class="primary-button" id="rngProfileSaveImage" type="button">Salvar PNG</button></footer></section>
     </dialog>
+    <script>
+      (() => {
+        const marker = 'ntc-removed-infinite-canvas-v1';
+        try {
+          if (localStorage.getItem(marker)) return;
+          const request = indexedDB.deleteDatabase('ntc-labs-infinite-canvas');
+          request.onsuccess = () => { try { localStorage.setItem(marker, '1'); } catch {} };
+        } catch {}
+      })();
+    </script>
     <script src="./changelog.js"></script>
     <script src="./rng-changelog.js"></script>
     <script src="./screenshot-editor.js"></script>
@@ -1168,7 +1306,8 @@
     <script src="./color-picker-ui.js"></script>
     <script src="./music-queue.js"></script>
     <script src="./music-playlists.js"></script>
-    <script src="./music-player.js"></script>
+    <script src="./music-player-model.js"></script>
+    <script src="./music-player-v2.js"></script>
     <script src="./world-clock.js"></script>
     <script src="./clipboard-history-ui.js"></script>
     <script src="./security-ui.js"></script>
@@ -1194,7 +1333,20 @@
     <script src="./utility-converters.js"></script>
     <script src="./utility-generators.js"></script>
     <script src="./utility-engine.js"></script>
-    <script src="./mini-games.js"></script>
+    <script src="./ntc-labs-core.js"></script>
+    <script src="./ntc-labs-stats-model.js"></script>
+    <script src="./ntc-labs-stats.js"></script>
+    <script src="./ntc-labs-storage.js"></script>
     <script src="./utility-ui.js"></script>
+    <script src="./random-core.js"></script>
+    <script src="./random-tools-state.js"></script>
+    <script src="./random-tools.js"></script>
+    <script src="./microphone-test.js"></script>
+    <script src="./webcam-test.js"></script>
+    <script src="./ntc-labs-person.js"></script>
+    <script src="./ambient-model.js"></script>
+    <script src="./ntc-labs-ambient.js"></script>
+    <script src="./ntc-labs-daily.js"></script>
+    <script src="./ntc-labs-reality.js"></script>
   </body>
 </html>

@@ -63,8 +63,6 @@ input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color:
 .rng-title-history-card .rng-discovery-badges .rng-discovery-badge.is-combined { border-color: color-mix(in srgb, var(--accent-violet-light) 42%, transparent); }
 .rng-info-card .rng-achievement-reward { color: var(--accent-violet-light); }
 .rng-event-reward { color: var(--accent-violet-text) !important; }
-.reaction-pad.waiting { background: var(--accent-violet-surface); }
-.reaction-pad.ready { border-color: var(--accent-violet-light); background: var(--accent-violet-wash); color: #f3eefb; }
 .rng-discovery-card[data-tier] .rng-discovery-mark { color: var(--accent-violet-light); }
 
 .rng-unlock-notice { --rng-reveal-accent: var(--accent-violet-light); border-color: var(--accent-violet-border); }

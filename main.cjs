@@ -33,7 +33,10 @@ const { createSecurityService } = require('./src/security.cjs');
 const { initializeDocumentsService } = require('./src/documents-main.cjs');
 const { createStudyService } = require('./src/study-main.cjs');
 const { initializeCatalogService } = require('./src/catalog-main.cjs');
-const { AUDIO_EXTENSIONS, normalizeMusicFolders, normalizeMusicFiles, scanMusicFolders, scanMusicFiles, deriveMusicSearchTerms, findMusicReleaseCandidates } = require('./src/music-library.cjs');
+const { AUDIO_EXTENSIONS, normalizeMusicFolders, normalizeMusicFiles, scanMusicFolders, scanMusicFiles, deriveMusicSearchCandidates, findMusicReleaseCandidates } = require('./src/music-library.cjs');
+const { registerMusicService } = require('./src/music-service.cjs');
+const { MusicSearchCache } = require('./src/music-search-cache.cjs');
+const { AmbientPackService } = require('./src/ambient-packs.cjs');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
@@ -62,6 +65,10 @@ let rngShadowService = null;
 let rngOnlineQuitReady = false;
 let rngOnlineQuitStarted = false;
 let trayIcon = null;
+let musicMiniWindow = null;
+let musicControlState = { title: '', artist: '', album: '', cover: '', coverFit: 'contain', playing: false, time: 0, duration: 0, volume: .8, muted: false, alwaysOnTop: false };
+let musicLibraryService = null;
+let ambientPackService = null;
 let forceClose = false;
 let screenShortcut = null;
 let screenshotShortcut = null;
@@ -104,7 +111,7 @@ let colorPickerService = null;
 let clipboardHistoryService = null;
 let musicBrainzQueue = Promise.resolve();
 let musicBrainzLastRequestAt = 0;
-const musicOnlineSearchCache = new Map();
+const musicOnlineSearchCache = new MusicSearchCache({ maxEntries: 32, maxBytes: 20 * 1024 * 1024, ttlMs: 30 * 60 * 1000 });
 const hosts = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'];
 const audioExtensions = ['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.opus', '.wma'];
 const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.webm', '.wmv', '.m4v'];
@@ -653,13 +660,19 @@ function ensureTray() {
 function updateTrayStatus() {
   if (!trayIcon) return;
   const active = Boolean(rngAutoRollStartedAt);
-  trayIcon.setToolTip(`NTC Utilities — rolagem automática ${active ? 'ativa' : 'pausada'}`);
-  trayIcon.setContextMenu(Menu.buildFromTemplate([
+  trayIcon.setToolTip(musicControlState.title ? `NTC Utilities — ${musicControlState.title.slice(0, 80)}` : `NTC Utilities — rolagem automática ${active ? 'ativa' : 'pausada'}`);
+  const items = [
     { label: 'Abrir NTC Utilities', click: showMainWindow },
+    ...(musicControlState.title ? [
+      { label: musicControlState.playing ? 'Pausar música' : 'Reproduzir música', click: () => mainWindow?.webContents.send('music2-control', 'toggle') },
+      { label: 'Faixa anterior', click: () => mainWindow?.webContents.send('music2-control', 'previous') },
+      { label: 'Próxima faixa', click: () => mainWindow?.webContents.send('music2-control', 'next') }
+    ] : []),
     { label: `Rolagem automática ${active ? 'ativa em segundo plano' : 'pausada'}`, enabled: false },
     { type: 'separator' },
     { label: 'Sair do NTC Utilities', click: requestExitFromTray }
-  ]));
+  ];
+  trayIcon.setContextMenu(Menu.buildFromTemplate(items));
 }
 function requestExitFromTray() {
   if (recordingSessions.size && mainWindow && !mainWindow.isDestroyed()) {
@@ -805,7 +818,8 @@ function resolveAllowedMusicTrack(filePath) {
   let realFile;
   try { realFile = fs.realpathSync(path.resolve(filePath)); } catch { throw new Error('Arquivo de áudio não encontrado.'); }
   if (!fs.statSync(realFile).isFile()) throw new Error('O caminho não é um arquivo de áudio.');
-  if (readRemovedMusicFiles().some(file => musicPathKey(file) === musicPathKey(realFile))) throw new Error('Esta faixa foi removida da biblioteca. Adicione o arquivo novamente para restaurá-la.');
+  const activeInMusicLibrary = musicLibraryService?.store.hasActivePath(realFile);
+  if (!activeInMusicLibrary && readRemovedMusicFiles().some(file => musicPathKey(file) === musicPathKey(realFile))) throw new Error('Esta faixa foi removida da biblioteca. Adicione o arquivo novamente para restaurá-la.');
   const insideFolder = readMusicFolders().some(folder => {
     try {
       const realFolder = fs.realpathSync(folder);
@@ -816,7 +830,7 @@ function resolveAllowedMusicTrack(filePath) {
   const individuallyAdded = readMusicFiles().some(file => {
     try { return fs.realpathSync(file) === realFile; } catch { return false; }
   });
-  if (!insideFolder && !individuallyAdded) throw new Error('A faixa não pertence à biblioteca selecionada.');
+  if (!insideFolder && !individuallyAdded && !activeInMusicLibrary) throw new Error('A faixa não pertence à biblioteca selecionada.');
   return realFile;
 }
 async function fetchMusicMetadataUrl(url, options = {}, timeoutMs = 12000) {
@@ -868,16 +882,29 @@ async function searchOnlineMusicMetadata(filePath, artistOverride = '') {
   const file = resolveAllowedMusicTrack(filePath);
   const media = await inspectMedia(file);
   const baseName = path.basename(file, path.extname(file)).trim();
-  const { title: searchTitle, artist } = deriveMusicSearchTerms(media.metadata, baseName, artistOverride);
-  if (!searchTitle) throw new Error('Não encontrei um título para pesquisar nesta faixa.');
-  const query = `recording:${lucenePhrase(searchTitle)}${artist ? ` AND artist:${lucenePhrase(artist)}` : ''}`;
-  const cacheKey = query.toLocaleLowerCase('pt-BR');
+  const searchCandidates = deriveMusicSearchCandidates(media.metadata, baseName, artistOverride);
+  if (!searchCandidates.length) throw new Error('Não encontrei um título para pesquisar nesta faixa.');
+  const albumHint = String(media.metadata.album || '').trim();
+  const cacheKey = `${albumHint}\u0002${searchCandidates.map(({ title, artist }) => `${title}\u0000${artist}`).join('\u0001')}`.toLocaleLowerCase('pt-BR');
   const cached = musicOnlineSearchCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.results;
-  const searchUrl = new URL('https://musicbrainz.org/ws/2/recording/');
-  searchUrl.searchParams.set('query', query); searchUrl.searchParams.set('fmt', 'json'); searchUrl.searchParams.set('limit', '5');
-  const data = await musicBrainzRequest(searchUrl.href);
-  const candidates = findMusicReleaseCandidates(data.recordings, searchTitle, artist);
+  if (cached) return cached;
+  const matches = new Map();
+  for (const { title: searchTitle, artist } of searchCandidates) {
+    const baseQuery = `recording:${lucenePhrase(searchTitle)}${artist ? ` AND artist:${lucenePhrase(artist)}` : ''}`;
+    const queries = albumHint && artist ? [`${baseQuery} AND release:${lucenePhrase(albumHint)}`, baseQuery] : [baseQuery];
+    for (const query of queries) {
+      const matchesBeforeQuery = matches.size;
+      const searchUrl = new URL('https://musicbrainz.org/ws/2/recording/');
+      searchUrl.searchParams.set('query', query); searchUrl.searchParams.set('fmt', 'json'); searchUrl.searchParams.set('limit', '5');
+      const data = await musicBrainzRequest(searchUrl.href);
+      for (const item of findMusicReleaseCandidates(data.recordings, searchTitle, artist)) {
+        const key = `${item.releaseId || item.trackTitle}\u0000${item.artist}`;
+        if (!matches.has(key)) matches.set(key, item);
+      }
+      if (matches.size > matchesBeforeQuery) break;
+    }
+  }
+  const candidates = [...matches.values()].slice(0, 5);
   const results = await Promise.all(candidates.slice(0, 5).map(async item => {
     let coverDataUrl = null;
     if (item.releaseId) {
@@ -894,7 +921,7 @@ async function searchOnlineMusicMetadata(filePath, artistOverride = '') {
     return { id: item.releaseId || item.trackTitle, title: item.title, album: item.album, trackTitle: item.trackTitle, artist: item.artist, year: item.year, coverDataUrl, source: 'Cover Art Archive / MusicBrainz' };
   }));
   const available = results.filter(Boolean).slice(0, 5);
-  musicOnlineSearchCache.set(cacheKey, { results: available, expiresAt: Date.now() + 30 * 60 * 1000 });
+  musicOnlineSearchCache.set(cacheKey, available);
   return available;
 }
 async function inspectVideo(file) {
@@ -989,6 +1016,49 @@ function createWindow() {
 
 app.whenReady().then(() => {
   if (!hasSingleInstanceLock) { app.exit(0); return; }
+  ambientPackService = new AmbientPackService({ root: app.getPath('userData'), catalogFile: path.join(__dirname,'content','ambient-packs.json'), ffprobe: binary('ffprobe'), onProgress: payload => { if(mainWindow && !mainWindow.isDestroyed())mainWindow.webContents.send('ambient-pack-progress',payload); } });
+  void ambientPackService.initialize();
+  ipcMain.handle('ambient-state', event => { assertMainWindowSender(event); return ambientPackService.state(); });
+  ipcMain.handle('ambient-refresh', event => { assertMainWindowSender(event); return ambientPackService.refresh(); });
+  ipcMain.handle('ambient-download', (event,id) => { assertMainWindowSender(event); return ambientPackService.download(id); });
+  ipcMain.handle('ambient-cancel', (event,id) => { assertMainWindowSender(event); return ambientPackService.cancel(id); });
+  ipcMain.handle('ambient-remove', (event,id) => { assertMainWindowSender(event); return ambientPackService.remove(id); });
+  ipcMain.handle('ambient-audio', (event,id) => { assertMainWindowSender(event); return ambientPackService.audio(id); });
+  ipcMain.handle('ambient-custom-choose', async (event,mode) => { assertMainWindowSender(event); const result=await dialog.showOpenDialog(mainWindow,{title:'Adicionar meus sons',properties:['openFile','multiSelections'],filters:[{name:'Áudio',extensions:['wav','mp3','flac','ogg','opus']}]});if(result.canceled)return ambientPackService.state();let state;for(const file of result.filePaths)state=await ambientPackService.addCustom(file,mode);return state||ambientPackService.state(); });
+  ipcMain.handle('ambient-custom-drop', (event,files,mode) => { assertMainWindowSender(event); if(!Array.isArray(files)||files.length>20)throw new Error('Arquivos inválidos.'); return Promise.all(files.map(file=>ambientPackService.addCustom(file,mode))).then(()=>ambientPackService.state()); });
+  ipcMain.handle('ambient-custom-update', (event,id,patch) => { assertMainWindowSender(event); return ambientPackService.updateCustom(id,patch||{}); });
+  ipcMain.handle('ambient-custom-relink', async (event,id) => { assertMainWindowSender(event); const result=await dialog.showOpenDialog(mainWindow,{title:'Localizar áudio',properties:['openFile'],filters:[{name:'Áudio',extensions:['wav','mp3','flac','ogg','opus']}]});return result.canceled?ambientPackService.state():ambientPackService.relink(id,result.filePaths[0]); });
+  ipcMain.handle('ambient-custom-remove', (event,id) => { assertMainWindowSender(event); return ambientPackService.removeCustom(id); });
+  try { musicLibraryService = registerMusicService({ app, ipcMain, dialog, shell, mainWindow: () => mainWindow, ffprobe: binary('ffprobe'), ffmpeg: binary('ffmpeg'), sharp, onlineLookup: searchOnlineMusicMetadata, legacyFolders: readMusicFolders, legacyFiles: readMusicFiles, legacyRemoved: readRemovedMusicFiles }); }
+  catch (error) { console.error('Biblioteca de música indisponível:', error); }
+  ipcMain.handle('music2-mini-open', event => {
+    if (event.sender !== mainWindow?.webContents) throw new Error('Janela inválida.');
+    if (musicMiniWindow && !musicMiniWindow.isDestroyed()) { musicMiniWindow.show(); musicMiniWindow.focus(); return true; }
+    const alwaysOnTop = Boolean(musicLibraryService?.store.setting('mini-always-on-top', false));
+    musicControlState = { ...musicControlState, alwaysOnTop };
+    musicMiniWindow = new BrowserWindow({ width: 620, height: 188, minWidth: 520, minHeight: 164, maxWidth: 900, maxHeight: 250, title: 'NTC Mini Player', icon: path.join(__dirname, 'build', 'ntc-logo.png'), backgroundColor: '#171319', autoHideMenuBar: true, alwaysOnTop, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false } });
+    musicMiniWindow.on('closed', () => { musicMiniWindow = null; });
+    void musicMiniWindow.loadFile(path.join(__dirname, 'src', 'music-mini.html')).then(() => musicMiniWindow?.webContents.send('music2-mini-state', musicControlState));
+    return true;
+  });
+  ipcMain.handle('music2-mini-on-top', (event, enabled) => {
+    if (event.sender !== musicMiniWindow?.webContents) throw new Error('Janela inválida.');
+    const value = Boolean(enabled); musicMiniWindow.setAlwaysOnTop(value); musicLibraryService?.store.setSetting('mini-always-on-top', value); musicControlState = { ...musicControlState, alwaysOnTop: value }; musicMiniWindow.webContents.send('music2-mini-state', musicControlState); return musicMiniWindow.isAlwaysOnTop();
+  });
+  ipcMain.handle('music2-show-main', event => { if (event.sender !== musicMiniWindow?.webContents) throw new Error('Janela inválida.'); return showMainWindow(); });
+  ipcMain.handle('music2-control-command', (event, command) => {
+    const name = typeof command === 'string' ? command : command?.name;
+    if (event.sender !== musicMiniWindow?.webContents || !['toggle', 'previous', 'next', 'seek', 'volume', 'mute'].includes(name)) throw new Error('Comando inválido.');
+    mainWindow?.webContents.send('music2-control', command); return true;
+  });
+  ipcMain.handle('music2-control-state', (event, value) => {
+    if (event.sender !== mainWindow?.webContents) throw new Error('Janela inválida.');
+    const oldMusicState = musicControlState;
+    const cover = typeof value?.cover === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value.cover) && value.cover.length <= 500000 ? value.cover : '';
+    musicControlState = { title: String(value?.title || '').slice(0, 150), artist: String(value?.artist || '').slice(0, 150), album: String(value?.album || '').slice(0, 150), cover, coverFit: value?.coverFit === 'cover' ? 'cover' : 'contain', playing: Boolean(value?.playing), time: Math.max(0, Number(value?.time) || 0), duration: Math.max(0, Number(value?.duration) || 0), volume: Math.max(0, Math.min(1, Number(value?.volume) || 0)), muted: Boolean(value?.muted), alwaysOnTop: Boolean(musicLibraryService?.store.setting('mini-always-on-top', false)) };
+    if (musicMiniWindow && !musicMiniWindow.isDestroyed()) musicMiniWindow.webContents.send('music2-mini-state', musicControlState);
+    if (oldMusicState.title !== musicControlState.title || oldMusicState.playing !== musicControlState.playing) updateTrayStatus(); return true;
+  });
   app.setAppUserModelId('com.ntccorporation.utilities');
   initializeLoginAtStartup();
   loadRngGame(); startRngClock();
@@ -1788,6 +1858,7 @@ app.on('before-quit', event => {
   persistRngGame();
 });
 app.on('will-quit', () => {
+  musicLibraryService?.cleanup();
   for (const file of videoProjectPreviewCache.values()) {
     try { if (file.startsWith(app.getPath('temp')) && fs.existsSync(file)) fs.unlinkSync(file); } catch { /* Um player ainda pode manter o proxy aberto no Windows. */ }
   }

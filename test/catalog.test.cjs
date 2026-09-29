@@ -8,27 +8,48 @@ const {webcrypto}=require('node:crypto');
 function load(){
   const window={ntc:{catalogQr:async()=> 'data:image/svg+xml;charset=utf-8,%3Csvg%3E%3C/svg%3E',catalogBarcode:async()=> 'data:image/png;base64,AA==',catalogCurrency:async({amount})=>({amount,date:'2026-09-24'}),catalogStructured:async()=> 'resultado'}};
   const context=vm.createContext({window,crypto:webcrypto,TextEncoder,btoa,Intl,Date,Math,Number,String,Array,Map,Set,BigInt,performance,URL,localStorage:{getItem:()=>null,setItem:()=>{}}});
-  for(const file of ['catalog.js','utility-converters.js','utility-generators.js','utility-engine.js','mini-games.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..','src',file),'utf8'),context,{filename:file});
+  for(const file of ['catalog.js','utility-converters.js','utility-generators.js','utility-engine.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..','src',file),'utf8'),context,{filename:file});
   return window;
 }
 
 test('catalog has one category per tool and no removed entries',()=>{
   const app=load(),tools=app.ntcCatalog.tools,ids=tools.map(tool=>tool.id);
   assert.equal(new Set(ids).size,ids.length);
-  assert.equal(app.ntcCatalog.categories.some(category=>category.id==='calculators'||category.id==='games'),false);
+  assert.equal(app.ntcCatalog.categories.some(category=>category.id==='calculators'),false);
   for(const id of ['dns','tuner','bingo','markdownTable','sampleCsv','calendar','dateDiff','clickCounter','ascii','unicode','screenshotTranslate','ticTacToe','snake'])assert.equal(ids.includes(id),false,id);
+  assert.equal(app.ntcCatalog.byId.has('reaction'),false,'the retired reaction game must not remain in navigation');
   for(const id of ['rng','history'])assert.equal(app.ntcCatalog.byId.get(id).category,null);
-  assert.equal(app.ntcCatalog.byId.get('reaction').category,'time');
   for(const tool of tools)if(tool.category)assert.ok(app.ntcCatalog.categories.some(category=>category.id===tool.category),tool.id);
+  const games=app.ntcCatalog.categories.find(category=>category.id==='games');
+  const randomTool=app.ntcCatalog.byId.get('randomTools');
+  assert.equal(games.name,'Jogos e Sorteios');
+  assert.equal(randomTool.category,'games');
+  assert.equal(randomTool.target,'randomTools');
+  assert.equal(randomTool.visible,true);
+  assert.equal(randomTool.panel,null);
+  assert.equal(tools.filter(tool=>tool.id==='randomTools').length,1);
+  assert.equal(tools.filter(tool=>tool.category==='games'&&tool.visible).length,1);
 });
 
 test('all catalog tools lead to a view, panel or functional spec',()=>{
-  const app=load(),existing=new Set(['downloader','musicPlayer','converter','videoEditor','video','recorder','documents','pdf','timeTools','studyTools','screenshot','autoclicker','renamer','compressor','clipboardHistory','security','colorPicker','history','rng']);
+  const app=load(),existing=new Set(['downloader','musicPlayer','converter','microphoneTest','videoEditor','video','recorder','webcamTest','documents','pdf','timeTools','studyTools','screenshot','autoclicker','renamer','compressor','clipboardHistory','security','colorPicker','randomTools','history','rng','randomPerson','ambientMixer','ntcStats','dailyRandom','realLife']);
   const panels=new Set(['image','converters','generators']);
+  const labs=app.ntcCatalog.categories.find(category=>category.id==='labs');
+  assert.equal(labs.name,'NTC Labs');
+  assert.deepEqual(Array.from(app.ntcCatalog.tools.filter(tool=>tool.category==='labs').map(tool=>tool.id)),['randomPerson','ambientMixer','ntcStats','dailyRandom','realLife']);
+  for(const id of ['randomPerson','ambientMixer','ntcStats','dailyRandom','realLife'])assert.ok(fs.readFileSync(path.join(__dirname,'..','src','index.html'),'utf8').includes(`id="${id}View"`),`${id} has a view`);
   for(const tool of app.ntcCatalog.tools){
-    assert.ok(existing.has(tool.target)||panels.has(tool.panel)||app.ntcUtilitySpecs[tool.id]||app.ntcConverterSpecs[tool.id]||app.ntcGeneratorSpecs[tool.id]||app.ntcGameSpecs[tool.id],tool.id);
+    assert.ok(existing.has(tool.target)||panels.has(tool.panel)||app.ntcUtilitySpecs[tool.id]||app.ntcConverterSpecs[tool.id]||app.ntcGeneratorSpecs[tool.id],tool.id);
     if(tool.visible===false)assert.ok(tool.panel,`${tool.id} requires a parent panel`);
   }
+});
+
+test('Canvas Infinito foi removido e seu armazenamento local será limpo',()=>{
+  const app=load(),index=fs.readFileSync(path.join(__dirname,'..','src','index.html'),'utf8');
+  assert.equal(app.ntcCatalog.byId.has('infiniteCanvas'),false);
+  assert.equal(index.includes('id="infiniteCanvasView"'),false);
+  assert.equal(index.includes('ntc-labs-canvas-model.js'),false);
+  assert.match(index,/indexedDB\.deleteDatabase\('ntc-labs-infinite-canvas'\)/);
 });
 
 test('converter defaults and generator output are usable',async()=>{

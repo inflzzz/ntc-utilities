@@ -1,0 +1,33 @@
+.microphone-test-view{width:min(100%,980px)}
+.microphone-test-view>.hero.compact{margin-bottom:20px}
+.microphone-test-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.microphone-test-card{display:grid;align-content:start;gap:15px;min-width:0;padding:19px;border:1px solid #36323a;border-radius:12px;background:linear-gradient(145deg,#19171b,#151417);box-shadow:0 12px 30px #0001}
+.microphone-live-card{grid-row:span 2;min-height:260px}
+.microphone-test-heading{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.microphone-test-heading h2{margin:4px 0 0;color:#f0ebf2;font-size:16px;font-weight:650}
+.microphone-test-eyebrow{color:#c2a3ca;font-size:9px;font-weight:700;letter-spacing:.13em}
+.microphone-live-indicator{display:inline-flex;align-items:center;gap:7px;color:#a19aa4;font-size:11px;white-space:nowrap}
+.microphone-live-indicator:before{width:7px;height:7px;border-radius:50%;background:#706b72;content:''}
+.microphone-live-indicator.is-active{color:#d6c3dc}
+.microphone-live-indicator.is-active:before{background:#c68bd0;box-shadow:0 0 10px #c68bd066}
+.microphone-meter{height:18px;overflow:hidden;border:1px solid #39343e;border-radius:6px;background:linear-gradient(90deg,#252229,#211e24)}
+.microphone-meter>span{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#8f6ba4 0%,#c491d0 68%,#e1b7cb 100%);transition:width 70ms linear}
+.microphone-level-caption{display:flex;justify-content:space-between;gap:12px;color:#aaa1ad;font-size:11px;font-variant-numeric:tabular-nums}
+.microphone-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.microphone-actions>button{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;height:38px;min-height:38px;margin:0;padding:0 13px;line-height:1;vertical-align:middle}
+.microphone-actions button:disabled{opacity:.48;cursor:not-allowed}
+.microphone-actions #microphoneRecordToggle.is-recording{border-color:#80566b;background:#38242f;color:#f0d5e3}
+.microphone-test-note{margin:0;color:#918995;font-size:11px;line-height:1.5}
+.microphone-test-field{display:grid;gap:7px;color:#c4bdc8;font-size:11px}
+.microphone-test-field select{width:100%;min-height:38px;padding:7px 10px;border:1px solid #46414b;border-radius:7px;background:#211f24;color:#eee8f0;font-size:12px}
+.microphone-test-field select:disabled{opacity:.65;cursor:not-allowed}
+.microphone-specs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0}
+.microphone-specs>div{min-width:0;padding:10px 11px;border:1px solid #302d34;border-radius:8px;background:#1d1b20}
+.microphone-specs>div:last-child{grid-column:1/-1}
+.microphone-specs dt{margin:0 0 4px;color:#8f8793;font-size:10px}
+.microphone-specs dd{overflow:hidden;margin:0;color:#e5dfe8;font-size:12px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.microphone-record-card>p:not(.microphone-test-note){margin:0;color:#aaa2ad;font-size:11px;line-height:1.5}
+.microphone-record-time{color:#d6c3dc;font:12px Consolas,monospace;font-variant-numeric:tabular-nums}
+.microphone-playback{width:100%;height:38px;accent-color:#bd8ac6}
+.microphone-test-view button:focus-visible,.microphone-test-field select:focus-visible{outline:2px solid #c095ca;outline-offset:2px}
+@media(max-width:760px){.microphone-test-layout{grid-template-columns:1fr}.microphone-live-card{grid-row:auto}}

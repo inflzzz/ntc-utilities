@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { normalizeMusicFolders, normalizeMusicFiles, scanMusicFolders, scanMusicFiles, deriveMusicSearchTerms, findMusicReleaseCandidates } = require('../src/music-library.cjs');
+const { normalizeMusicFolders, normalizeMusicFiles, scanMusicFolders, scanMusicFiles, deriveMusicSearchTerms, deriveMusicSearchCandidates, findMusicReleaseCandidates } = require('../src/music-library.cjs');
 const { reorderMusicTracks, reorderVisibleMusicTrackIds } = require('../src/music-queue.js');
 const { normalizeMusicPlaylists, toggleMusicPlaylistTrack, reorderMusicPlaylistTracks } = require('../src/music-playlists.js');
 
@@ -34,6 +34,15 @@ test('music lookup infers title and artist from common file names and accepts an
   assert.deepEqual(deriveMusicSearchTerms({ title: 'Dream Away' }, 'Dream Away - Frank Sinatra'), { title: 'Dream Away', artist: 'Frank Sinatra' });
   assert.deepEqual(deriveMusicSearchTerms({ title: 'Dream Away', artist: 'Other Singer' }, 'Dream Away - Other Singer', 'Frank Sinatra'), { title: 'Dream Away', artist: 'Frank Sinatra' });
   assert.deepEqual(deriveMusicSearchTerms({}, '03 - dream away - frank sinatra'), { title: 'dream away', artist: 'frank sinatra' });
+});
+
+test('music lookup builds safe alternate filename parses without changing original names or metadata precedence', () => {
+  assert.deepEqual(deriveMusicSearchCandidates({ title: 'Sinônimos', artist: 'Zé Ramalho', album: '20 Super Sucessos' }, 'Zé Ramalho - Sinônimos.mp3'), [{ title: 'Sinônimos', artist: 'Zé Ramalho' }]);
+  assert.deepEqual(deriveMusicSearchCandidates({ title: 'Tempo Perdido', artist: 'Legião Urbana' }, '01 - Tempo Perdido.flac'), [{ title: 'Tempo Perdido', artist: 'Legião Urbana' }]);
+  const filenameCandidates = deriveMusicSearchCandidates({}, 'Zé Ramalho - Sinônimos (Ao Vivo 2005) (Clipe Oficial).mp3');
+  assert.deepEqual(filenameCandidates, [{ title: 'Sinônimos', artist: 'Zé Ramalho' }, { title: 'Zé Ramalho', artist: 'Sinônimos' }]);
+  assert.deepEqual(deriveMusicSearchCandidates({}, 'Dream Away.mp3'), [{ title: 'Dream Away', artist: '' }]);
+  assert.equal(deriveMusicSearchCandidates({}, '03 - dream_away [320kbps] [Official Video].mp3')[0].title, 'dream away');
 });
 
 test('music lookup shows exact track matches and collapses duplicate album editions', () => {
@@ -113,7 +122,7 @@ test('offline player supports local artwork and user-triggered online metadata s
   assert.match(html, /data-view="musicPlayer"/);
   assert.match(html, /id="musicPlayerView"/);
   assert.match(html, /data-open-tool="musicPlayer"/);
-  assert.match(html, /src="\.\/music-player\.js"/);
+  assert.match(html, /src="\.\/music-player-v2\.js"/);
   assert.match(html, /id="musicCoverImage"/);
   assert.match(html, /id="musicOnlineSearch"/);
   assert.match(html, /id="musicSettingsToggle"[^>]*aria-controls="musicSettingsPanel"/);

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "release": "ambient-packs-v1",
+  "packs": [
+    { "id": "ambient-essentials", "name": "Ambient Essentials", "description": "Chuva, fogo, vento, floresta, mar e mais.", "version": 1, "bytes": 4480411, "installedBytes": 4477290, "sha256": "c0986b2c821f97521a0cf917d0bbc3aa1034cf972dea4934d261ca958a7a9fec", "url": "https://github.com/inflzzz/ntc-utilities/releases/download/ambient-packs-v1/ntc-ambient-essentials-v1.zip" },
+    { "id": "nature", "name": "Nature", "description": "Variações de clima e natureza.", "version": 1, "bytes": 2708924, "installedBytes": 2706706, "sha256": "39e62b057f675e8e9905901c2ce8a85a3c955e9d0c3b0fa04578a93461b317ef", "url": "https://github.com/inflzzz/ntc-utilities/releases/download/ambient-packs-v1/ntc-nature-v1.zip" },
+    { "id": "water", "name": "Water", "description": "Oceanos, rios, riachos, cachoeiras e fontes termais.", "version": 1, "bytes": 4428901, "installedBytes": 4426552, "sha256": "7942864864e0e3d161440067305ce6dc283eb8b396e605f280b8c1d81df30efe", "url": "https://github.com/inflzzz/ntc-utilities/releases/download/ambient-packs-v1/ntc-water-v1.zip" }
+  ]
+}

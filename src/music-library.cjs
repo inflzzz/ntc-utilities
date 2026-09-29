@@ -72,6 +72,45 @@ function deriveMusicSearchTerms(metadata = {}, baseName = '', artistOverride = '
   return { title, artist };
 }
 
+function deriveMusicSearchCandidates(metadata = {}, baseName = '', artistOverride = '') {
+  const tags = metadata && typeof metadata === 'object' ? metadata : {};
+  const normalize = value => String(value || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const clean = value => String(value || '')
+    .replace(/\.[a-z0-9]{2,5}$/i, '')
+    .replace(/[\[(][^\])]*(?:official|vídeo oficial|video oficial|official video|official audio|lyric video|lyrics?|cli(?:pe)? oficial|ao vivo|live|remaster(?:ed)?|\b\d{3,4}\s?kbps\b|\b\d{3,4}p\b)[^\])]*[\])]/gi, ' ')
+    .replace(/\b\d{3,4}\s?kbps\b/gi, ' ')
+    .replace(/^\s*(?:track\s*)?\d{1,3}\s*[-.)]\s*/i, '')
+    .replace(/[_]+/g, ' ').replace(/\s+/g, ' ').replace(/^[-–—\s]+|[-–—\s]+$/g, '').trim();
+  const base = clean(baseName);
+  const pieces = base.split(/\s+[-–—]\s+/).map(clean).filter(Boolean);
+  const taggedTitle = clean(tags.title);
+  const taggedArtist = clean(tags.artist || tags.album_artist);
+  const override = clean(artistOverride);
+  const fixedArtist = override || taggedArtist;
+  const candidates = [];
+  const add = (title, artist) => {
+    title = clean(title); artist = clean(artist);
+    if (!title) return;
+    const key = `${normalize(title)}\u0000${normalize(artist)}`;
+    if (!candidates.some(item => item.key === key)) candidates.push({ key, title, artist });
+  };
+
+  if (taggedTitle) {
+    add(taggedTitle, fixedArtist || (pieces.length > 1 ? pieces.at(-1) : ''));
+    if (!fixedArtist && pieces.length > 1) add(taggedTitle, pieces[0]);
+  } else if (pieces.length > 1) {
+    // File naming conventions disagree ("Title - Artist" vs "Artist - Title").
+    // Prefer the common "Artist - Title" form, then try the reverse; the user still
+    // chooses a result before metadata is applied.
+    add(pieces.slice(1).join(' - '), fixedArtist || pieces[0]);
+    add(pieces.slice(0, -1).join(' - '), fixedArtist || pieces.at(-1));
+  } else {
+    add(base, fixedArtist);
+  }
+
+  return candidates.map(({ title, artist }) => ({ title, artist }));
+}
+
 function findMusicReleaseCandidates(recordings, requestedTitle, fallbackArtist = '') {
   const normalize = value => String(value || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLocaleLowerCase('pt-BR').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
   const targetTitle = normalize(requestedTitle);
@@ -144,4 +183,4 @@ async function scanMusicFolders(folders, options = {}) {
   return tracks;
 }
 
-module.exports = { AUDIO_EXTENSIONS, normalizeMusicFolders, normalizeMusicFiles, scanMusicFolders, scanMusicFiles, deriveMusicSearchTerms, findMusicReleaseCandidates };
+module.exports = { AUDIO_EXTENSIONS, normalizeMusicFolders, normalizeMusicFiles, scanMusicFolders, scanMusicFiles, deriveMusicSearchTerms, deriveMusicSearchCandidates, findMusicReleaseCandidates };

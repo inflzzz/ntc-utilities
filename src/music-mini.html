@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NTC Mini Player</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { padding: 11px; color: #e6dfe8; background: #171319; font: 12px system-ui, sans-serif; }
+    .mini { display: grid; width: 100%; height: 100%; min-width: 0; grid-template-columns: 70px minmax(0,1fr); gap: 0 13px; }
+    .art { display: grid; width: 70px; height: 70px; grid-row: 1 / span 4; place-items: center; overflow: hidden; align-self: start; border: 1px solid #4c3b50; border-radius: 7px; color: #c9a9cf; background: #2a222d; font-size: 26px; }
+    .art img { display: block; width: 100%; height: 100%; object-fit: contain; }
+    .main { display: grid; min-width: 0; grid-template-rows: 43px 38px 23px minmax(23px,1fr); gap: 3px; }
+    .metadata { display: grid; min-width: 0; align-content: center; }
+    .eyebrow { overflow: hidden; color: #b89ac0; font-size: 8px; letter-spacing: .15em; text-overflow: ellipsis; white-space: nowrap; }
+    h1 { overflow: hidden; margin: 1px 0 0; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 650; }
+    .metadata p { overflow: hidden; margin: 0; color: #a89cab; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+    .transport { display: grid; min-width: 0; grid-template-columns: 34px 42px 34px minmax(0,1fr); align-items: center; gap: 5px; }
+    button { display: grid; min-width: 32px; min-height: 32px; place-items: center; padding: 0 8px; border: 1px solid #4c3b50; border-radius: 6px; color: #e6dfe8; background: #2a222d; cursor: pointer; transition: background 140ms ease-out, border-color 140ms ease-out, transform 140ms ease-out; }
+    button:hover { border-color: #ba91c1; background: #3a2c3e; }
+    button:active { transform: scale(.97); }
+    button:focus-visible, input:focus-visible { outline: 2px solid #ba91c1; outline-offset: 2px; }
+    button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    #play { width: 40px; height: 36px; border-color: #d8c5dc; color: #181319; background: #e4d3e7; }
+    #play:hover { background: #fff; }
+    .seek { display: grid; min-width: 0; grid-template-columns: 31px minmax(0,1fr) 31px; align-items: center; gap: 7px; color: #b0a2b3; font: 10px Consolas, monospace; }
+    .seek span:last-child { text-align: right; }
+    input[type=range] { width: 100%; min-width: 0; accent-color: #be92c7; cursor: pointer; }
+    .bottom { display: grid; min-width: 0; grid-template-columns: minmax(100px,1fr) auto auto; align-items: center; gap: 9px; }
+    .volume { display: grid; min-width: 0; grid-template-columns: 24px minmax(45px,1fr); align-items: center; gap: 7px; color: #b0a2b3; font-size: 10px; }
+    .volume button { min-width: 26px; min-height: 25px; padding: 0; border-color: transparent; background: transparent; }
+    .volume button svg { width: 15px; height: 15px; }
+    .always { display: flex; align-items: center; gap: 5px; color: #a89cab; font-size: 9px; white-space: nowrap; cursor: pointer; }
+    .always input { margin: 0; accent-color: #be92c7; }
+    #open { min-height: 27px; padding: 0 9px; font-size: 9px; white-space: nowrap; }
+    @media (max-width: 540px) { body { padding: 8px; } .mini { grid-template-columns: 58px minmax(0,1fr); gap: 0 9px; } .art { width: 58px; height: 58px; } .main { grid-template-rows: 41px 36px 22px minmax(22px,1fr); } .transport { grid-template-columns: 31px 38px 31px minmax(0,1fr); } .bottom { grid-template-columns: minmax(70px,1fr) auto; } .always { display: none; } }
+    @media (prefers-reduced-motion: reduce) { button { transition: none; } }
+  </style>
+</head>
+<body>
+  <main class="mini" aria-label="Mini player de música">
+    <div class="art" id="art" aria-hidden="true">♫</div>
+    <section class="main">
+      <div class="metadata"><span class="eyebrow">NTC · TOCANDO AGORA</span><h1 id="title">Nenhuma música</h1><p id="artist">Escolha uma faixa no player principal.</p></div>
+      <div class="transport" aria-label="Controles de reprodução">
+        <button id="previous" type="button" title="Faixa anterior" aria-label="Faixa anterior"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M19 6 9 12l10 6z"/></svg></button>
+        <button id="play" type="button" title="Reproduzir" aria-label="Reproduzir"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg></button>
+        <button id="next" type="button" title="Próxima faixa" aria-label="Próxima faixa"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M5 6l10 6-10 6z"/></svg></button>
+        <div class="seek"><span id="time">0:00</span><input id="seek" type="range" min="0" max="1000" value="0" aria-label="Posição da faixa"><span id="duration">0:00</span></div>
+      </div>
+      <div class="bottom">
+        <label class="volume"><button id="mute" type="button" title="Silenciar" aria-label="Silenciar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6l-5 4zM17 9a5 5 0 0 1 0 6"/></svg></button><input id="volume" type="range" min="0" max="100" value="80" aria-label="Volume"></label>
+        <label class="always"><input id="onTop" type="checkbox"> Sempre acima</label>
+        <button id="open" type="button" title="Voltar ao NTC Utilities">Abrir NTC</button>
+      </div>
+    </section>
+  </main>
+  <script src="./music-mini.js"></script>
+</body>
+</html>

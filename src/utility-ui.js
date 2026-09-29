@@ -8,7 +8,7 @@
   const toolFor=id=>catalog.byId.get(id);
   const toolsInCategory=id=>catalog.tools.filter(t=>t.category===id);
   const directToolForCategory=category=>{const visible=toolsInCategory(category.id).filter(t=>t.visible);return visible.length===1&&visible[0].name===category.name?visible[0]:null;};
-  const specFor=id=>window.ntcUtilitySpecs?.[id]||window.ntcConverterSpecs?.[id]||window.ntcGeneratorSpecs?.[id]||window.ntcGameSpecs?.[id];
+  const specFor=id=>window.ntcUtilitySpecs?.[id]||window.ntcConverterSpecs?.[id]||window.ntcGeneratorSpecs?.[id];
   const recentStorageKey='ntc-catalog-recent-tools-v1';
   const favoritesStorageKey='ntc-catalog-favorites-v1';
   let recentToolIds=[];
@@ -84,7 +84,7 @@
     renderFavorites();
     renderRecentTools();
     navigation.querySelector('[data-catalog-home]').onclick=()=>showCategory(null);
-    navigation.querySelectorAll('[data-main-view]').forEach(button=>button.onclick=()=>{const id=button.dataset.mainView;if(id==='reaction')openTool('reaction');else openView(id);});
+    navigation.querySelectorAll('[data-main-view]').forEach(button=>button.onclick=()=>openView(button.dataset.mainView));
     navigation.querySelectorAll('.catalog-nav-group').forEach(group=>group.querySelector('.catalog-nav-heading').onclick=()=>{const direct=group.querySelector('[data-direct-tool]');if(direct){void openTool(direct.dataset.directTool);return;}const expanded=group.classList.toggle('expanded');group.querySelector('.catalog-nav-heading').setAttribute('aria-expanded',String(expanded));if(expanded)showCategory(group.dataset.category);});
     navigation.querySelectorAll('[data-catalog-tool]').forEach(button=>button.onclick=()=>openTool(button.dataset.catalogTool));
   }
@@ -129,8 +129,8 @@ function openView(view){viewRevision++;if(activeCleanup){activeCleanup();activeC
     if(activeTool==='speedTest'){
       const values=[...String(answer.value).matchAll(/(Download|Upload):\s*([\d.,]+)\s*Mbps/g)];
       if(values.length){const meters=document.createElement('div');meters.className='utility-speed-meters';const max=Math.max(...values.map(row=>Number(row[2].replace(',','.'))),1);for(const row of values){const line=document.createElement('div');line.innerHTML=`<span>${escape(row[1])}</span><strong>${escape(row[2])} <small>Mbps</small></strong><i style="--fill:${Math.max(4,Math.round(Number(row[2].replace(',','.'))/max*100))}%"></i>`;meters.append(line);}result.insertBefore(meters,result.querySelector('.utility-result-text'));result.querySelector('.utility-result-text')?.classList.add('hidden');}
-    }else if(['siteStatus','ping','metronome','tapBpm','reaction'].includes(activeTool)){
-      const badge=document.createElement('div');badge.className=`utility-status-visual${String(answer.value).includes('Online')||String(answer.value).includes('ligado')?' positive':''}`;badge.innerHTML=`${icon(['metronome','tapBpm'].includes(activeTool)?'audio':activeTool==='reaction'?'game':'network')}<strong>${escape(String(answer.value).split('\n')[0])}</strong>`;result.insertBefore(badge,result.querySelector('.utility-result-text'));if(!String(answer.value).includes('\n'))result.querySelector('.utility-result-text')?.classList.add('hidden');
+    }else if(['siteStatus','ping','metronome','tapBpm'].includes(activeTool)){
+      const badge=document.createElement('div');badge.className=`utility-status-visual${String(answer.value).includes('Online')||String(answer.value).includes('ligado')?' positive':''}`;badge.innerHTML=`${icon(['metronome','tapBpm'].includes(activeTool)?'audio':'network')}<strong>${escape(String(answer.value).split('\n')[0])}</strong>`;result.insertBefore(badge,result.querySelector('.utility-result-text'));if(!String(answer.value).includes('\n'))result.querySelector('.utility-result-text')?.classList.add('hidden');
     }else if(activeTool==='generatorPanel'){
       const choice=utility.querySelector('#utilityPanelChoice')?.value;
       if(['dice','coin','randomNumber'].includes(choice)){const chips=document.createElement('div');chips.className='utility-generated-chips';for(const value of String(answer.value).split(',').slice(0,30)){const chip=document.createElement('span');chip.textContent=value.trim();chips.append(chip);}result.insertBefore(chips,result.querySelector('.utility-result-text'));if(String(answer.value).split(',').length<=30)result.querySelector('.utility-result-text')?.classList.add('hidden');}
@@ -206,13 +206,10 @@ function openView(view){viewRevision++;if(activeCleanup){activeCleanup();activeC
   async function openTool(id,{fromRecent=false,fromFavorite=false}={}){
     viewRevision++;
     if(activeCleanup){activeCleanup();activeCleanup=null;}
-    const tool=toolFor(id);if(!tool)return;activeCatalogTool=tool.id;activeNavigationSource=fromRecent?'recent':fromFavorite?'favorite':'catalog';activeRecentTool=fromRecent?tool.id:null;if(fromRecent)renderRecentTools();else rememberRecentTool(tool.id);
+    const tool=toolFor(id);if(!tool)return;window.NTCLabsStats?.recordToolOpen(tool.id);activeCatalogTool=tool.id;activeNavigationSource=fromRecent?'recent':fromFavorite?'favorite':'catalog';activeRecentTool=fromRecent?tool.id:null;if(fromRecent)renderRecentTools();else rememberRecentTool(tool.id);
     activeTool=tool.panel?masterFor(tool.panel)?.id:tool.id;activeCategory=tool.category;
     if(tool.panel){closeSearch();utility.querySelector('.utility-layout').classList.toggle('wide',tool.panel==='image');panelScaffold(tool.panel,tool.id);navigateToView('utility');markNav();document.querySelector('.content-scroll').scrollTop=0;return;}
-    if(tool.target==='reaction'||tool.kind==='game'){
-      closeSearch();utility.querySelector('#utilityEyebrow').innerHTML=`${icon('game')}<span>Jogo rápido</span>`;utility.querySelector('#utilityTitle').textContent=tool.name;utility.querySelector('.utility-layout').classList.remove('wide');const spec=window.ntcGameSpecs?.reaction;if(spec){const form=utility.querySelector('#utilityForm');form.innerHTML=spec.customHtml;activeCleanup=spec.mount?.(form,showResult)||null;}resetOutput();navigateToView('utility');markNav();return;
-    }
-    const destination=document.getElementById(`${tool.target}View`);if(destination){navigateToView(tool.target);markNav();closeSearch();return;}
+    const destination=document.getElementById(`${tool.target}View`);if(destination){navigateToView(tool.target);if(tool.target==='ntcStats')window.NTCLabsStats?.render();markNav();closeSearch();return;}
     const spec=specFor(id);if(!spec){showToast('Esta ferramenta não está disponível.');return;}
     closeSearch();utility.querySelector('.utility-layout').classList.remove('wide');
     utility.querySelector('#utilityEyebrow').innerHTML=`${icon(categoryFor(tool.category)?.icon||'spark')}<span>${escape(categoryFor(tool.category)?.name||'Principal')} · ${escape(tool.group)}</span>`;
@@ -224,7 +221,7 @@ function openView(view){viewRevision++;if(activeCleanup){activeCleanup();activeC
     navigateToView('utility');markNav();document.querySelector('.content-scroll').scrollTop=0;
   }
   function showError(error){const output=utility.querySelector('#utilityOutput');output.classList.remove('hidden');utility.querySelector('#utilityCopy').classList.add('hidden');utility.querySelector('#utilitySave').classList.add('hidden');utility.querySelector('#utilityFormatWrap').classList.add('hidden');utility.querySelector('#utilityDetail').textContent='';const result=utility.querySelector('#utilityResult');result.replaceChildren();result.className='utility-result-content utility-result-error';result.textContent=String(error?.message||error||'Não foi possível concluir.').replace(/^Error invoking remote method '[^']+': Error:\s*/,'');}
-  function showCategoryToolOutput(spec,form){const revision=viewRevision,run=form.querySelector('#utilityPanelRun');if(activeTool==='converterPanel')showConverterPending(form);else resetOutput();if(run){run.disabled=true;run.textContent='Processando…';}Promise.resolve().then(()=>spec.run(Object.fromEntries(new FormData(form)),form)).then(answer=>{if(revision===viewRevision)showResult(answer);}).catch(error=>{if(revision===viewRevision)showError(error);}).finally(()=>{if(run){run.disabled=false;run.textContent=spec.action||(activeTool==='converterPanel'?'Converter':'Gerar');}});}
+  function showCategoryToolOutput(spec,form){const revision=viewRevision,run=form.querySelector('#utilityPanelRun');if(activeTool==='converterPanel')showConverterPending(form);else resetOutput();if(run){run.disabled=true;run.textContent='Processando…';}Promise.resolve().then(()=>spec.run(Object.fromEntries(new FormData(form)),form)).then(answer=>{if(revision===viewRevision){window.NTCLabsStats?.record(activeTool==='converterPanel'?'conversions':'generations');showResult(answer);}}).catch(error=>{if(revision===viewRevision)showError(error);}).finally(()=>{if(run){run.disabled=false;run.textContent=spec.action||(activeTool==='converterPanel'?'Converter':'Gerar');}});}
   function updatePanelSubmit(){const form=utility.querySelector('#utilityForm');form.onsubmit=event=>{event.preventDefault();const spec=specFor(form.querySelector('#utilityPanelChoice').value);if(spec)showCategoryToolOutput(spec,form);};}
   document.addEventListener('keydown',event=>{if(event.ctrlKey&&event.key.toLowerCase()==='k'){event.preventDefault();searchInput.focus();searchInput.select();}});
   searchInput.oninput=()=>{const query=normalize(searchInput.value);if(!query){closeSearch();return;}const rank=tool=>{const name=normalize(tool.name),aliases=tool.aliases.map(normalize);if(name.startsWith(query))return 0;if(aliases.some(x=>x.startsWith(query)))return 1;if(name.includes(query))return 2;if(aliases.some(x=>x.includes(query)))return 3;return 99;};searchResults=catalog.tools.map(tool=>({tool,rank:rank(tool)})).filter(item=>item.rank<99).sort((a,b)=>a.rank-b.rank||a.tool.name.localeCompare(b.tool.name,'pt-BR')).slice(0,10).map(item=>item.tool);searchIndex=-1;suggestions.innerHTML=searchResults.length?searchResults.map((tool,index)=>`<button role="option" class="catalog-suggestion" type="button" data-index="${index}" data-catalog-tool="${escape(tool.id)}"><strong>${escape(tool.name)}</strong><small>${escape(categoryFor(tool.category)?.name||'Principal')}</small></button>`).join(''):'<div class="catalog-search-empty">Nenhuma ferramenta encontrada.</div>';suggestions.classList.remove('hidden');searchInput.setAttribute('aria-expanded','true');suggestions.querySelectorAll('[data-index]').forEach(button=>button.onmousedown=event=>{event.preventDefault();void openTool(searchResults[Number(button.dataset.index)].id);searchInput.value='';});};

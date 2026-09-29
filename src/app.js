@@ -1958,6 +1958,8 @@ $('#historyFilter').onchange = renderHistory;
 $('#confirmCancel').onclick = () => closeConfirm(false); $('#confirmAccept').onclick = () => closeConfirm(true);
 function navigateToView(target) {
   const viewTarget = window.NTCRngAvailability?.resolveView(target) || (target === 'rng' ? 'rngMaintenance' : target);
+  if (target !== 'microphoneTest') window.NTCMicrophoneTest?.close();
+  if (target !== 'webcamTest') window.NTCWebcamTest?.close();
   window.NTCVideoProjectUi?.setWorkspaceActive(viewTarget === 'videoEditor' && !$('#videoProjectPanel')?.classList.contains('hidden'));
   if (target !== 'security' && $('#securityView').classList.contains('active')) window.ntcSecurityUi?.close();
   if (target !== 'studyTools') window.ntcStudyUi?.close();
@@ -1973,6 +1975,9 @@ function navigateToView(target) {
   if (target === 'pdf') window.ntcPdfUi?.open();
   if (target === 'studyTools') window.ntcStudyUi?.open();
   if (target === 'timeTools') window.ntcWorldClock?.open();
+  if (target === 'randomTools') window.NTCRandomTools?.open();
+  if (target === 'microphoneTest') window.NTCMicrophoneTest?.open();
+  if (target === 'webcamTest') window.NTCWebcamTest?.open();
 }
 $$('.nav-item[data-view]').forEach(button => button.onclick = () => navigateToView(button.dataset.view));
 $$('[data-open-tool]').forEach(button => button.onclick = () => navigateToView(button.dataset.openTool));

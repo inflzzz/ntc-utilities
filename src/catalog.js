@@ -16,6 +16,11 @@
     game: '<path d="M6 9h12a4 4 0 0 1 3.8 5.2l-.8 2.5a2 2 0 0 1-3.3.8L15 15H9l-2.7 2.5a2 2 0 0 1-3.3-.8l-.8-2.5A4 4 0 0 1 6 9z"/><path d="M7 11v4M5 13h4M16 12h.01M19 14h.01"/>',
     history: '<path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
     rng: '<path d="m12 3 2.5 5.5L20 11l-5.5 2.5L12 19l-2.5-5.5L4 11l5.5-2.5zM19 16v6M16 19h6"/>',
+    randomPerson: '<circle cx="12" cy="8" r="3.5"/><path d="M5 21a7 7 0 0 1 14 0M18 4a3 3 0 0 1 0 6M20 14a5 5 0 0 1 2 4"/>',
+    ambientMixer: '<path d="M3 9h3l4-4v14l-4-4H3zM14 9a4 4 0 0 1 0 6M16.5 6.5a8 8 0 0 1 0 11"/>',
+    ntcStats: '<path d="M4 19V5M4 19h17M8 16v-4M13 16V8M18 16V4"/>',
+    dailyRandom: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>',
+    realLife: '<path d="M3 6h18M6 3v6M18 3v6M5 10l3 10h8l3-10M9 15h6"/>',
     settings: '<circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.6a8 8 0 0 1-1.8 1L15.7 21h-2.8l-.3-2a8 8 0 0 1-1.8-1l-1.7.6-1.4-2.4L9.1 15a8 8 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.6a8 8 0 0 1 1.8-1l.3-2h2.8l.3 2a8 8 0 0 1 1.8 1l1.7-.6 1.4 2.4L19.5 13a8 8 0 0 1-.1 2z"/>',
     search: '<circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/>',
     chevron: '<path d="m7 10 5 5 5-5"/>',
@@ -29,7 +34,7 @@
     ['documents', 'Documentos', 'document'], ['pdf', 'PDF', 'pdf'],
     ['time', 'Relógios e Estudos', 'clock'], ['productivity', 'Produtividade', 'productivity'],
     ['security', 'Segurança', 'shield'], ['converters', 'Conversores', 'swap'],
-    ['generators', 'Geradores', 'spark']
+    ['generators', 'Geradores', 'spark'], ['games', 'Jogos e Sorteios', 'game'], ['labs', 'NTC Labs', 'spark']
   ].map(([id, name, icon]) => ({ id, name, icon }));
   const tools = [];
   function add(category, group, items, kind = 'utility') {
@@ -61,18 +66,18 @@
   add('images', 'Ferramenta de tela', [['colorPicker', 'Seletor de cor da tela', 'colorPicker', 'conta-gotas']], 'existing');
   add('audio', 'Áudio', [
     ['musicPlayer', 'Player de música', 'musicPlayer'], ['converter', 'Editor de áudio', 'converter'],
+    ['microphoneTest', 'Teste de microfone', 'microphoneTest'],
     ['metronome', 'Metrônomo'], ['tapBpm', 'BPM por toques']
   ], 'mixed');
   add('video', 'Vídeo', [
     ['videoEditor', 'Editor de vídeo', 'videoEditor'], ['video', 'Conversor de vídeo', 'video'],
-    ['recorder', 'Gravar tela', 'recorder']
+    ['recorder', 'Gravar tela', 'recorder'], ['webcamTest', 'Teste de webcam', 'webcamTest']
   ], 'existing');
   add('documents', 'Escrita', [['documents', 'Editor de documentos e notas', 'documents']], 'existing');
   add('pdf', 'PDF', [['pdf', 'Leitor e ferramentas de PDF', 'pdf']], 'existing');
   add('time', 'Tempo e estudo', [
     ['timeTools', 'Relógio mundial, clima e alarmes', 'timeTools'], ['studyTools', 'Pomodoro e flashcards', 'studyTools']
   ], 'existing');
-  add('time', 'Testes rápidos', [['reaction', 'Teste de reflexo', 'reaction', 'tempo de reação']], 'existing');
   add('productivity', 'Arquivos e captura', [
     ['screenshot', 'Captura de tela', 'screenshot'], ['autoclicker', 'Auto-clicker', 'autoclicker'],
     ['renamer', 'Renomear arquivos', 'renamer'], ['compressor', 'Compressor de mídia', 'compressor'],
@@ -99,6 +104,14 @@
     ['Design', [['randomColor','Cor aleatória'],['colorPalette','Paleta de cores'],['cssGradient','Gradiente CSS'],['cssShadow','Sombra CSS'],['svgPattern','Padrão SVG'],['identicon','Identicon'],['initials','Avatar com iniciais'],['placeholder','Imagem placeholder']]]
   ];
   for (const [group, rows] of generatorGroups) for (const [id, name] of rows) tools.push({ id, name, category:'generators', group, kind:'utility', target:id, aliases:[], panel:'generators', visible:false });
+  add('games', 'Jogos e Sorteios', [['randomTools', 'Sorteios & Jogos', 'randomTools', 'decisão|moeda|roleta|equipes|cartas', '', true]]);
+  add('labs', 'NTC Labs', [
+    ['randomPerson', 'Pessoa Aleatória', 'randomPerson', 'pessoa fictícia|família|personagem'],
+    ['ambientMixer', 'Ambient Mixer', 'ambientMixer', 'sons ambientes|chuva|ruído branco'],
+    ['ntcStats', 'Estatísticas do NTC', 'ntcStats', 'uso local|tempo de uso|ferramenta favorita'],
+    ['dailyRandom', 'Daily Random', 'dailyRandom', 'aleatório do dia|desafio diário'],
+    ['realLife', 'Quanto é isso na vida real?', 'realLife', 'comparar medidas|imaginar números']
+  ], 'existing');
 
   tools.push({ id:'history',name:'Histórico',category:null,group:'',kind:'existing',target:'history',aliases:['arquivos recentes'],panel:null,visible:true });
   tools.push({ id:'rng',name:'NTC RNG',category:null,group:'',kind:'existing',target:'rng',aliases:['jogo de sorte'],panel:null,visible:true });

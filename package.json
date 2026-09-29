@@ -8,6 +8,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test",
+    "build:ambient-packs": "node scripts/build-ambient-packs.cjs",
     "validate:rng-catalog": "node scripts/validate-rng-title-catalog.cjs",
     "validate:rng-math-backend": "node scripts/validate-rng-math-backend.cjs",
     "prepare:bin": "powershell -ExecutionPolicy Bypass -File scripts/fetch-binaries.ps1",
