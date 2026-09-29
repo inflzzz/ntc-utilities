@@ -1,5 +1,5 @@
 (() => {
-  const legacy={ 'rain-light':'rain.light','rain-heavy':'rain.heavy',wind:'wind.soft',fire:'fire.fireplace',forest:'forest.day',birds:'forest.day',ocean:'water.ocean',river:'water.river',waterfall:'water.waterfall',night:'forest.night',crickets:'insects.cicadas',white:'noise.white',pink:'noise.pink',brown:'noise.brown' };
+  const legacy={ 'rain-light':'rain.light','rain-heavy':'rain.heavy',wind:'wind.soft',fire:'fire.fireplace',forest:'forest.day',ocean:'water.ocean',river:'water.river',waterfall:'water.waterfall',night:'forest.night',white:'noise.white',pink:'noise.pink',brown:'noise.brown' };
   const limit=value=>Math.max(0,Math.min(100,Number.isFinite(Number(value))?Number(value):35));
   function migrate(raw){
     const old=raw&&typeof raw==='object'?raw:{};const sounds={};

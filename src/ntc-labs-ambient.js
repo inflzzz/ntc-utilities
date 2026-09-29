@@ -5,6 +5,7 @@
   const noise=[{id:'noise.white',name:'Ruído branco',category:'Ruídos',defaultVolume:38},{id:'noise.pink',name:'Ruído rosa',category:'Ruídos',defaultVolume:42},{id:'noise.brown',name:'Ruído marrom',category:'Ruídos',defaultVolume:48}];
   const builtins=[
     {id:'builtin-rain',name:'Chuva para dormir',sounds:{'rain.light':{on:true,volume:68},'noise.brown':{on:true,volume:24}}},
+    {id:'builtin-cafe',name:'Cafeteria (legado)',sounds:{cafe:{on:true,volume:48},keyboard:{on:true,volume:17},'rain.light':{on:true,volume:12}}},
     {id:'builtin-forest',name:'Floresta',sounds:{'forest.day':{on:true,volume:60},'wind.soft':{on:true,volume:28},'water.river':{on:true,volume:25}}},
     {id:'builtin-storm',name:'Chuva e vento',sounds:{'rain.heavy':{on:true,volume:65},'wind.soft':{on:true,volume:40}}},
     {id:'builtin-focus',name:'Foco',sounds:{'noise.brown':{on:true,volume:36},'rain.light':{on:true,volume:20}}}
