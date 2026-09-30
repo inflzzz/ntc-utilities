@@ -1,18 +1,29 @@
 window.NTC_CHANGELOG = [
   {
+    version: '1.2.1',
+    date: '29 set. 2026',
+    title: 'Novidades da versão 1.2.1',
+    changes: [
+      'Revisamos a apresentação do histórico de versões para organizar melhor as novidades e facilitar a leitura.'
+    ]
+  },
+  {
     version: '1.2.0',
     date: '29 set. 2026',
+    title: 'Novidades da versão 1.2.0',
     changes: [
-      'Novo Analisador de Armazenamento: análise de discos e pastas, Fast Scan NTFS com helper incluído no instalador, fallback seguro com motivo e método visíveis, progresso/cancelamento, treemap, arquivos, pastas, tipos, achados, filtros e ações seguras pelo Explorer ou Lixeira.',
-      'O mapa preserva tamanho lógico e em disco, evita duplicar hard links e não atravessa junctions/symlinks. Navegação contextual acima do treemap: voltar ao nível anterior e breadcrumb clicável com truncamento inteligente, sem repetir o scan.',
-      'Ambient Mixer: biblioteca de sons separada do gerenciamento; três pacotes opcionais com 24 gravações CC0, downloads verificados por SHA-256, instalação atômica, uso offline, atualização/remoção e sons próprios por referência ou importação. Inclui desmarcar todas as camadas e controles claros de iniciar, pausar e retomar.',
-      'Novo Lembrete de Medicamentos em Saúde e bem-estar: agenda local por dias e horários, acompanhamento das doses, histórico, notificações, adiamento e opção de iniciar com o Windows.',
-      'Novos testes de microfone e webcam: nível de áudio em tempo real, dispositivos e propriedades, gravação local; prévia da câmera, resoluções/FPS disponíveis e captura de foto.',
-      'Player de música offline renovado, com biblioteca local, playlists, fila, reprodução em janela compacta e controles persistentes.',
-      'Jogos e Sorteios em categoria própria: decisão, moeda, roleta, lista, equipes, cartas, dados e jogos rápidos; contadores e sequências agora respeitam erros e seleções do usuário.',
-      'NTC Labs reúne Pessoa Aleatória, Estatísticas do NTC, Daily Random, comparações de medidas da vida real e o Ambient Mixer.',
-      'Editor de vídeo: exportação UHD 4K (2160p) e opção Máxima, com H.264 CRF 12, codificação mais lenta e AAC 320 kb/s; arquivos podem ficar maiores e levar mais tempo. Aumentar a resolução não recupera detalhes ausentes na origem.',
-      'Controles de reprodução centralizados; a timeline vazia ocupa a área visível sem alterar a edição ou o relógio de reprodução.'
+      'Analisador de Armazenamento: explore discos e pastas em um mapa interativo, consulte arquivos, tipos e itens maiores e refine os resultados com filtros.',
+      'Em unidades NTFS compatíveis, o Fast Scan acelera a análise. O aplicativo informa qual método foi usado e, se necessário, por que recorreu ao scanner padrão.',
+      'Navegação do mapa: volte ao nível anterior ou escolha um ponto do caminho sem executar a análise novamente.',
+      'Ambient Mixer: biblioteca de sons em destaque e gerenciamento dos pacotes em uma área separada. Três pacotes opcionais reúnem 24 gravações CC0 para baixar e usar offline.',
+      'Os pacotes têm verificação de integridade. Também é possível importar ou referenciar sons próprios, desmarcar todas as camadas e pausar ou retomar o ambiente.',
+      'Lembrete de Medicamentos: organize dias e horários, acompanhe as doses e consulte notificações e histórico armazenados localmente.',
+      'Testes de microfone e webcam: confira o nível e as características dos dispositivos, grave um teste de áudio, veja a prévia da câmera e capture fotos.',
+      'Player de música renovado, com biblioteca local, playlists, fila e mini player.',
+      'Jogos e Sorteios ganharam uma categoria própria, com decisões, moedas, roletas, listas, equipes, cartas, dados e jogos rápidos.',
+      'NTC Labs reúne Pessoa Aleatória, Estatísticas do NTC, Daily Random e comparações de medidas da vida real, além do Ambient Mixer.',
+      'Editor de vídeo: exportação em 4K e perfil Máxima, com qualidade aprimorada. Os arquivos podem ficar maiores e a exportação levar mais tempo.',
+      'Controles de reprodução centralizados e melhor aproveitamento da área da timeline.'
     ]
   },
   {
