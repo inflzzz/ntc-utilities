@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.4.0 — NTC Utilities · 30 set. 2026
+
+### Novo Desinstalador
+
+- Consulte programas registrados no Windows, pacotes da Microsoft Store e jogos de bibliotecas Steam; filtre a lista e execute os desinstaladores oficiais individualmente ou em sequência.
+- As pastas de instalação são medidas em segundo plano, com ordenação por tamanho, identificação de estimativas e resultados parciais e atualização automática após a desinstalação.
+- Ícones reais são extraídos dos arquivos dos programas, incluindo ICO, executáveis e logos de pacotes da Microsoft Store.
+- Revise sobras antes de confirmar a limpeza: dados pessoais ficam desmarcados por padrão, e recursos compartilhados, protegidos ou sem vínculo suficiente são preservados.
+- Consulte o histórico, exporte relatórios e restaure itens disponíveis na quarentena. A limpeza do histórico preserva backups, salvo confirmação explícita de exclusão permanente.
+- Instalações monitoradas comparam o estado anterior e posterior do sistema, sem atribuir automaticamente ao instalador as mudanças de outros programas.
+
+### Atualizações mais claras
+
+- O aviso reúne todas as versões entre a instalada e a disponível, com novidades agrupadas por versão e acesso ao histórico completo. Após atualizar, o resumo inclui apenas as versões ainda não vistas.
+- Novas versões são verificadas a cada 15 minutos enquanto o aplicativo está aberto e ao retomar o computador. Dispensar o aviso evita sua repetição a cada checagem na mesma sessão.
+- Download e instalação continuam dependendo da confirmação do usuário. O instalador, o arquivo incremental, os metadados e o histórico completo são publicados juntos.
+
+### Compatibilidade e limites
+
+- O novo comportamento do atualizador passa a funcionar após a instalação da versão 1.4.0. O histórico antes de atualizar depende da conexão; depois, também fica disponível offline.
+- Restaurar sobras não reinstala o aplicativo original. Desinstaladores de terceiros podem exibir seus próprios avisos ou opções de reinicialização.
+- Os pacotes do Ambient Mixer permanecem disponíveis separadamente, sem alterações no armazenamento, nos presets ou no áudio.
+
 ## 1.3.0 — NTC Utilities · 30 set. 2026
 
 ### Novas ferramentas

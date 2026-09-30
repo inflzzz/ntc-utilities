@@ -1,6 +1,6 @@
 # Desinstalador — implementação e validação local
 
-Data: 30/09/2026. Projeto: NTC Utilities. Nenhuma release, tag, commit ou publicação foi realizada nesta entrega. A versão do aplicativo permanece 1.3.0; o instalador gerado é uma build local de desenvolvimento, não uma nova atualização pública.
+Data: 30/09/2026. Projeto: NTC Utilities. O Desinstalador integra a versão pública 1.4.0. Os caminhos e tamanhos das builds 1.3.0 citados abaixo documentam as validações locais anteriores, não os arquivos de atualização publicados. O instalador final 1.4.0 e os metadados foram conferidos separadamente, incluindo os ícones reais de Cyberpunk 2077 e Clair Obscur e seus tamanhos medidos.
 
 ## Onde encontrar
 
