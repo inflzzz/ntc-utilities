@@ -127,7 +127,10 @@ test('existing users see the full release changelog once after upgrading', () =>
   assert.match(app, /hadExistingAppData = \[[^\]]*'ntc-folder'[^\]]*\]/);
   assert.match(app, /function showChangelogAfterUpgrade\(version\)/);
   assert.match(app, /ntc-last-seen-changelog-version/);
-  assert.match(app, /window\.setTimeout\(\(\) => \{ localStorage\.setItem\(key, version\); openChangelog\(\); \}, 2500\)/);
+  assert.match(app, /updateUi\.afterUpgrade\(version, hadExistingAppData\)/);
+  const updateUi = fs.readFileSync(path.join(root, 'src', 'update-ui.js'), 'utf8');
+  assert.match(updateUi, /history\.between\(releases, previous, version\)/);
+  assert.match(updateUi, /if \(acknowledgeVersion\) storage\.setItem\(key, acknowledgeVersion\)/);
   assert.match(app, /showChangelogAfterUpgrade\(version\)/);
   assert.match(changelog, /version: '0\.8\.0'/);
   assert.match(changelog, /version: '0\.6\.1'/);

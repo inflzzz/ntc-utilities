@@ -1,0 +1,15 @@
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const history = require('../src/release-history.js');
+const root = path.resolve(__dirname, '..');
+const version = require('../package.json').version;
+const context = { window: {} };
+vm.runInNewContext(fs.readFileSync(path.join(root, 'src/changelog.js'), 'utf8'), context);
+const releases = history.normalize(context.window.NTC_CHANGELOG);
+if (!releases.length || releases[0].version !== version) throw new Error('Package and changelog versions must match.');
+const output = path.resolve(process.argv[2] || path.join(root, 'dist'), 'changelog.json');
+fs.mkdirSync(path.dirname(output), { recursive: true });
+fs.writeFileSync(output, JSON.stringify({ schema: 1, version, releases }, null, 2) + '\n');
+console.log(`Complete release history: ${releases.length} versions → ${output}`);

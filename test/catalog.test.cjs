@@ -32,7 +32,7 @@ test('catalog has one category per tool and no removed entries',()=>{
 });
 
 test('all catalog tools lead to a view, panel or functional spec',()=>{
-  const app=load(),existing=new Set(['downloader','musicPlayer','converter','microphoneTest','voiceModifier','screenLight','videoEditor','video','recorder','webcamTest','documents','pdf','timeTools','studyTools','screenshot','autoclicker','renamer','compressor','clipboardHistory','security','colorPicker','randomTools','history','rng','randomPerson','ambientMixer','ntcStats','dailyRandom','realLife','storageAnalyzer','medicineReminders']);
+  const app=load(),existing=new Set(['downloader','musicPlayer','converter','microphoneTest','voiceModifier','screenLight','uninstaller','videoEditor','video','recorder','webcamTest','documents','pdf','timeTools','studyTools','screenshot','autoclicker','renamer','compressor','clipboardHistory','security','colorPicker','randomTools','history','rng','randomPerson','ambientMixer','ntcStats','dailyRandom','realLife','storageAnalyzer','medicineReminders']);
   const panels=new Set(['image','converters','generators']);
   const labs=app.ntcCatalog.categories.find(category=>category.id==='labs');
   assert.equal(labs.name,'NTC Labs');

@@ -1342,14 +1342,8 @@ async function captureAndEditScreenshot(capture) {
     showToast(`Não foi possível capturar a tela: ${cleanError(error)}`);
   } finally { screenshotCaptureBusy = false; }
 }
-function openChangelog() {
-  const list = $('#changelogList'); list.replaceChildren(...(window.NTC_CHANGELOG || []).map(entry => {
-    const article = document.createElement('article'); article.className = 'changelog-entry';
-    const heading = document.createElement('div'); heading.className = 'changelog-entry-heading'; const title = document.createElement('h3'); title.textContent = `v${entry.version}`; const date = document.createElement('time'); date.textContent = entry.date; heading.append(title, date);
-    const changes = document.createElement('ul'); entry.changes.forEach(change => { const line = document.createElement('li'); line.textContent = change; changes.append(line); }); article.append(heading, changes); return article;
-  }));
-  $('#changelogDialog').classList.remove('hidden'); $('#closeChangelog').focus();
-}
+const updateUi = window.createNTCUpdateUi({ document, history: window.NTCReleaseHistory, storage: localStorage, releases: window.NTC_CHANGELOG || [], showToast, getVersion: () => activeAppVersion });
+function openChangelog() { updateUi.open(); }
 function openRngPatchNotesDialog() {
   const list = $('#rngPatchNotesDialogList');
   list.replaceChildren(...(window.NTC_RNG_CHANGELOG || []).map(entry => {
@@ -1361,27 +1355,10 @@ function openRngPatchNotesDialog() {
 }
 function closeRngPatchNotesDialog() { $('#rngPatchNotesDialog').classList.add('hidden'); $('.rng-nav-item.active')?.focus(); }
 function showChangelogAfterUpgrade(version) {
-  const key = 'ntc-last-seen-changelog-version'; const previousVersion = localStorage.getItem(key);
-  const shouldShow = previousVersion ? previousVersion !== version : hadExistingAppData;
-  if (shouldShow) window.setTimeout(() => { localStorage.setItem(key, version); openChangelog(); }, 2500);
-  else localStorage.setItem(key, version);
+  updateUi.afterUpgrade(version, hadExistingAppData);
 }
-function changelogLines(notes) { return String(notes || '').split(/\r?\n/).map(line => line.replace(/^\s*[-*•#]+\s*/, '').trim()).filter(Boolean).slice(0, 6); }
 function showUpdateNotice(update) {
-  const notice = $('#updateNotice'); const status = update?.status || 'idle'; const statusText = $('#updateStatus');
-  if (status === 'checking') { statusText.textContent = 'Verificando atualizações…'; return; }
-  if (status === 'unavailable') { statusText.textContent = update.message || 'A verificação funciona na versão instalada.'; return; }
-  if (status === 'current') { statusText.textContent = `Você já está usando a versão mais recente (v${update.version}).`; showToast('O NTC Utilities está atualizado.'); return; }
-  if (status === 'error') { statusText.textContent = update.message || 'Não foi possível verificar atualizações.'; showToast(statusText.textContent); return; }
-  if (status === 'available' || status === 'downloading' || status === 'downloaded') {
-    const version = update.version ? `v${update.version}` : 'a nova versão'; const downloading = status === 'downloading'; const downloaded = status === 'downloaded';
-    statusText.textContent = downloaded ? `${version} está pronta para instalar.` : downloading ? `Baixando ${version}… ${update.percent || 0}%` : `${version} está disponível.`;
-    $('#updateTitle').textContent = downloaded ? `${version} pronta para instalar` : `${version} está disponível`;
-    $('#updateSummary').textContent = downloaded ? 'A instalação será iniciada ao confirmar.' : downloading ? `Baixando a atualização: ${update.percent || 0}%.` : 'Veja as novidades antes de atualizar.';
-    const notes = changelogLines(update.notes); const list = $('#updateNotes'); list.replaceChildren(...notes.map(note => { const li = document.createElement('li'); li.textContent = note; return li; })); list.classList.toggle('hidden', !notes.length);
-    const action = $('#updateAction'); action.disabled = downloading; action.textContent = downloaded ? 'Instalar e reiniciar' : downloading ? `Baixando ${update.percent || 0}%` : 'Baixar atualização'; action.dataset.updateStatus = status;
-    notice.classList.remove('hidden');
-  }
+  updateUi.show(update);
 }
 function closeConfirm(result) { $('#confirmDialog').classList.add('hidden'); const resolver = confirmResolver; confirmResolver = null; resolver?.(result); }
 function confirmAction(title, message, acceptLabel = 'Confirmar') { $('#confirmTitle').textContent = title; $('#confirmMessage').textContent = message; $('#confirmAccept').textContent = acceptLabel; $('#confirmDialog').classList.remove('hidden'); $('#confirmCancel').focus(); return new Promise(resolve => { confirmResolver = resolve; }); }
@@ -1948,12 +1925,13 @@ window.ntc.getLaunchAtLogin().then(setting => { $('#launchAtLogin').checked = Bo
 $('#launchAtLogin').addEventListener('change', async event => { const input = event.currentTarget; input.disabled = true; try { const result = await window.ntc.setLaunchAtLogin(input.checked); if (!result.ok) { input.checked = !input.checked; showToast(result.message || 'Não foi possível alterar a inicialização automática.'); } else showToast(result.enabled ? 'O NTC abrirá ao entrar no Windows.' : 'A inicialização automática foi desativada.'); } catch (error) { input.checked = !input.checked; showToast(cleanError(error)); } finally { input.disabled = false; } });
 window.ntc.onScreenCloseRequest(async () => { if (!screenRecorder.recorder) { window.ntc.forceCloseWindow(); return; } const close = await confirmAction('Gravação em andamento', 'Deseja finalizar e salvar a gravação antes de fechar o aplicativo?', 'Salvar e fechar'); if (close) { await stopScreenRecording(); window.ntc.forceCloseWindow(); } });
 $('#openChangelog').onclick = openChangelog;
-$('#closeChangelog').onclick = () => $('#changelogDialog').classList.add('hidden');
+$('#closeChangelog').onclick = () => updateUi.close();
 $('#closeRngPatchNotesDialog').onclick = closeRngPatchNotesDialog;
 $('#rngPatchNotesDialog').addEventListener('click', event => { if (event.target === $('#rngPatchNotesDialog')) closeRngPatchNotesDialog(); });
-$('#dismissUpdate').onclick = () => $('#updateNotice').classList.add('hidden');
+$('#dismissUpdate').onclick = () => updateUi.dismiss();
 $('#updateAction').onclick = async () => { const status = $('#updateAction').dataset.updateStatus; if (status === 'downloaded') { window.ntc.installUpdate(); return; } if (status === 'available') showUpdateNotice(await window.ntc.downloadUpdate()); };
 window.ntc.onUpdateEvent(showUpdateNotice);
+window.ntc.updateState?.().then(showUpdateNotice).catch(() => {});
 $('#historyFilter').onchange = renderHistory;
 $('#confirmCancel').onclick = () => closeConfirm(false); $('#confirmAccept').onclick = () => closeConfirm(true);
 function navigateToView(target, options = {}) {
@@ -1979,6 +1957,7 @@ function navigateToView(target, options = {}) {
   if (target === 'medicineReminders') window.NTCMedicineReminders?.open(options.reminderKey);
   if (target === 'storageAnalyzer') window.NTCStorageAnalyzer?.open();
   if (target === 'screenLight') window.NTCScreenLight?.open();
+  if (target === 'uninstaller') window.NTCUninstaller?.open();
   if (target === 'timeTools') window.ntcWorldClock?.open();
   if (target === 'randomTools') window.NTCRandomTools?.open();
   if (target === 'microphoneTest') window.NTCMicrophoneTest?.open();
@@ -2005,7 +1984,7 @@ document.addEventListener('keydown', event => {
   if (!$('#confirmDialog').classList.contains('hidden')) { closeConfirm(false); return; }
   if (!$('#clipboardPreviewDialog').classList.contains('hidden')) { window.ntcClipboardHistoryUi?.closePreview(); return; }
   if (!$('#rngPatchNotesDialog').classList.contains('hidden')) { closeRngPatchNotesDialog(); return; }
-  if (!$('#changelogDialog').classList.contains('hidden')) { $('#changelogDialog').classList.add('hidden'); return; }
+  if (!$('#changelogDialog').classList.contains('hidden')) { updateUi.close(); return; }
   if (!$('#rngDebugDialog').classList.contains('hidden')) closeRngDebug();
 });
 initializeQrSettings(); syncSettings(); window.ntcClipboardHistoryUi?.initialize({ showToast, confirmAction }); loadMicrophones(); $('#compressionFolderPath').textContent = localStorage.getItem('ntc-compression-folder') || folder || 'Downloads'; setFormatOptions(); renderHistory(); renderQrQueue(); renderQueue(); renderCompressionQueue(); renderMediaQueue('video'); renderMediaQueue('image');

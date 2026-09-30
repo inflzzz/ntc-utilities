@@ -1,0 +1,6 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Update validation fixture</title>
+<link rel="stylesheet" href="../src/styles.css"><body>
+<button id="origin">Configurações</button><p id="updateStatus"></p>
+<section class="update-notice hidden" id="updateNotice"><div class="update-notice-copy"><span class="eyebrow">ATUALIZAÇÃO DISPONÍVEL</span><h2 id="updateTitle"></h2><p id="updateSummary"></p><ul id="updateNotes" class="update-notes"></ul></div><button class="ghost-button update-history-link" id="viewUpdateChangelog">Ver todas as novidades</button><div class="update-notice-actions"><button class="ghost-button" id="dismissUpdate">Agora não</button><button class="primary-button" id="updateAction"></button></div></section>
+<div class="changelog-backdrop hidden" id="changelogDialog" role="dialog" aria-modal="true"><section class="changelog-card"><div class="changelog-heading"><div><span class="eyebrow">NTC UTILITIES</span><h2 id="changelogTitle"></h2><p class="changelog-summary" id="changelogSummary"></p></div><button class="suggestion-close" id="closeChangelog">×</button></div><div class="changelog-list" id="changelogList"></div></section></div>
+<script src="../src/release-history.js"></script><script src="../src/changelog.js"></script><script src="../src/update-ui.js"></script></body></html>

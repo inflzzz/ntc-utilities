@@ -22,6 +22,7 @@
     <link rel="stylesheet" href="./medicine-reminders.css" />
     <link rel="stylesheet" href="./storage-analyzer.css" />
     <link rel="stylesheet" href="./screen-light.css" />
+    <link rel="stylesheet" href="./uninstaller.css" />
   </head>
   <body>
     <div class="splash" id="splash" aria-label="Carregando NTC Utilities">
@@ -120,6 +121,7 @@
 
         <section class="view storage-analyzer-view" id="storageAnalyzerView" aria-label="Analisador de Armazenamento"></section>
         <section class="view screen-light-view" id="screenLightView" aria-label="Luz da Tela"></section>
+        <section class="view uninstaller-view" id="uninstallerView" aria-label="Desinstalador"></section>
 
         <section class="view medicine-reminders-view" id="medicineRemindersView" aria-labelledby="medicineRemindersTitle">
           <div class="hero compact"><div class="eyebrow">UTILIDADE LOCAL</div><h1 id="medicineRemindersTitle">Lembrete de Medicamentos</h1><p>Registre os horários que você definiu e acompanhe as doses do dia.</p></div>
@@ -1245,6 +1247,7 @@
     </div>
     <section class="update-notice hidden" id="updateNotice" role="dialog" aria-live="polite" aria-labelledby="updateTitle">
       <div class="update-notice-copy"><span class="eyebrow">ATUALIZAÇÃO DISPONÍVEL</span><h2 id="updateTitle">Uma nova versão está pronta</h2><p id="updateSummary">Veja as novidades antes de atualizar.</p><ul id="updateNotes" class="update-notes hidden"></ul></div>
+      <button class="ghost-button update-history-link" id="viewUpdateChangelog" type="button">Ver todas as novidades</button>
       <div class="update-notice-actions"><button class="ghost-button" id="dismissUpdate" type="button">Agora não</button><button class="primary-button" id="updateAction" type="button">Baixar atualização</button></div>
     </section>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -1322,7 +1325,7 @@
       <section class="clipboard-preview-card"><header class="clipboard-preview-heading"><h2 id="clipboardPreviewTitle">Prévia</h2><button class="suggestion-close" id="closeClipboardPreview" type="button" aria-label="Fechar prévia">×</button></header><div class="clipboard-preview-content"><img class="hidden" id="clipboardPreviewImage" alt="Imagem copiada da área de transferência"><pre class="hidden" id="clipboardPreviewText"></pre><small class="hidden" id="clipboardPreviewMoreText">Prévia limitada. Copiar ainda recupera o texto completo.</small></div><footer class="clipboard-preview-footer"><button class="outline-button" id="clipboardPreviewCloseFooter" type="button">Fechar</button></footer></section>
     </div>
     <div class="changelog-backdrop hidden" id="changelogDialog" role="dialog" aria-modal="true" aria-labelledby="changelogTitle">
-      <section class="changelog-card"><div class="changelog-heading"><div><span class="eyebrow">NTC UTILITIES</span><h2 id="changelogTitle">O que mudou</h2></div><button class="suggestion-close" id="closeChangelog" type="button" aria-label="Fechar changelog">×</button></div><div class="changelog-list" id="changelogList"></div></section>
+      <section class="changelog-card"><div class="changelog-heading"><div><span class="eyebrow">NTC UTILITIES</span><h2 id="changelogTitle">O que mudou</h2><p class="changelog-summary" id="changelogSummary"></p></div><button class="suggestion-close" id="closeChangelog" type="button" aria-label="Fechar changelog">×</button></div><div class="changelog-list" id="changelogList"></div></section>
     </div>
     <div class="changelog-backdrop rng-patch-changelog-backdrop hidden" id="rngPatchNotesDialog" role="dialog" aria-modal="true" aria-labelledby="rngPatchNotesDialogTitle">
       <section class="changelog-card rng-patch-changelog-card"><div class="changelog-heading"><div><span class="eyebrow">NTC RNG</span><h2 id="rngPatchNotesDialogTitle">Novidades do jogo</h2></div><button class="suggestion-close" id="closeRngPatchNotesDialog" type="button" aria-label="Fechar notas do NTC RNG">×</button></div><div class="changelog-list" id="rngPatchNotesDialogList"></div></section>
@@ -1360,6 +1363,8 @@
       })();
     </script>
     <script src="./changelog.js"></script>
+    <script src="./release-history.js"></script>
+    <script src="./update-ui.js"></script>
     <script src="./rng-changelog.js"></script>
     <script src="./screenshot-editor.js"></script>
     <script src="./renamer.js"></script>
@@ -1393,6 +1398,7 @@
     <script src="./storage-breadcrumb.js"></script>
     <script src="./storage-analyzer-ui.js"></script>
     <script src="./screen-light-ui.js"></script>
+    <script src="./uninstaller-ui.js"></script>
     <script src="./media-project-ui.js"></script>
     <script src="./video-project-ui.js"></script>
     <script src="./catalog.js"></script>

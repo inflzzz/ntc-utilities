@@ -1,5 +1,20 @@
 window.NTC_CHANGELOG = [
   {
+    version: '1.4.0',
+    date: '30 set. 2026',
+    title: 'Novidades da versão 1.4.0',
+    changes: [
+      'Novo Desinstalador: consulte aplicativos do Windows e jogos de bibliotecas Steam, organize a lista por tamanho e execute os desinstaladores oficiais, individualmente ou em sequência.',
+      'Os tamanhos das pastas de instalação são calculados em segundo plano. Estimativas e medições parciais são identificadas, e a lista é atualizada automaticamente após a desinstalação.',
+      'A lista utiliza os ícones reais dos programas e jogos quando disponíveis, incluindo imagens ICO, recursos de executáveis e logos de aplicativos da Microsoft Store.',
+      'Revise sobras antes de removê-las: dados pessoais ficam desmarcados por padrão, e itens compartilhados, protegidos ou sem vínculo suficiente são preservados.',
+      'Histórico e quarentena permitem consultar resultados, exportar relatórios e restaurar os itens disponíveis. A limpeza do histórico preserva os backups, salvo confirmação explícita de exclusão permanente.',
+      'Instalações monitoradas comparam o estado anterior e posterior do sistema para ajudar na revisão. Mudanças simultâneas de outros programas não são atribuídas automaticamente ao instalador.',
+      'Atualizações agora apresentam as novidades de todas as versões entre a instalada e a disponível, agrupadas por versão. Após atualizar, o resumo mostra apenas as versões ainda não vistas.',
+      'O NTC verifica novas versões a cada 15 minutos enquanto permanece aberto e ao retomar o computador. O aviso pode ser dispensado sem se repetir a cada verificação; baixar e instalar continuam sendo ações do usuário.'
+    ]
+  },
+  {
     version: '1.3.0',
     date: '30 set. 2026',
     title: 'Novidades da versão 1.3.0',

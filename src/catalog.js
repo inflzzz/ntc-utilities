@@ -89,6 +89,7 @@
   ], 'existing');
   add('health', 'Saúde e bem-estar', [['medicineReminders', 'Lembrete de Medicamentos', 'medicineReminders', 'remédios|doses|horários de medicamentos|lembrete de remédio']], 'existing');
   add('system', 'Tela', [['screenLight', 'Luz da Tela', 'screenLight', 'temperatura de cor|luz noturna|gamma|brilho|monitor']], 'existing');
+  add('system', 'Programas', [['uninstaller', 'Desinstalador', 'uninstaller', 'desinstalar|remover programas|sobras|quarentena|revo|aplicativos instalados']], 'existing');
   add('security', 'Privacidade', [['security', 'Senhas, hash e proteção de arquivos', 'security']], 'existing');
 
   add('converters', 'Ferramentas', [['converterPanel', 'Conversores', '', 'medidas|unidades|moedas|datas|cores|texto|números|arquivos', 'converters']]);

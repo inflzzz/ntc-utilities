@@ -4,6 +4,7 @@ const { pathToFileURL } = require('node:url');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const { autoUpdater } = require('electron-updater');
+const { createUpdateService } = require('./src/update-service.cjs');
 const sharp = require('sharp');
 const { normalizeQrUrl, normalizeQrOptions, renderQr, saveQrImage } = require('./src/qr.cjs');
 const { previewFileRenames, renameFiles } = require('./src/renamer-files.cjs');
@@ -41,6 +42,7 @@ const { MedicineReminderService } = require('./src/medicine-reminders.cjs');
 const { StorageAnalyzerService } = require('./src/storage-analyzer-main.cjs');
 const { saveVoiceAudio } = require('./src/voice-export.cjs');
 const { ScreenLightService } = require('./src/screen-light-main.cjs');
+const { UninstallerService } = require('./src/uninstaller-main.cjs');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
@@ -80,6 +82,9 @@ let storageAnalyzerShutdownReady = false;
 let screenLightService = null;
 let screenLightShutdownStarted = false;
 let screenLightShutdownReady = false;
+let uninstallerService = null;
+let uninstallerShutdownReady = false;
+let uninstallerShutdownStarted = false;
 let forceClose = false;
 let screenShortcut = null;
 let screenshotShortcut = null;
@@ -90,6 +95,7 @@ let quickScreenshotFolder = '';
 let shortcutRecorderFocused = false;
 let launchAtLoginEnabled = true;
 let updateState = { status: 'idle' };
+let updateService = null;
 let rngGame = normalizeRngState();
 let rngAccountProgress = normalizeRngAccountProgress();
 let rngAccountSystemUnlocksAcknowledged = [];
@@ -629,20 +635,11 @@ function sendUpdate(payload) {
   updateState = payload;
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-event', payload);
 }
-function releaseNotes(value) {
-  if (Array.isArray(value)) return value.map(note => note.note || note).join('\n');
-  return String(value || '').replace(/<[^>]*>/g, ' ').replace(/\\n/g, '\n').trim();
-}
 function configureUpdater() {
   if (!app.isPackaged) return;
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = false;
-  autoUpdater.on('checking-for-update', () => sendUpdate({ status: 'checking' }));
-  autoUpdater.on('update-available', info => sendUpdate({ status: 'available', version: info.version, notes: releaseNotes(info.releaseNotes) }));
-  autoUpdater.on('update-not-available', () => sendUpdate({ status: 'current', version: app.getVersion() }));
-  autoUpdater.on('download-progress', progress => sendUpdate({ status: 'downloading', percent: Math.round(progress.percent || 0) }));
-  autoUpdater.on('update-downloaded', info => sendUpdate({ status: 'downloaded', version: info.version, notes: releaseNotes(info.releaseNotes) }));
-  autoUpdater.on('error', error => sendUpdate({ status: 'error', message: 'Não foi possível verificar ou baixar a atualização. Tente novamente mais tarde.' }));
+  updateService = createUpdateService({ updater: autoUpdater, version: app.getVersion(), emit: sendUpdate });
+  app.on('browser-window-focus', (_event, window) => { if (window === mainWindow) void updateService.check(); });
+  powerMonitor.on('resume', () => void updateService.check({ resume: true }));
 }
 function showMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
@@ -1052,6 +1049,7 @@ app.whenReady().then(() => {
   ipcMain.handle('screen-light-choose-executable', async event => { assertMainWindowSender(event); const result = await dialog.showOpenDialog(mainWindow, { title: 'Selecionar programa para exceção', properties: ['openFile'], filters: [{ name: 'Programas Windows', extensions: ['exe'] }] }); return result.canceled ? '' : result.filePaths[0]; });
   ipcMain.handle('screen-light-running-processes', async event => { assertMainWindowSender(event); await screenLightReady; return screenLightService.runningProcesses(); });
   for (const name of ['display-added', 'display-removed', 'display-metrics-changed']) screen.on(name, () => screenLightService?.onDisplayChange());
+  uninstallerService = new UninstallerService({ ipcMain, dialog, shell, app, getWindow: () => mainWindow, helper: app.isPackaged ? path.join(process.resourcesPath, 'bin', 'uninstaller-host.exe') : path.join(__dirname, 'resources', 'bin', 'uninstaller-host.exe') }).register();
   storageAnalyzerService = new StorageAnalyzerService({ ipcMain, dialog, shell, clipboard, getWindow: () => mainWindow, helperFile: app.isPackaged ? path.join(process.resourcesPath, 'bin', 'storage-scan-fast.exe') : path.join(__dirname, 'resources', 'bin', 'storage-scan-fast.exe') }).register();
   ambientPackService = new AmbientPackService({ root: app.getPath('userData'), catalogFile: path.join(__dirname,'content','ambient-packs.json'), ffprobe: binary('ffprobe'), onProgress: payload => { if(mainWindow && !mainWindow.isDestroyed())mainWindow.webContents.send('ambient-pack-progress',payload); } });
   void ambientPackService.initialize();
@@ -1498,11 +1496,12 @@ app.whenReady().then(() => {
   ipcMain.handle('voice-save-audio', (_event, payload) => saveVoiceAudio(payload, { dialog, window: mainWindow, runFfmpeg: args => run('ffmpeg', args) }));
   ipcMain.handle('check-for-updates', async () => {
     if (!app.isPackaged) return { status: 'unavailable', message: 'A verificação de atualização funciona na versão instalada.' };
-    try { await autoUpdater.checkForUpdates(); return updateState; } catch { return { status: 'error', message: 'Não foi possível verificar atualizações agora.' }; }
+    return updateService.check({ manual: true });
   });
+  ipcMain.handle('get-update-state', () => updateService?.snapshot() || updateState);
   ipcMain.handle('download-update', async () => {
     if (!app.isPackaged || updateState.status !== 'available') return { status: 'unavailable' };
-    try { await autoUpdater.downloadUpdate(); return updateState; } catch { return { status: 'error', message: 'Não foi possível baixar a atualização.' }; }
+    return updateService.download();
   });
   ipcMain.handle('install-update', () => {
     if (app.isPackaged && updateState.status === 'downloaded') autoUpdater.quitAndInstall(false, true);
@@ -1895,9 +1894,10 @@ app.whenReady().then(() => {
     return result;
   });
   ipcMain.handle('unregister-quick-screenshot-shortcut', () => { if (quickScreenshotShortcut) globalShortcut.unregister(quickScreenshotShortcut); quickScreenshotShortcut = null; quickScreenshotFolder = ''; return true; });
-  configureUpdater(); createWindow(); if (app.isPackaged) setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 2500); app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
+  configureUpdater(); createWindow(); updateService?.start(); app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
 });
 app.on('before-quit', event => {
+  updateService?.stop();
   if (!rngOnlineQuitReady && rngOnlineService) {
     event.preventDefault();
     if (rngOnlineQuitStarted) return;
@@ -1920,6 +1920,13 @@ app.on('before-quit', event => {
     if (screenLightShutdownStarted) return;
     screenLightShutdownStarted = true;
     void screenLightService.dispose().finally(() => { screenLightShutdownReady = true; app.quit(); });
+    return;
+  }
+  if (uninstallerService && !uninstallerShutdownReady) {
+    event.preventDefault();
+    if (uninstallerShutdownStarted) return;
+    uninstallerShutdownStarted = true;
+    void uninstallerService.dispose().finally(() => { uninstallerShutdownReady = true; app.quit(); });
     return;
   }
   rngShadowService?.dispose();
