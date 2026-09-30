@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.0 — NTC Utilities · 30 set. 2026
+
+### Novas ferramentas
+
+- **Luz da Tela:** ajuste a temperatura de cor por perfil, agenda diária ou controle manual; personalize horários, crie exceções por aplicativo e pause temporariamente. As alterações são aplicadas localmente e o aplicativo tenta restaurar a calibração original ao desligar ou encerrar.
+- **Modificador de Voz:** transforme áudio de arquivos ou do microfone com ajuste de pitch e formantes, cadeia reordenável de efeitos, presets próprios, comparação A/B e exportação em WAV, MP3, FLAC ou Opus. O monitoramento começa desligado; nenhum áudio é enviado a servidores nem é criado um microfone virtual.
+
+### Compatibilidade e limites
+
+- A Luz da Tela atua sobre a rampa de cor do monitor, não sobre o brilho físico do painel. O suporte depende do Windows, do driver e do monitor; HDR e estados de cor não confirmados são bloqueados, e o aplicativo verifica a aplicação antes de indicar sucesso.
+- No Modificador de Voz, pitch/formantes ao vivo podem acrescentar latência perceptível. A exportação usa processamento local; arquivos muito longos estão sujeitos ao limite de tamanho indicado pela ferramenta.
+- Dependências, licenças e componentes necessários às duas ferramentas foram incluídos no pacote Windows.
+
 ## 1.2.1 — NTC Utilities · 29 set. 2026
 
 - Revisão editorial do histórico de versões, com novidades organizadas por ferramenta e descrições mais diretas.

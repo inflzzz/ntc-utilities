@@ -1,0 +1,23 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body>
+<section id="screenLightView"></section>
+<script>
+  window.testCalls = [];
+  const settings = {
+    schemaVersion: 1, enabled: false, mode: 'automatic', manualKelvin: 4500, intensity: 100, dim: 0,
+    timeline: [{ minute: 0, kelvin: 2200 }, { minute: 720, kelvin: 6500 }], transitionMs: 600000,
+    profileId: 'night', customProfiles: [], pauseUntil: 0, monitorOverrides: {}, exceptions: [], pauseFullscreen: false,
+    solar: { enabled: false, configured: false, latitude: 0, longitude: 0, city: '' }, shortcuts: {}
+  };
+  const state = { settings, monitors: [{ index: 0, id: '\\\\.\\DISPLAY1', name: 'Monitor teste', hdr: 1, gamma: true }], status: 'disabled', error: '', applied: null,
+    target: { active: false, kelvin: 6500, intensity: 0, dim: 0 }, nextPoint: { minute: 720, kelvin: 6500 }, solar: null };
+  window.ntc = { screenLight: {
+    state: async () => state,
+    probe: async () => state,
+    update: async patch => { window.testCalls.push(['update', patch]); Object.assign(settings, patch); state.status = settings.enabled ? 'hdr-blocked' : 'disabled'; state.target = { active: settings.enabled, kelvin: settings.manualKelvin, intensity: settings.intensity, dim: settings.dim }; return state; },
+    pause: async minutes => { window.testCalls.push(['pause', minutes]); settings.pauseUntil = minutes ? Date.now() + minutes * 60000 : 0; state.status = settings.pauseUntil ? 'paused' : 'disabled'; return state; },
+    chooseExecutable: async () => 'C:\\Tools\\Test.exe',
+    onChanged: () => {}, onOpen: () => {}
+  } };
+</script>
+<script src="../src/screen-light-ui.js"></script>
+</body></html>

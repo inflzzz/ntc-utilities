@@ -1959,6 +1959,8 @@ $('#confirmCancel').onclick = () => closeConfirm(false); $('#confirmAccept').onc
 function navigateToView(target, options = {}) {
   const viewTarget = window.NTCRngAvailability?.resolveView(target) || (target === 'rng' ? 'rngMaintenance' : target);
   if (target !== 'microphoneTest') window.NTCMicrophoneTest?.close();
+  if (target !== 'voiceModifier') window.NTCVoiceModifier?.close();
+  if (target !== 'screenLight') window.NTCScreenLight?.close();
   if (target !== 'webcamTest') window.NTCWebcamTest?.close();
   window.NTCVideoProjectUi?.setWorkspaceActive(viewTarget === 'videoEditor' && !$('#videoProjectPanel')?.classList.contains('hidden'));
   if (target !== 'security' && $('#securityView').classList.contains('active')) window.ntcSecurityUi?.close();
@@ -1976,13 +1978,16 @@ function navigateToView(target, options = {}) {
   if (target === 'studyTools') window.ntcStudyUi?.open();
   if (target === 'medicineReminders') window.NTCMedicineReminders?.open(options.reminderKey);
   if (target === 'storageAnalyzer') window.NTCStorageAnalyzer?.open();
+  if (target === 'screenLight') window.NTCScreenLight?.open();
   if (target === 'timeTools') window.ntcWorldClock?.open();
   if (target === 'randomTools') window.NTCRandomTools?.open();
   if (target === 'microphoneTest') window.NTCMicrophoneTest?.open();
+  if (target === 'voiceModifier') window.NTCVoiceModifier?.open();
   if (target === 'webcamTest') window.NTCWebcamTest?.open();
 }
 $$('.nav-item[data-view]').forEach(button => button.onclick = () => navigateToView(button.dataset.view));
 $$('[data-open-tool]').forEach(button => button.onclick = () => navigateToView(button.dataset.openTool));
+window.ntc.screenLight?.onOpen(() => navigateToView('screenLight'));
 $('#closeVideoEditor').onclick = () => navigateToView('home');
 function updateMaximizedLayout(maximized) { document.body.classList.toggle('window-maximized', Boolean(maximized)); $('#maximizeWindow').textContent = maximized ? '❐' : '□'; $('#maximizeWindow').setAttribute('aria-label', maximized ? 'Restaurar' : 'Maximizar'); }
 $('#minimizeWindow').onclick = () => window.ntc.minimizeWindow(); $('#maximizeWindow').onclick = async () => updateMaximizedLayout(await window.ntc.toggleMaximize()); $('#closeWindow').onclick = () => window.ntc.closeWindow();

@@ -1,6 +1,17 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('ntc', {
+  screenLight: Object.freeze({
+    state: () => ipcRenderer.invoke('screen-light-state'),
+    update: patch => ipcRenderer.invoke('screen-light-update', patch),
+    pause: minutes => ipcRenderer.invoke('screen-light-pause', minutes),
+    probe: () => ipcRenderer.invoke('screen-light-probe'),
+    chooseExecutable: () => ipcRenderer.invoke('screen-light-choose-executable'),
+    runningProcesses: () => ipcRenderer.invoke('screen-light-running-processes'),
+    onChanged: callback => { const listener = (_event, value) => callback(value); ipcRenderer.on('screen-light-changed', listener); return () => ipcRenderer.removeListener('screen-light-changed', listener); },
+    onOpen: callback => { const listener = () => callback(); ipcRenderer.on('screen-light-open', listener); return () => ipcRenderer.removeListener('screen-light-open', listener); }
+  }),
+  voiceSaveAudio: payload => ipcRenderer.invoke('voice-save-audio', payload),
   storageAnalyzer: Object.freeze({
     drives: () => ipcRenderer.invoke('storage-analyzer-drives'),
     chooseFolder: () => ipcRenderer.invoke('storage-analyzer-choose'),

@@ -1,0 +1,50 @@
+.voice-modifier-view{width:min(100%,1100px)}
+.voice-modifier-view>.hero.compact{margin-bottom:18px}
+.vm-tabs{display:flex;gap:8px;margin-bottom:14px}
+.vm-tabs button{min-height:37px;padding:0 17px;border:1px solid #413847;border-radius:8px;background:#1d1921;color:#cfc0d3;font:inherit;cursor:pointer}
+.vm-tabs button[aria-selected="true"]{border-color:#9b75a3;background:#3a2d40;color:#fff}
+.vm-card{display:grid;gap:16px;margin-bottom:14px;padding:20px;border:1px solid #36323a;border-radius:12px;background:linear-gradient(145deg,#19171b,#151417)}
+.vm-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.vm-heading h2{margin:4px 0 0;font-size:16px;color:#f1eaf3}
+.vm-heading>span,.vm-hint,.vm-chain-caption,.vm-message{color:#a79da9;font-size:11px;line-height:1.5}
+.vm-eyebrow{font-size:9px;color:#c4a0ca;letter-spacing:.13em;font-weight:700}
+.vm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.vm-grid label,.vm-card>label,.vm-actions>label:not(.vm-inline){display:grid;gap:6px;color:#c8becb;font-size:11px}
+.vm-card select,.vm-card input[type="text"],.vm-preset-dialog input{min-height:37px;padding:7px 10px;border:1px solid #49404d;border-radius:7px;background:#211d24;color:#eee8f0;font:inherit}
+.vm-card select{min-width:145px}
+.vm-card input[type="range"]{width:100%;accent-color:#b78dc2}
+.vm-actions{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.vm-actions>button,.vm-drop button{display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;min-height:37px;margin:0;padding:0 13px}
+.vm-inline{display:inline-flex!important;align-items:center;gap:7px;color:#c6bbc9;font-size:11px;cursor:pointer}
+.vm-inline input{accent-color:#bc91c5}
+.vm-hint{margin:0}
+.vm-options{align-items:center}
+.vm-meters{display:grid;grid-template-columns:1fr 1fr auto;gap:13px;align-items:end}
+.vm-meters>div{display:grid;gap:5px;color:#c3b8c6;font-size:11px}
+.vm-meter{height:11px;border:1px solid #413b44;border-radius:7px;background:#252128;overflow:hidden}
+.vm-meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#9875a3,#d2a4d9);transition:width .09s linear}
+.vm-clip{color:#aaa0ac;font-size:11px;white-space:nowrap}
+.vm-clip.is-clipping{color:#f2a0a0}
+.vm-drop{display:flex;align-items:center;justify-content:center;gap:10px;min-height:84px;border:1px dashed #56465c;border-radius:9px;color:#bfb2c3;font-size:12px}
+.vm-drop.is-dragging{border-color:#c99ed3;background:#2a2130}
+.vm-waveform{display:block;max-width:100%;width:100%;height:86px;border:1px solid #343039;border-radius:8px;background:#18151b}
+.vm-chain{display:grid;gap:8px}
+.vm-effect{display:grid;gap:11px;padding:13px;border:1px solid #38313e;border-radius:9px;background:#211c24}
+.vm-effect.is-disabled{opacity:.63}
+.vm-effect.is-dragging{opacity:.48}
+.vm-effect-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.vm-effect-header strong{font-size:12px;color:#f0e8f2}
+.vm-effect-header button{min-height:28px;padding:3px 9px;border:1px solid #4b4050;border-radius:6px;background:#271f2b;color:#cfc1d2;cursor:pointer}
+.vm-effect-handle{cursor:grab;color:#b78bc0;user-select:none}
+.vm-param-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:11px}
+.vm-param-grid label{display:grid;gap:5px;color:#bfb2c3;font-size:10px}
+.vm-param-grid label>span{display:flex;justify-content:space-between;gap:7px}
+.vm-param-grid output{color:#e5d3e9;font-variant-numeric:tabular-nums}
+.vm-message{margin:4px 0 20px}
+.vm-preset-dialog{width:min(92vw,420px);padding:20px;border:1px solid #514257;border-radius:12px;background:#1c1820;color:#eee7f0}
+.vm-preset-dialog::backdrop{background:#000a}
+.vm-preset-dialog form,.vm-preset-dialog label{display:grid;gap:14px}
+.vm-preset-dialog h2{margin:0;font-size:17px}
+.vm-preset-dialog .vm-actions{justify-content:flex-end}
+.voice-modifier-view button:focus-visible,.voice-modifier-view input:focus-visible,.voice-modifier-view select:focus-visible{outline:2px solid #bf91c8;outline-offset:2px}
+@media(max-width:700px){.vm-grid,.vm-meters{grid-template-columns:1fr}.vm-heading{align-items:flex-start}.vm-card{padding:15px}}

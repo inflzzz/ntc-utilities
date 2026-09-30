@@ -4,3 +4,4 @@ allowBuilds:
   tesseract.js: false
   onnxruntime-node: true
   protobufjs: true
+  esbuild: true

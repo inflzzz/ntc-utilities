@@ -39,6 +39,8 @@ const { MusicSearchCache } = require('./src/music-search-cache.cjs');
 const { AmbientPackService } = require('./src/ambient-packs.cjs');
 const { MedicineReminderService } = require('./src/medicine-reminders.cjs');
 const { StorageAnalyzerService } = require('./src/storage-analyzer-main.cjs');
+const { saveVoiceAudio } = require('./src/voice-export.cjs');
+const { ScreenLightService } = require('./src/screen-light-main.cjs');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
@@ -75,6 +77,9 @@ let medicineReminderService = null;
 let storageAnalyzerService = null;
 let storageAnalyzerShutdownStarted = false;
 let storageAnalyzerShutdownReady = false;
+let screenLightService = null;
+let screenLightShutdownStarted = false;
+let screenLightShutdownReady = false;
 let forceClose = false;
 let screenShortcut = null;
 let screenshotShortcut = null;
@@ -669,6 +674,15 @@ function updateTrayStatus() {
   trayIcon.setToolTip(musicControlState.title ? `NTC Utilities — ${musicControlState.title.slice(0, 80)}` : `NTC Utilities — rolagem automática ${active ? 'ativa' : 'pausada'}`);
   const items = [
     { label: 'Abrir NTC Utilities', click: showMainWindow },
+    ...(screenLightService ? [{ label: 'Luz da Tela', submenu: [
+      { label: screenLightService.settings.enabled ? 'Ativada' : 'Ativar', type: 'checkbox', checked: screenLightService.settings.enabled, click: () => void screenLightService.update({ enabled: !screenLightService.settings.enabled }) },
+      { label: screenLightService.applied ? `${screenLightService.applied.kelvin} K` : 'Sem ajuste ativo', enabled: false },
+      { label: 'Pausar por 1 hora', enabled: screenLightService.settings.enabled, click: () => void screenLightService.pause(60) },
+      { type: 'separator' },
+      { label: 'Dia', click: () => void screenLightService.update({ enabled: true, mode: 'profile', profileId: 'day' }) },
+      { label: 'Noite', click: () => void screenLightService.update({ enabled: true, mode: 'profile', profileId: 'night' }) },
+      { label: 'Abrir Luz da Tela', click: () => { showMainWindow(); const open = () => mainWindow?.webContents.send('screen-light-open'); if (mainWindow?.webContents.isLoading()) mainWindow.webContents.once('did-finish-load', open); else open(); } }
+    ] }] : []),
     ...(musicControlState.title ? [
       { label: musicControlState.playing ? 'Pausar música' : 'Reproduzir música', click: () => mainWindow?.webContents.send('music2-control', 'toggle') },
       { label: 'Faixa anterior', click: () => mainWindow?.webContents.send('music2-control', 'previous') },
@@ -1022,6 +1036,22 @@ function createWindow() {
 
 app.whenReady().then(() => {
   if (!hasSingleInstanceLock) { app.exit(0); return; }
+  screenLightService = new ScreenLightService({
+    file: path.join(app.getPath('userData'), 'screen-light.json'),
+    helperFile: app.isPackaged ? path.join(process.resourcesPath, 'bin', 'screen-light-host.exe') : path.join(__dirname, 'resources', 'bin', 'screen-light-host.exe'),
+    onChange: value => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('screen-light-changed', value); },
+    onTrayChange: () => { if (screenLightService?.settings.enabled) ensureTray(); updateTrayStatus(); },
+    registerShortcut: (accelerator, callback) => !globalShortcut.isRegistered(accelerator) && globalShortcut.register(accelerator, callback),
+    unregisterShortcut: accelerator => globalShortcut.unregister(accelerator)
+  });
+  const screenLightReady = screenLightService.initialize().catch(error => console.error('Luz da Tela não iniciou:', error));
+  ipcMain.handle('screen-light-state', async event => { assertMainWindowSender(event); await screenLightReady; return screenLightService.state(); });
+  ipcMain.handle('screen-light-update', async (event, patch) => { assertMainWindowSender(event); await screenLightReady; return screenLightService.update(patch); });
+  ipcMain.handle('screen-light-pause', async (event, minutes) => { assertMainWindowSender(event); await screenLightReady; return screenLightService.pause(minutes); });
+  ipcMain.handle('screen-light-probe', async event => { assertMainWindowSender(event); await screenLightReady; return screenLightService.probe(); });
+  ipcMain.handle('screen-light-choose-executable', async event => { assertMainWindowSender(event); const result = await dialog.showOpenDialog(mainWindow, { title: 'Selecionar programa para exceção', properties: ['openFile'], filters: [{ name: 'Programas Windows', extensions: ['exe'] }] }); return result.canceled ? '' : result.filePaths[0]; });
+  ipcMain.handle('screen-light-running-processes', async event => { assertMainWindowSender(event); await screenLightReady; return screenLightService.runningProcesses(); });
+  for (const name of ['display-added', 'display-removed', 'display-metrics-changed']) screen.on(name, () => screenLightService?.onDisplayChange());
   storageAnalyzerService = new StorageAnalyzerService({ ipcMain, dialog, shell, clipboard, getWindow: () => mainWindow, helperFile: app.isPackaged ? path.join(process.resourcesPath, 'bin', 'storage-scan-fast.exe') : path.join(__dirname, 'resources', 'bin', 'storage-scan-fast.exe') }).register();
   ambientPackService = new AmbientPackService({ root: app.getPath('userData'), catalogFile: path.join(__dirname,'content','ambient-packs.json'), ffprobe: binary('ffprobe'), onProgress: payload => { if(mainWindow && !mainWindow.isDestroyed())mainWindow.webContents.send('ambient-pack-progress',payload); } });
   void ambientPackService.initialize();
@@ -1117,7 +1147,8 @@ app.whenReady().then(() => {
   createSecurityService({ ipcMain, getMainWindow: () => mainWindow, dialog, clipboard, sharp, runFfmpeg: args => run('ffmpeg', args), ignoreClipboardText: text => clipboardHistoryService?.ignoreNextText(text) });
   void rngTrustedClock.sync().then(sendRngState);
   powerMonitor.on('suspend', () => { autoClickerService?.suspend(); accountRngTime(); rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0; rngTrustedClock.invalidate(); persistRngGame(); sendRngState(); updateTrayStatus(); });
-  powerMonitor.on('resume', () => { rngTrustedClock.invalidate(); rngAppAccountedAt = rngMonotonicMs(); rngLastHeartbeatAt = rngMonotonicMs(); rngLastTimeSync = rngMonotonicMs(); void rngTrustedClock.sync().then(sendRngState); void medicineReminderService?.refreshAfterResume().catch(error => console.error('Falha ao recalcular lembretes após retomada:', error)); });
+  powerMonitor.on('resume', () => { rngTrustedClock.invalidate(); rngAppAccountedAt = rngMonotonicMs(); rngLastHeartbeatAt = rngMonotonicMs(); rngLastTimeSync = rngMonotonicMs(); void rngTrustedClock.sync().then(sendRngState); void medicineReminderService?.refreshAfterResume().catch(error => console.error('Falha ao recalcular lembretes após retomada:', error)); screenLightService?.onResume(); });
+  powerMonitor.on('unlock-screen', () => screenLightService?.onResume());
   ipcMain.handle('get-app-version', () => app.getVersion());
   ipcMain.on('shortcut-recorder-focus', (event, focused) => {
     if (mainWindow && event.sender === mainWindow.webContents) shortcutRecorderFocused = Boolean(focused);
@@ -1464,6 +1495,7 @@ app.whenReady().then(() => {
   ipcMain.handle('copy-path', (_event, file) => { if (file) clipboard.writeText(file); return file || ''; });
   ipcMain.handle('copy-text', (_event, text) => { clipboard.writeText(String(text || '')); return true; });
   ipcMain.handle('tool-versions', async () => { try { const ytdlp = (await run('yt-dlp', ['--version'])).trim(); const ffmpeg = (await run('ffmpeg', ['-version'])).split(/\r?\n/)[0]; const ffprobe = (await run('ffprobe', ['-version'])).split(/\r?\n/)[0]; return { ytdlp, ffmpeg, ffprobe }; } catch (error) { return { error: error.message }; } });
+  ipcMain.handle('voice-save-audio', (_event, payload) => saveVoiceAudio(payload, { dialog, window: mainWindow, runFfmpeg: args => run('ffmpeg', args) }));
   ipcMain.handle('check-for-updates', async () => {
     if (!app.isPackaged) return { status: 'unavailable', message: 'A verificação de atualização funciona na versão instalada.' };
     try { await autoUpdater.checkForUpdates(); return updateState; } catch { return { status: 'error', message: 'Não foi possível verificar atualizações agora.' }; }
@@ -1881,6 +1913,13 @@ app.on('before-quit', event => {
     if (storageAnalyzerShutdownStarted) return;
     storageAnalyzerShutdownStarted = true;
     void storageAnalyzerService.dispose().finally(() => { storageAnalyzerShutdownReady = true; app.quit(); });
+    return;
+  }
+  if (screenLightService && !screenLightShutdownReady) {
+    event.preventDefault();
+    if (screenLightShutdownStarted) return;
+    screenLightShutdownStarted = true;
+    void screenLightService.dispose().finally(() => { screenLightShutdownReady = true; app.quit(); });
     return;
   }
   rngShadowService?.dispose();

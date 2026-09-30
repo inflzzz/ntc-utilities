@@ -32,12 +32,13 @@ test('catalog has one category per tool and no removed entries',()=>{
 });
 
 test('all catalog tools lead to a view, panel or functional spec',()=>{
-  const app=load(),existing=new Set(['downloader','musicPlayer','converter','microphoneTest','videoEditor','video','recorder','webcamTest','documents','pdf','timeTools','studyTools','screenshot','autoclicker','renamer','compressor','clipboardHistory','security','colorPicker','randomTools','history','rng','randomPerson','ambientMixer','ntcStats','dailyRandom','realLife','storageAnalyzer','medicineReminders']);
+  const app=load(),existing=new Set(['downloader','musicPlayer','converter','microphoneTest','voiceModifier','screenLight','videoEditor','video','recorder','webcamTest','documents','pdf','timeTools','studyTools','screenshot','autoclicker','renamer','compressor','clipboardHistory','security','colorPicker','randomTools','history','rng','randomPerson','ambientMixer','ntcStats','dailyRandom','realLife','storageAnalyzer','medicineReminders']);
   const panels=new Set(['image','converters','generators']);
   const labs=app.ntcCatalog.categories.find(category=>category.id==='labs');
   assert.equal(labs.name,'NTC Labs');
   assert.deepEqual(Array.from(app.ntcCatalog.tools.filter(tool=>tool.category==='labs').map(tool=>tool.id)),['randomPerson','ambientMixer','ntcStats','dailyRandom','realLife']);
   for(const id of ['randomPerson','ambientMixer','ntcStats','dailyRandom','realLife'])assert.ok(fs.readFileSync(path.join(__dirname,'..','src','index.html'),'utf8').includes(`id="${id}View"`),`${id} has a view`);
+  assert.ok(fs.readFileSync(path.join(__dirname,'..','src','index.html'),'utf8').includes('id="voiceModifierView"'));
   for(const tool of app.ntcCatalog.tools){
     assert.ok(existing.has(tool.target)||panels.has(tool.panel)||app.ntcUtilitySpecs[tool.id]||app.ntcConverterSpecs[tool.id]||app.ntcGeneratorSpecs[tool.id],tool.id);
     if(tool.visible===false)assert.ok(tool.panel,`${tool.id} requires a parent panel`);

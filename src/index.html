@@ -16,10 +16,12 @@
     <link rel="stylesheet" href="./rng-roll-experience.css" />
     <link rel="stylesheet" href="./random-tools.css" />
     <link rel="stylesheet" href="./microphone-test.css" />
+    <link rel="stylesheet" href="./voice-modifier.css" />
     <link rel="stylesheet" href="./webcam-test.css" />
     <link rel="stylesheet" href="./ntc-labs.css" />
     <link rel="stylesheet" href="./medicine-reminders.css" />
     <link rel="stylesheet" href="./storage-analyzer.css" />
+    <link rel="stylesheet" href="./screen-light.css" />
   </head>
   <body>
     <div class="splash" id="splash" aria-label="Carregando NTC Utilities">
@@ -117,6 +119,7 @@
         </section>
 
         <section class="view storage-analyzer-view" id="storageAnalyzerView" aria-label="Analisador de Armazenamento"></section>
+        <section class="view screen-light-view" id="screenLightView" aria-label="Luz da Tela"></section>
 
         <section class="view medicine-reminders-view" id="medicineRemindersView" aria-labelledby="medicineRemindersTitle">
           <div class="hero compact"><div class="eyebrow">UTILIDADE LOCAL</div><h1 id="medicineRemindersTitle">Lembrete de Medicamentos</h1><p>Registre os horários que você definiu e acompanhe as doses do dia.</p></div>
@@ -865,6 +868,35 @@
           <section class="labs-card labs-reality-result" id="labsRealityResult" aria-live="polite"><div class="labs-empty">Digite uma medida ou escolha um exemplo.</div></section>
         </section>
 
+        <section class="view voice-modifier-view" id="voiceModifierView">
+          <div class="hero compact"><div class="eyebrow">ÁUDIO E MÚSICA</div><h1>Modificador de Voz</h1><p>Transforme sua voz em tempo real ou processe arquivos de áudio.</p></div>
+          <div class="vm-tabs" role="tablist" aria-label="Fonte de áudio"><button type="button" id="vmMicTab" role="tab" aria-selected="true">Microfone</button><button type="button" id="vmFileTab" role="tab" aria-selected="false">Arquivo de áudio</button></div>
+          <section class="vm-card vm-source" id="vmMicPanel" aria-label="Microfone">
+            <div class="vm-heading"><div><span class="vm-eyebrow">AO VIVO</span><h2>Entrada de microfone</h2></div><span id="vmMicStatus">Desativado</span></div>
+            <div class="vm-grid"><label>Dispositivo de entrada<select id="vmInputDevice"><option value="">Microfone padrão</option></select></label><label>Saída de áudio<select id="vmOutputDevice"><option value="">Saída padrão</option></select></label></div>
+            <div class="vm-actions"><button class="primary-button" id="vmMicToggle" type="button">Iniciar microfone</button><label class="vm-inline"><input type="checkbox" id="vmMonitor" /> Monitorar minha voz</label><label class="vm-inline"><input type="checkbox" id="vmMicBypass" /> Processamento desligado</label></div>
+            <p class="vm-hint">O monitoramento começa desligado. Use fones para evitar microfonia.</p>
+            <div class="vm-grid vm-options"><label>Volume de entrada <output id="vmInputGainValue">100%</output><input type="range" id="vmInputGain" min="0" max="200" value="100" /></label><label class="vm-inline"><input type="checkbox" id="vmNoiseSuppression" /> Redução de ruído do dispositivo</label><label class="vm-inline"><input type="checkbox" id="vmEchoCancellation" /> Cancelamento de eco do dispositivo</label><label class="vm-inline"><input type="checkbox" id="vmAutoGainControl" /> Ganho automático do dispositivo</label></div>
+            <div class="vm-meters"><div><span>Entrada</span><div class="vm-meter"><i id="vmInputMeter"></i></div></div><div><span>Saída</span><div class="vm-meter"><i id="vmOutputMeter"></i></div></div><span id="vmClip" class="vm-clip">Sem clipping</span></div>
+            <p class="vm-hint" id="vmLatency">Latência: —</p>
+          </section>
+          <section class="vm-card vm-source hidden" id="vmFilePanel" aria-label="Arquivo de áudio">
+            <div class="vm-heading"><div><span class="vm-eyebrow">ARQUIVO LOCAL</span><h2>Ouça e exporte</h2></div><span id="vmFileMeta">Nenhum arquivo</span></div>
+            <div class="vm-drop" id="vmFileDrop" tabindex="0">Arraste um arquivo de áudio aqui ou <button class="outline-button" id="vmChooseFile" type="button">Selecionar arquivo</button><input id="vmFileInput" type="file" accept="audio/*,.wav,.mp3,.m4a,.aac,.flac,.ogg,.opus,.webm" hidden /></div>
+            <canvas id="vmWaveform" class="vm-waveform" width="900" height="86" aria-label="Forma de onda"></canvas>
+            <div class="vm-actions"><button class="primary-button" id="vmPlay" type="button" disabled>Reproduzir</button><button class="outline-button" id="vmCompare" type="button" disabled>Ouvindo: Modificado</button><span id="vmTime">00:00 / 00:00</span></div>
+            <input type="range" id="vmSeek" aria-label="Posição do áudio" min="0" max="1000" value="0" disabled />
+            <div class="vm-actions"><label>Formato<select id="vmFormat"><option value="wav">WAV</option><option value="mp3">MP3</option><option value="flac">FLAC</option><option value="opus">Opus</option></select></label><button class="outline-button" id="vmExport" type="button" disabled>Exportar resultado</button></div>
+          </section>
+          <section class="vm-card"><div class="vm-heading"><div><span class="vm-eyebrow">TRANSFORMAÇÃO</span><h2>Presets e cadeia de efeitos</h2></div><button class="outline-button" id="vmReset" type="button">Resetar voz</button></div>
+            <div class="vm-actions"><select id="vmPreset" aria-label="Preset de voz"></select><button class="outline-button" id="vmPresetSave" type="button">Salvar preset</button><button class="outline-button" id="vmPresetDuplicate" type="button">Duplicar</button><button class="outline-button" id="vmPresetRename" type="button">Renomear</button><button class="outline-button" id="vmPresetDelete" type="button">Excluir</button></div>
+            <div class="vm-chain-caption">Entrada → arraste os módulos para alterar a ordem → saída</div><div id="vmChain" class="vm-chain"></div>
+            <div class="vm-actions"><select id="vmAddType" aria-label="Novo efeito"></select><button class="outline-button" id="vmAddEffect" type="button">+ Adicionar efeito</button></div>
+          </section>
+          <p id="vmMessage" class="vm-message" role="status" aria-live="polite">Tudo é processado neste dispositivo. Nenhum áudio é enviado pela rede.</p>
+          <dialog id="vmPresetDialog" class="vm-preset-dialog"><form method="dialog"><h2 id="vmDialogTitle">Salvar preset</h2><label>Nome do preset<input id="vmDialogName" maxlength="60" required /></label><div class="vm-actions"><button class="outline-button" value="cancel">Cancelar</button><button class="primary-button" value="save">Salvar</button></div></form></dialog>
+        </section>
+
         <section class="view microphone-test-view" id="microphoneTestView">
           <div class="hero compact"><div class="eyebrow">ÁUDIO</div><h1>Teste de microfone</h1><p>Confira o nível de entrada, os detalhes do dispositivo e uma gravação de teste. O áudio permanece neste dispositivo.</p></div>
           <section class="microphone-test-layout" aria-label="Teste de microfone">
@@ -1360,6 +1392,7 @@
     <script src="./storage-treemap.js"></script>
     <script src="./storage-breadcrumb.js"></script>
     <script src="./storage-analyzer-ui.js"></script>
+    <script src="./screen-light-ui.js"></script>
     <script src="./media-project-ui.js"></script>
     <script src="./video-project-ui.js"></script>
     <script src="./catalog.js"></script>
@@ -1376,6 +1409,8 @@
     <script src="./random-tools-state.js"></script>
     <script src="./random-tools.js"></script>
     <script src="./microphone-test.js"></script>
+    <script src="./voice-model.js"></script>
+    <script src="./voice-modifier.js"></script>
     <script src="./webcam-test.js"></script>
     <script src="./ntc-labs-person.js"></script>
     <script src="./ambient-model.js"></script>

@@ -1,5 +1,17 @@
 window.NTC_CHANGELOG = [
   {
+    version: '1.3.0',
+    date: '30 set. 2026',
+    title: 'Novidades da versão 1.3.0',
+    changes: [
+      'Luz da Tela: ajuste a temperatura de cor manualmente, por perfis ou por uma agenda diária editável. Configure exceções por aplicativo, pause temporariamente e use o submenu da bandeja.',
+      'A Luz da Tela confirma a aplicação da alteração e tenta restaurar a calibração anterior ao desligar ou encerrar. O ajuste atua na rampa de cor, não no brilho físico; o suporte varia conforme Windows, driver e monitor. HDR e estados não confirmados são bloqueados.',
+      'Modificador de Voz: processe arquivos locais ou use o microfone com monitoramento opcional, medidores, comparação A/B e seleção de dispositivo.',
+      'Monte e reordene cadeias de pitch, formantes, EQ, compressor, reverb, delay, distorção, chorus, flanger, modulação e filtros de telefone/rádio; crie presets próprios e exporte em WAV, MP3, FLAC ou Opus.',
+      'O processamento é local e não cria um microfone virtual. Pitch e formantes ao vivo podem acrescentar latência perceptível; a ferramenta informa a estimativa.'
+    ]
+  },
+  {
     version: '1.2.1',
     date: '29 set. 2026',
     title: 'Novidades da versão 1.2.1',

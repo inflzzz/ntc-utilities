@@ -12,6 +12,10 @@ O instalador Windows do NTC Utilities inclui os binários abaixo para que o usu�
 
 Os binários correspondem à build estática GPL v3 do FFmpeg indicada em [`FFMPEG_BUILD_INFO.md`](FFMPEG_BUILD_INFO.md). O arquivo registra a versão, os hashes, o código-fonte do FFmpeg e a revisão dos scripts usados para compor a build.
 
+## SoundTouchJS
+
+O Modificador de Voz inclui `@soundtouchjs/audio-worklet` e `@soundtouchjs/formant-correction-worklet` 2.1.1, ambos sob MPL-2.0. Os processadores e a API do renderer são empacotados localmente a partir dessas dependências. As cópias da licença acompanham os assets em `src/voice-vendor/`. Código-fonte: https://github.com/cutterbl/SoundTouchJS. O script `scripts/build-voice-vendor.cjs` reconstrói os assets distribuídos.
+
 ## Lucide Icons
 
 O player de música incorpora desenhos SVG dos ícones Shuffle, Skip Back, Play, Pause, Skip Forward, Repeat, Repeat 1 e Settings do Lucide Icons. Fonte: https://github.com/lucide-icons/lucide/tree/main/icons. Licença ISC, Copyright (c) 2026 Lucide Icons and Contributors:
