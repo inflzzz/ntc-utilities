@@ -76,6 +76,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 .view { display: none; width: min(100%, 1040px); margin: 0 auto; padding: 50px 52px 72px; }
 .view.active { display: block; }
+#medicineRemindersView { display: none; }
+#medicineRemindersView.active { display: grid; }
 .rng-maintenance-view.active { display: grid; min-height: calc(100vh - 46px); align-content: center; }
 .rng-maintenance-content { width: min(100%, 590px); margin: 0 auto; padding: 42px 38px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(145deg, #171717, #121212 72%); text-align: center; }
 .rng-maintenance-mark { display: grid; width: 48px; height: 48px; place-items: center; margin: 0 auto 20px; border: 1px solid #343434; border-radius: 14px; color: #b7a9a0; background: #1b1919; }

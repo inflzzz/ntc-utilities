@@ -16,7 +16,9 @@ test('Ambient Mixer usa gravações oficiais opcionais, três ruídos e mantém 
   const code=source('ntc-labs-ambient.js'),view=html(),catalog=require('../scripts/ambient-source-catalog.cjs');
   assert.equal(catalog.length,24);
   assert.equal((code.match(/id:'noise\.(?:white|pink|brown)'/g)||[]).length,3);
-  for(const id of ['labsAmbientPlay','labsAmbientPause','labsAmbientStop','labsAmbientMaster','labsAmbientTimerStart','labsAmbientPresetCreate','labsAmbientPresetDuplicate','labsAmbientPresetRename','labsAmbientPresetDelete'])assert.ok(view.includes(`id="${id}"`),id);
+  for(const id of ['labsAmbientPlay','labsAmbientStop','labsAmbientMaster','labsAmbientTimerStart','labsAmbientPresetCreate','labsAmbientPresetDuplicate','labsAmbientPresetRename','labsAmbientPresetDelete'])assert.ok(view.includes(`id="${id}"`),id);
+  assert.match(code,/button\.textContent=paused\?\(timerRemaining\?'Retomar ambiente':'Iniciar ambiente'\):'Pausar ambiente'/);
+  assert.match(code,/paused\?start\(\):pause\(\)/);
   for(const id of ['labsAmbientPacks','labsAmbientAddReference','labsAmbientAddImport'])assert.ok(view.includes(`id="${id}"`),id);
   assert.match(code,/compressor\.connect\(context\.destination\)/);assert.match(code,/timerFading/);assert.match(code,/context\.suspend\(\)/);assert.match(code,/decodeAudioData/);assert.match(code,/source\.loop=true/);
   assert.doesNotMatch(code,/fetch\(|XMLHttpRequest|sendBeacon/);

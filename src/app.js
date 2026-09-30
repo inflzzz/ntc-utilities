@@ -1956,7 +1956,7 @@ $('#updateAction').onclick = async () => { const status = $('#updateAction').dat
 window.ntc.onUpdateEvent(showUpdateNotice);
 $('#historyFilter').onchange = renderHistory;
 $('#confirmCancel').onclick = () => closeConfirm(false); $('#confirmAccept').onclick = () => closeConfirm(true);
-function navigateToView(target) {
+function navigateToView(target, options = {}) {
   const viewTarget = window.NTCRngAvailability?.resolveView(target) || (target === 'rng' ? 'rngMaintenance' : target);
   if (target !== 'microphoneTest') window.NTCMicrophoneTest?.close();
   if (target !== 'webcamTest') window.NTCWebcamTest?.close();
@@ -1974,6 +1974,8 @@ function navigateToView(target) {
   if (target === 'documents') window.ntcDocumentsUi?.open();
   if (target === 'pdf') window.ntcPdfUi?.open();
   if (target === 'studyTools') window.ntcStudyUi?.open();
+  if (target === 'medicineReminders') window.NTCMedicineReminders?.open(options.reminderKey);
+  if (target === 'storageAnalyzer') window.NTCStorageAnalyzer?.open();
   if (target === 'timeTools') window.ntcWorldClock?.open();
   if (target === 'randomTools') window.NTCRandomTools?.open();
   if (target === 'microphoneTest') window.NTCMicrophoneTest?.open();

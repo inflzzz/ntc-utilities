@@ -37,6 +37,8 @@ const { AUDIO_EXTENSIONS, normalizeMusicFolders, normalizeMusicFiles, scanMusicF
 const { registerMusicService } = require('./src/music-service.cjs');
 const { MusicSearchCache } = require('./src/music-search-cache.cjs');
 const { AmbientPackService } = require('./src/ambient-packs.cjs');
+const { MedicineReminderService } = require('./src/medicine-reminders.cjs');
+const { StorageAnalyzerService } = require('./src/storage-analyzer-main.cjs');
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
@@ -69,6 +71,10 @@ let musicMiniWindow = null;
 let musicControlState = { title: '', artist: '', album: '', cover: '', coverFit: 'contain', playing: false, time: 0, duration: 0, volume: .8, muted: false, alwaysOnTop: false };
 let musicLibraryService = null;
 let ambientPackService = null;
+let medicineReminderService = null;
+let storageAnalyzerService = null;
+let storageAnalyzerShutdownStarted = false;
+let storageAnalyzerShutdownReady = false;
 let forceClose = false;
 let screenShortcut = null;
 let screenshotShortcut = null;
@@ -1016,8 +1022,35 @@ function createWindow() {
 
 app.whenReady().then(() => {
   if (!hasSingleInstanceLock) { app.exit(0); return; }
+  storageAnalyzerService = new StorageAnalyzerService({ ipcMain, dialog, shell, clipboard, getWindow: () => mainWindow, helperFile: app.isPackaged ? path.join(process.resourcesPath, 'bin', 'storage-scan-fast.exe') : path.join(__dirname, 'resources', 'bin', 'storage-scan-fast.exe') }).register();
   ambientPackService = new AmbientPackService({ root: app.getPath('userData'), catalogFile: path.join(__dirname,'content','ambient-packs.json'), ffprobe: binary('ffprobe'), onProgress: payload => { if(mainWindow && !mainWindow.isDestroyed())mainWindow.webContents.send('ambient-pack-progress',payload); } });
   void ambientPackService.initialize();
+  medicineReminderService = new MedicineReminderService({
+    file: path.join(app.getPath('userData'), 'medicine-reminders.json'),
+    onChange: value => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('medicine-reminders-changed', value); },
+    notify: reminder => {
+      if (!Notification.isSupported()) return;
+      const actions = process.platform === 'darwin' ? [{ type: 'button', text: 'Tomado' }, { type: 'button', text: 'Lembrar em 10 min' }] : [];
+      const notification = new Notification({ title: 'Hora do medicamento', body: `${reminder.medicine.name}\n${reminder.medicine.dose}`, actions });
+      const openReminder = () => {
+        showMainWindow();
+        const sendOpen = () => { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('medicine-reminder-open', { key: reminder.key }); };
+        if (mainWindow?.webContents.isLoading()) mainWindow.webContents.once('did-finish-load', sendOpen);
+        else sendOpen();
+      };
+      notification.on('click', openReminder);
+      notification.on('action', (_event, index) => {
+        if (index === 0) void medicineReminderService?.setOccurrence(reminder.key, 'taken');
+        else if (index === 1) void medicineReminderService?.snooze(reminder.key, 10);
+      });
+      notification.show();
+    }
+  });
+  const medicineRemindersReady = medicineReminderService.initialize().catch(error => { console.error('Não foi possível iniciar os lembretes:', error); });
+  ipcMain.handle('medicine-reminders-state', async event => { assertMainWindowSender(event); await medicineRemindersReady; return medicineReminderService.getState(); });
+  ipcMain.handle('medicine-reminders-save', async (event, value) => { assertMainWindowSender(event); await medicineRemindersReady; return medicineReminderService.saveMedications(value); });
+  ipcMain.handle('medicine-reminders-mark', async (event, key, status) => { assertMainWindowSender(event); await medicineRemindersReady; return medicineReminderService.setOccurrence(String(key || ''), status); });
+  ipcMain.handle('medicine-reminders-snooze', async (event, key, minutes) => { assertMainWindowSender(event); await medicineRemindersReady; return medicineReminderService.snooze(String(key || ''), minutes); });
   ipcMain.handle('ambient-state', event => { assertMainWindowSender(event); return ambientPackService.state(); });
   ipcMain.handle('ambient-refresh', event => { assertMainWindowSender(event); return ambientPackService.refresh(); });
   ipcMain.handle('ambient-download', (event,id) => { assertMainWindowSender(event); return ambientPackService.download(id); });
@@ -1084,7 +1117,7 @@ app.whenReady().then(() => {
   createSecurityService({ ipcMain, getMainWindow: () => mainWindow, dialog, clipboard, sharp, runFfmpeg: args => run('ffmpeg', args), ignoreClipboardText: text => clipboardHistoryService?.ignoreNextText(text) });
   void rngTrustedClock.sync().then(sendRngState);
   powerMonitor.on('suspend', () => { autoClickerService?.suspend(); accountRngTime(); rngAutoRollStartedAt = 0; rngAutoAccountedAt = 0; rngNextAutoRollAt = 0; rngTrustedClock.invalidate(); persistRngGame(); sendRngState(); updateTrayStatus(); });
-  powerMonitor.on('resume', () => { rngTrustedClock.invalidate(); rngAppAccountedAt = rngMonotonicMs(); rngLastHeartbeatAt = rngMonotonicMs(); rngLastTimeSync = rngMonotonicMs(); void rngTrustedClock.sync().then(sendRngState); });
+  powerMonitor.on('resume', () => { rngTrustedClock.invalidate(); rngAppAccountedAt = rngMonotonicMs(); rngLastHeartbeatAt = rngMonotonicMs(); rngLastTimeSync = rngMonotonicMs(); void rngTrustedClock.sync().then(sendRngState); void medicineReminderService?.refreshAfterResume().catch(error => console.error('Falha ao recalcular lembretes após retomada:', error)); });
   ipcMain.handle('get-app-version', () => app.getVersion());
   ipcMain.on('shortcut-recorder-focus', (event, focused) => {
     if (mainWindow && event.sender === mainWindow.webContents) shortcutRecorderFocused = Boolean(focused);
@@ -1843,6 +1876,13 @@ app.on('before-quit', event => {
       app.quit();
     });
   }
+  if (storageAnalyzerService && ['starting', 'scanning'].includes(storageAnalyzerService.status.status) && !storageAnalyzerShutdownReady) {
+    event.preventDefault();
+    if (storageAnalyzerShutdownStarted) return;
+    storageAnalyzerShutdownStarted = true;
+    void storageAnalyzerService.dispose().finally(() => { storageAnalyzerShutdownReady = true; app.quit(); });
+    return;
+  }
   rngShadowService?.dispose();
   clipboardHistoryService?.dispose();
   autoClickerService?.dispose();
@@ -1858,6 +1898,8 @@ app.on('before-quit', event => {
   persistRngGame();
 });
 app.on('will-quit', () => {
+  void storageAnalyzerService?.dispose();
+  medicineReminderService?.close();
   musicLibraryService?.cleanup();
   for (const file of videoProjectPreviewCache.values()) {
     try { if (file.startsWith(app.getPath('temp')) && fs.existsSync(file)) fs.unlinkSync(file); } catch { /* Um player ainda pode manter o proxy aberto no Windows. */ }

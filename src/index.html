@@ -18,6 +18,8 @@
     <link rel="stylesheet" href="./microphone-test.css" />
     <link rel="stylesheet" href="./webcam-test.css" />
     <link rel="stylesheet" href="./ntc-labs.css" />
+    <link rel="stylesheet" href="./medicine-reminders.css" />
+    <link rel="stylesheet" href="./storage-analyzer.css" />
   </head>
   <body>
     <div class="splash" id="splash" aria-label="Carregando NTC Utilities">
@@ -112,6 +114,34 @@
             <button class="tool-card available" data-open-tool="pdf"><span class="tool-icon">▧</span><span><strong>PDF</strong><small>Leia, organize, edite e converta documentos PDF.</small></span></button>
             <button class="tool-card available" data-open-tool="studyTools"><span class="tool-icon">▤</span><span><strong>Estudos</strong><small>Organize sessões de foco e revise flashcards.</small></span></button>
           </div>
+        </section>
+
+        <section class="view storage-analyzer-view" id="storageAnalyzerView" aria-label="Analisador de Armazenamento"></section>
+
+        <section class="view medicine-reminders-view" id="medicineRemindersView" aria-labelledby="medicineRemindersTitle">
+          <div class="hero compact"><div class="eyebrow">UTILIDADE LOCAL</div><h1 id="medicineRemindersTitle">Lembrete de Medicamentos</h1><p>Registre os horários que você definiu e acompanhe as doses do dia.</p></div>
+          <section class="medicine-reminders-summary labs-card" aria-label="Resumo dos lembretes">
+            <div><span class="medicine-reminders-kicker">PRÓXIMA DOSE</span><strong id="medicineNextDose">Nenhuma dose próxima</strong><small id="medicineNextDoseDetails">Cadastre um medicamento para começar.</small></div>
+            <div class="medicine-reminders-count"><strong id="medicineTodayCount">0</strong><span>doses hoje</span></div>
+          </section>
+          <section class="labs-card medicine-section"><div class="medicine-section-heading"><div><span class="medicine-reminders-kicker">AGENDA LOCAL</span><h2>Hoje</h2></div><span id="medicineTodayProgress">0 tomadas</span></div><div id="medicineTodayList" class="medicine-today-list"></div></section>
+          <section class="labs-card medicine-section"><div class="medicine-section-heading"><div><span class="medicine-reminders-kicker">SUA LISTA</span><h2>Medicamentos cadastrados</h2></div><button class="primary-button" id="medicineAddButton" type="button">+ Adicionar medicamento</button></div><div id="medicineList" class="medicine-list"></div><div class="medicine-empty hidden" id="medicineEmpty"><div class="medicine-empty-icon">♡</div><h3>Nenhum medicamento cadastrado</h3><p>Adicione seus medicamentos e escolha quando deseja ser lembrado.</p><button class="primary-button" type="button" data-medicine-add>+ Adicionar medicamento</button></div></section>
+          <section class="labs-card medicine-section"><div class="medicine-section-heading"><div><span class="medicine-reminders-kicker">REGISTRO LOCAL</span><h2>Histórico</h2></div><span>Até 100 registros recentes</span></div><div id="medicineHistory" class="medicine-history"></div></section>
+          <section class="labs-card medicine-preferences"><label class="medicine-autostart"><input id="medicineLaunchAtLogin" type="checkbox"><span><strong>Iniciar NTC com o Windows para manter os lembretes ativos</strong><small id="medicineAutostartStatus">Os lembretes funcionam enquanto o NTC estiver em execução e o computador estiver ligado.</small></span></label><p>Este recurso apenas registra as informações que você inserir; não fornece recomendações médicas. Notificações não podem ser entregues enquanto o computador estiver desligado.</p></section>
+          <dialog class="medicine-editor-dialog" id="medicineEditorDialog" aria-labelledby="medicineEditorTitle">
+            <form id="medicineEditorForm" class="medicine-editor-form">
+              <header><div><span class="medicine-reminders-kicker">CADASTRO LOCAL</span><h2 id="medicineEditorTitle">Adicionar medicamento</h2></div><button class="suggestion-close" id="medicineEditorClose" type="button" aria-label="Fechar formulário">×</button></header>
+              <label class="medicine-field"><span>Nome do medicamento</span><input class="text-input" id="medicineName" maxlength="100" required autocomplete="off" placeholder="Ex.: Vitamina D"></label>
+              <label class="medicine-field"><span>Quantidade ou dose</span><input class="text-input" id="medicineDose" maxlength="100" required autocomplete="off" placeholder="Ex.: 1 cápsula"></label>
+              <fieldset class="medicine-days"><legend>Dias da semana</legend><div class="medicine-day-shortcuts"><button type="button" data-medicine-days="all">Todos os dias</button><button type="button" data-medicine-days="weekdays">Dias úteis</button><button type="button" data-medicine-days="weekend">Fim de semana</button></div><div class="medicine-day-grid">
+                <label><input type="checkbox" value="1" data-medicine-day><span>Segunda</span></label><label><input type="checkbox" value="2" data-medicine-day><span>Terça</span></label><label><input type="checkbox" value="3" data-medicine-day><span>Quarta</span></label><label><input type="checkbox" value="4" data-medicine-day><span>Quinta</span></label><label><input type="checkbox" value="5" data-medicine-day><span>Sexta</span></label><label><input type="checkbox" value="6" data-medicine-day><span>Sábado</span></label><label><input type="checkbox" value="0" data-medicine-day><span>Domingo</span></label>
+              </div></fieldset>
+              <fieldset class="medicine-times"><legend>Horários</legend><div id="medicineTimeFields"></div><button class="outline-button" id="medicineAddTime" type="button">+ Adicionar horário</button></fieldset>
+              <label class="medicine-field"><span>Observação <small>(opcional)</small></span><textarea class="text-input" id="medicineNotes" maxlength="500" rows="3" placeholder="Anotação pessoal"></textarea></label>
+              <p class="medicine-form-error" id="medicineFormError" role="alert"></p>
+              <footer><button class="outline-button" id="medicineEditorCancel" type="button">Cancelar</button><button class="primary-button" type="submit">Salvar medicamento</button></footer>
+            </form>
+          </dialog>
         </section>
 
         <section class="view random-tools-view" id="randomToolsView" aria-labelledby="randomToolsTitle">
@@ -811,15 +841,15 @@
         <section class="view labs-ambient-view" id="ambientMixerView">
           <div class="hero compact"><div class="eyebrow">NTC LABS · ÁUDIO LOCAL</div><h1>Ambient Mixer</h1><p>Combine gravações reais, seus próprios sons e ruídos para criar seu ambiente.</p></div>
           <section class="labs-ambient-toolbar labs-card">
-            <div class="labs-actions"><button class="primary-button" id="labsAmbientPlay" type="button">Iniciar ambiente</button><button class="outline-button" id="labsAmbientPause" type="button" disabled>Pausar</button><button class="outline-button" id="labsAmbientStop" type="button" disabled>Parar tudo</button></div>
+            <div class="labs-actions"><button class="primary-button" id="labsAmbientPlay" type="button" aria-pressed="false">Iniciar ambiente</button><button class="outline-button" id="labsAmbientStop" type="button" disabled>Parar tudo</button></div>
             <label class="labs-inline-range"><span>Volume master</span><input id="labsAmbientMaster" type="range" min="0" max="100" value="48" /><output id="labsAmbientMasterValue">48%</output></label>
             <div class="labs-timer-controls"><label class="labs-field"><span>Timer</span><select id="labsAmbientTimer"><option value="0">Desligado</option><option value="15">15 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option><option value="90">90 min</option><option value="custom">Personalizado</option></select></label><label class="labs-field labs-timer-custom hidden"><span>Minutos</span><input id="labsAmbientCustomMinutes" type="number" min="1" max="720" value="20" /></label><button class="outline-button" id="labsAmbientTimerStart" type="button">Iniciar timer</button><span id="labsAmbientTimerStatus" class="labs-muted">Timer desligado</span></div>
           </section>
-          <section class="labs-card labs-ambient-library"><div class="labs-section-heading"><div><span class="labs-eyebrow">BIBLIOTECA DE SONS</span><h2>Pacotes oficiais</h2></div><button class="outline-button" id="labsAmbientRefresh" type="button">Verificar atualizações</button></div><div id="labsAmbientEmpty" class="labs-ambient-empty"><p id="labsAmbientEmptyText">Verificando biblioteca...</p></div><div id="labsAmbientPacks" class="labs-pack-list"></div><p class="labs-muted">Os pacotes são opcionais, ficam fora do instalador e, depois de instalados, funcionam sem internet.</p></section>
           <section class="labs-ambient-layout">
-            <div class="labs-card"><div class="labs-section-heading"><div><span class="labs-eyebrow">MIXER</span><h2>Camadas sonoras</h2></div><span id="labsAmbientActiveCount">0 ativas</span></div><div class="labs-actions"><button class="outline-button" id="labsAmbientAddReference" type="button">+ Referenciar meus sons</button><button class="outline-button" id="labsAmbientAddImport" type="button">+ Importar para NTC</button></div><p class="labs-muted">Arraste arquivos de áudio aqui para referenciar. Nenhum original é alterado.</p><div id="labsAmbientSounds" class="labs-sound-grid"></div></div>
+            <div class="labs-card"><div class="labs-section-heading"><div><span class="labs-eyebrow">BIBLIOTECA DE SONS</span><h2>Camadas sonoras</h2></div><div class="labs-actions"><span id="labsAmbientActiveCount">0 ativas</span><button class="outline-button" id="labsAmbientDeselectAll" type="button" disabled>Desmarcar todos</button><button class="outline-button" id="labsAmbientManageLibrary" type="button">Gerenciar biblioteca</button></div></div><div class="labs-actions"><button class="outline-button" id="labsAmbientAddReference" type="button">+ Referenciar meus sons</button><button class="outline-button" id="labsAmbientAddImport" type="button">+ Importar para NTC</button></div><p class="labs-muted">Arraste arquivos de áudio aqui para referenciar. Nenhum original é alterado.</p><p class="labs-muted labs-library-note" id="labsAmbientLibraryNote"></p><div id="labsAmbientSounds" class="labs-sound-grid"></div></div>
             <div class="labs-card"><div class="labs-section-heading"><div><span class="labs-eyebrow">COMBINAÇÕES</span><h2>Ambientes salvos</h2></div></div><div class="labs-preset-controls"><select id="labsAmbientPresetSelect" aria-label="Preset salvo"></select><button class="outline-button" id="labsAmbientPresetLoad" type="button">Carregar</button><button class="outline-button" id="labsAmbientPresetSave" type="button">Salvar alterações</button></div><div class="labs-actions labs-preset-actions"><button class="outline-button" id="labsAmbientPresetCreate" type="button">Salvar como novo</button><button class="outline-button" id="labsAmbientPresetDuplicate" type="button">Duplicar</button><button class="outline-button" id="labsAmbientPresetRename" type="button">Renomear</button><button class="outline-button" id="labsAmbientPresetDelete" type="button">Excluir</button></div><div id="labsAmbientPresetSummary" class="labs-preset-summary"></div></div>
           </section>
+          <dialog class="labs-confirm-dialog labs-library-dialog" id="labsAmbientLibraryDialog" aria-labelledby="labsAmbientLibraryTitle"><div class="labs-library-dialog-content"><div class="labs-section-heading"><div><span class="labs-eyebrow">BIBLIOTECA</span><h2 id="labsAmbientLibraryTitle">Gerenciar sons</h2></div><button class="outline-button" id="labsAmbientLibraryClose" type="button" aria-label="Fechar gerenciador">×</button></div><p class="labs-muted">Pacotes oficiais opcionais. Depois de instalados, os sons funcionam sem internet.</p><div id="labsAmbientPacks" class="labs-pack-list"></div><div class="labs-library-dialog-footer"><span id="labsAmbientLibrarySummary">0 sons · 0 MB instalados</span><button class="outline-button" id="labsAmbientRefresh" type="button">Verificar atualizações</button></div></div></dialog>
         </section>
 
         <section class="view labs-daily-view" id="dailyRandomView">
@@ -1327,6 +1357,9 @@
     <script src="./video-project-timeline.js"></script>
     <script src="./video-project-transform.js"></script>
     <script src="./app.js"></script>
+    <script src="./storage-treemap.js"></script>
+    <script src="./storage-breadcrumb.js"></script>
+    <script src="./storage-analyzer-ui.js"></script>
     <script src="./media-project-ui.js"></script>
     <script src="./video-project-ui.js"></script>
     <script src="./catalog.js"></script>
@@ -1334,6 +1367,7 @@
     <script src="./utility-generators.js"></script>
     <script src="./utility-engine.js"></script>
     <script src="./ntc-labs-core.js"></script>
+    <script src="./medicine-reminders-ui.js"></script>
     <script src="./ntc-labs-stats-model.js"></script>
     <script src="./ntc-labs-stats.js"></script>
     <script src="./ntc-labs-storage.js"></script>

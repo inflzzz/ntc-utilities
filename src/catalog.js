@@ -12,6 +12,7 @@
     spark: '<path d="m12 3 1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     productivity: '<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 8h8v8H8zM8 2v4M16 2v4M8 18v4M16 18v4"/>',
+    health: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.5 1.1-1.1a5.5 5.5 0 0 0-.1-7.8z"/><path d="M3.5 12h5l2-3 3 6 2-3h5"/>',
     shield: '<path d="M12 3 20 6v5c0 5-3.4 8.3-8 10-4.6-1.7-8-5-8-10V6z"/><path d="m9 12 2 2 4-4"/>',
     game: '<path d="M6 9h12a4 4 0 0 1 3.8 5.2l-.8 2.5a2 2 0 0 1-3.3.8L15 15H9l-2.7 2.5a2 2 0 0 1-3.3-.8l-.8-2.5A4 4 0 0 1 6 9z"/><path d="M7 11v4M5 13h4M16 12h.01M19 14h.01"/>',
     history: '<path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
@@ -33,7 +34,7 @@
     ['audio', 'Áudio e Música', 'audio'], ['video', 'Vídeo', 'video'],
     ['documents', 'Documentos', 'document'], ['pdf', 'PDF', 'pdf'],
     ['time', 'Relógios e Estudos', 'clock'], ['productivity', 'Produtividade', 'productivity'],
-    ['security', 'Segurança', 'shield'], ['converters', 'Conversores', 'swap'],
+    ['health', 'Saúde e bem-estar', 'health'], ['security', 'Segurança', 'shield'], ['converters', 'Conversores', 'swap'],
     ['generators', 'Geradores', 'spark'], ['games', 'Jogos e Sorteios', 'game'], ['labs', 'NTC Labs', 'spark']
   ].map(([id, name, icon]) => ({ id, name, icon }));
   const tools = [];
@@ -81,8 +82,10 @@
   add('productivity', 'Arquivos e captura', [
     ['screenshot', 'Captura de tela', 'screenshot'], ['autoclicker', 'Auto-clicker', 'autoclicker'],
     ['renamer', 'Renomear arquivos', 'renamer'], ['compressor', 'Compressor de mídia', 'compressor'],
-    ['clipboardHistory', 'Área de transferência', 'clipboardHistory']
+    ['clipboardHistory', 'Área de transferência', 'clipboardHistory'],
+    ['storageAnalyzer', 'Analisador de Armazenamento', 'storageAnalyzer', 'disco|ssd|hd|espaço|treemap|maiores arquivos|tamanho em disco']
   ], 'existing');
+  add('health', 'Saúde e bem-estar', [['medicineReminders', 'Lembrete de Medicamentos', 'medicineReminders', 'remédios|doses|horários de medicamentos|lembrete de remédio']], 'existing');
   add('security', 'Privacidade', [['security', 'Senhas, hash e proteção de arquivos', 'security']], 'existing');
 
   add('converters', 'Ferramentas', [['converterPanel', 'Conversores', '', 'medidas|unidades|moedas|datas|cores|texto|números|arquivos', 'converters']]);

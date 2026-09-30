@@ -1,5 +1,21 @@
 window.NTC_CHANGELOG = [
   {
+    version: '1.2.0',
+    date: '29 set. 2026',
+    changes: [
+      'Novo Analisador de Armazenamento: análise de discos e pastas, Fast Scan NTFS com helper incluído no instalador, fallback seguro com motivo e método visíveis, progresso/cancelamento, treemap, arquivos, pastas, tipos, achados, filtros e ações seguras pelo Explorer ou Lixeira.',
+      'O mapa preserva tamanho lógico e em disco, evita duplicar hard links e não atravessa junctions/symlinks. Navegação contextual acima do treemap: voltar ao nível anterior e breadcrumb clicável com truncamento inteligente, sem repetir o scan.',
+      'Ambient Mixer: biblioteca de sons separada do gerenciamento; três pacotes opcionais com 24 gravações CC0, downloads verificados por SHA-256, instalação atômica, uso offline, atualização/remoção e sons próprios por referência ou importação. Inclui desmarcar todas as camadas e controles claros de iniciar, pausar e retomar.',
+      'Novo Lembrete de Medicamentos em Saúde e bem-estar: agenda local por dias e horários, acompanhamento das doses, histórico, notificações, adiamento e opção de iniciar com o Windows.',
+      'Novos testes de microfone e webcam: nível de áudio em tempo real, dispositivos e propriedades, gravação local; prévia da câmera, resoluções/FPS disponíveis e captura de foto.',
+      'Player de música offline renovado, com biblioteca local, playlists, fila, reprodução em janela compacta e controles persistentes.',
+      'Jogos e Sorteios em categoria própria: decisão, moeda, roleta, lista, equipes, cartas, dados e jogos rápidos; contadores e sequências agora respeitam erros e seleções do usuário.',
+      'NTC Labs reúne Pessoa Aleatória, Estatísticas do NTC, Daily Random, comparações de medidas da vida real e o Ambient Mixer.',
+      'Editor de vídeo: exportação UHD 4K (2160p) e opção Máxima, com H.264 CRF 12, codificação mais lenta e AAC 320 kb/s; arquivos podem ficar maiores e levar mais tempo. Aumentar a resolução não recupera detalhes ausentes na origem.',
+      'Controles de reprodução centralizados; a timeline vazia ocupa a área visível sem alterar a edição ou o relógio de reprodução.'
+    ]
+  },
+  {
     version: '1.1.0',
     date: '28 set. 2026',
     changes: [

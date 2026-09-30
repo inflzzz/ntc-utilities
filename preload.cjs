@@ -1,6 +1,20 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('ntc', {
+  storageAnalyzer: Object.freeze({
+    drives: () => ipcRenderer.invoke('storage-analyzer-drives'),
+    chooseFolder: () => ipcRenderer.invoke('storage-analyzer-choose'),
+    start: rootPath => ipcRenderer.invoke('storage-analyzer-start', rootPath),
+    cancel: () => ipcRenderer.invoke('storage-analyzer-cancel'),
+    status: () => ipcRenderer.invoke('storage-analyzer-status'),
+    query: options => ipcRenderer.invoke('storage-analyzer-query', options),
+    treemap: options => ipcRenderer.invoke('storage-analyzer-treemap', options),
+    types: () => ipcRenderer.invoke('storage-analyzer-types'),
+    findings: () => ipcRenderer.invoke('storage-analyzer-findings'),
+    item: id => ipcRenderer.invoke('storage-analyzer-item', id),
+    action: (action, id) => ipcRenderer.invoke('storage-analyzer-action', action, id),
+    onEvent: callback => { const listener = (_event, payload) => callback(payload); ipcRenderer.on('storage-analyzer-event', listener); return () => ipcRenderer.removeListener('storage-analyzer-event', listener); }
+  }),
   ambient: Object.freeze({
     state: () => ipcRenderer.invoke('ambient-state'),
     refresh: () => ipcRenderer.invoke('ambient-refresh'),
@@ -14,6 +28,14 @@ contextBridge.exposeInMainWorld('ntc', {
     relinkCustom: id => ipcRenderer.invoke('ambient-custom-relink',id),
     removeCustom: id => ipcRenderer.invoke('ambient-custom-remove',id),
     onProgress: callback => { const listener=(_event,value)=>callback(value);ipcRenderer.on('ambient-pack-progress',listener);return ()=>ipcRenderer.removeListener('ambient-pack-progress',listener); }
+  }),
+  medicineReminders: Object.freeze({
+    state: () => ipcRenderer.invoke('medicine-reminders-state'),
+    save: medications => ipcRenderer.invoke('medicine-reminders-save', medications),
+    mark: (key, status) => ipcRenderer.invoke('medicine-reminders-mark', key, status),
+    snooze: (key, minutes) => ipcRenderer.invoke('medicine-reminders-snooze', key, minutes),
+    onChanged: callback => { const listener = (_event, value) => callback(value); ipcRenderer.on('medicine-reminders-changed', listener); return () => ipcRenderer.removeListener('medicine-reminders-changed', listener); },
+    onOpenReminder: callback => { const listener = (_event, value) => callback(value); ipcRenderer.on('medicine-reminder-open', listener); return () => ipcRenderer.removeListener('medicine-reminder-open', listener); }
   }),
   catalogSave: payload => ipcRenderer.invoke('catalog-save', payload),
   catalogQr: value => ipcRenderer.invoke('catalog-qr', value),

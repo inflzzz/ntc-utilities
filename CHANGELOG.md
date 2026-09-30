@@ -1,9 +1,16 @@
 # Changelog
 
-## Em desenvolvimento — após 1.1.0 · 29 set. 2026
+## 1.2.0 — NTC Utilities · 29 set. 2026
 
-- **Ambient Mixer:** 24 gravações reais NOX SOUND CC0 distribuídas em três pacotes opcionais (Ambient Essentials, Nature e Water), hospedados em release própria do GitHub. Download com progresso, SHA-256, instalação atômica, uso offline, atualização/remover/reinstalar; sons próprios por referência ou importação; loops com crossfade. Ruídos branco, rosa e marrom continuam disponíveis sem download. Presets antigos são migrados sem apagar sons sem equivalência.
-- Consolidadas no código as ferramentas locais pendentes do NTC Labs, os testes de microfone/webcam, Jogos e Sorteios e o player de música offline. O NTC RNG permanece em manutenção; não foi publicada uma nova versão do instalador.
+- **Analisador de Armazenamento:** análise de discos e pastas com Fast Scan NTFS e helper incluído no instalador, fallback seguro com método/motivo identificados, progresso e cancelamento. Treemap, buscas, filtros, arquivos/pastas maiores, tipos e achados; propriedades distinguem tamanho lógico e em disco, evitam duplicar hard links e não atravessam junctions/symlinks. Navegação contextual junto ao mapa com voltar ao nível anterior e breadcrumb clicável, sem novo scan.
+- **Ambient Mixer:** biblioteca de sons separada do gerenciador; 24 gravações CC0 em três pacotes opcionais (Ambient Essentials, Nature e Water). Downloads verificam SHA-256, instalação atômica e reprodução offline; instalar, atualizar, remover e reinstalar ficam no gerenciador. Sons próprios por referência ou importação, loops com crossfade, ruídos branco/rosa/marrom sem download, desmarcar todas as camadas e controles de iniciar/pausar/retomar. Presets antigos sem equivalência são preservados.
+- **Lembrete de Medicamentos** em Saúde e bem-estar: agenda local por dias e horários, acompanhamento das doses, histórico, notificações, adiamento e início opcional com o Windows.
+- **Teste de microfone e Teste de webcam:** nível de áudio em tempo real, dispositivos e propriedades, gravação de teste local; prévia da câmera, resoluções/FPS disponíveis e captura de foto.
+- **Player de música offline renovado**, com biblioteca local, playlists, fila, janela compacta e controles persistentes.
+- **Jogos e Sorteios** em categoria própria, com decisão, moeda, roleta, lista, equipes, cartas, dados e jogos rápidos. Sequências/contadores respeitam erros e seleções do usuário.
+- **NTC Labs:** Pessoa Aleatória, Estatísticas do NTC, Daily Random, comparações de medidas da vida real e Ambient Mixer.
+- **Editor de vídeo:** exportação UHD 4K (2160p) e opção Máxima, com H.264 CRF 12, codificação mais lenta e AAC 320 kb/s. A saída pode ser maior/demorar mais; aumentar a resolução não recupera detalhes ausentes na origem.
+- Centralizados os controles de reprodução e preenchida a largura visível da timeline vazia, sem alterar a edição ou o relógio de reprodução.
 
 ## 1.1.0 — NTC Utilities · 28 set. 2026
 

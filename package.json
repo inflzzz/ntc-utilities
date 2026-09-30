@@ -1,6 +1,6 @@
 {
   "name": "ntc-utilities",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Utilitários desktop minimalistas, locais e privados.",
   "author": "NTC Corporation",
   "license": "GPL-3.0-only",
@@ -8,12 +8,14 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test",
+    "benchmark:storage": "node scripts/benchmark-storage-analyzer.cjs",
+    "build:storage-helper": "node scripts/build-storage-scan-fast.cjs",
     "build:ambient-packs": "node scripts/build-ambient-packs.cjs",
     "validate:rng-catalog": "node scripts/validate-rng-title-catalog.cjs",
     "validate:rng-math-backend": "node scripts/validate-rng-math-backend.cjs",
     "prepare:bin": "powershell -ExecutionPolicy Bypass -File scripts/fetch-binaries.ps1",
-    "package:win": "pnpm run validate:rng-catalog && pnpm run validate:rng-math-backend && node scripts/generate-echo-title-catalog.cjs && node scripts/build-rng-online-config.cjs && pnpm run prepare:bin && electron-builder --win nsis",
-    "release:win": "pnpm run validate:rng-catalog && pnpm run validate:rng-math-backend && node scripts/generate-echo-title-catalog.cjs && node scripts/build-rng-online-config.cjs && pnpm run prepare:bin && electron-builder --win nsis --publish always"
+    "package:win": "pnpm run validate:rng-catalog && pnpm run validate:rng-math-backend && node scripts/generate-echo-title-catalog.cjs && node scripts/build-rng-online-config.cjs && pnpm run build:storage-helper && pnpm run prepare:bin && electron-builder --win nsis",
+    "release:win": "pnpm run validate:rng-catalog && pnpm run validate:rng-math-backend && node scripts/generate-echo-title-catalog.cjs && node scripts/build-rng-online-config.cjs && pnpm run build:storage-helper && pnpm run prepare:bin && electron-builder --win nsis --publish always"
   },
   "devDependencies": {
     "electron": "^39.2.7",
@@ -50,7 +52,8 @@
         "filter": [
           "yt-dlp.exe",
           "ffmpeg.exe",
-          "ffprobe.exe"
+          "ffprobe.exe",
+          "storage-scan-fast.exe"
         ]
       },
       {
