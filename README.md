@@ -1,5 +1,8 @@
 # NTC Utilities
 
+<p align="center"><strong>COMUNICADO À COMUNIDADE</strong><br>O desenvolvimento do NTC Utilities está temporariamente pausado por questões financeiras. O projeto não foi abandonado; esperamos voltar a publicar novidades em breve, sem uma data confirmada por enquanto.</p>
+<p align="center"><a href="https://inflzzz.github.io/ntc-utilities/pausa.html"><strong>Leia o comunicado e veja o resumo do projeto</strong></a> · <a href="https://github.com/inflzzz/ntc-utilities/releases/latest">Versão mais recente</a></p>
+
 O **NTC Utilities** reúne ferramentas de mídia, produtividade, organização e segurança em um aplicativo desktop para Windows. O processamento de arquivos locais acontece no próprio computador; recursos que dependem de serviços externos — como downloads, clima e verificação de atualizações — precisam de conexão com a internet.
 
 ## Ferramentas

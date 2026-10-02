@@ -1,5 +1,17 @@
 window.NTC_CHANGELOG = [
   {
+    version: '1.4.1',
+    date: '1 out. 2026',
+    title: 'Comunicado à comunidade',
+    changes: [
+      'O desenvolvimento do NTC Utilities está temporariamente pausado por questões financeiras. O projeto não foi abandonado: esperamos voltar a publicar atualizações em breve, embora ainda não exista uma data confirmada.',
+      'Ao longo do projeto, o NTC reuniu ferramentas para mídia e criação: downloads autorizados, player musical, editores de áudio e vídeo, gravação e captura de tela.',
+      'Também chegaram conversores e ferramentas para imagens, documentos e PDF; organização de arquivos, área de transferência, armazenamento e desinstalação; além de recursos de segurança, relógios e produtividade.',
+      'O NTC ganhou ainda Jogos e Sorteios, NTC Labs, Ambient Mixer, testes de microfone e webcam, Luz da Tela, Modificador de Voz e Lembrete de Medicamentos.',
+      'A todas as pessoas que usaram, apoiaram, testaram ou compartilharam o NTC, muito obrigado. Agradecemos também a quem continuará usando o programa durante a pausa.'
+    ]
+  },
+  {
     version: '1.4.0',
     date: '30 set. 2026',
     title: 'Novidades da versão 1.4.0',

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.1 — Comunicado à comunidade · 1 out. 2026
+
+O desenvolvimento do NTC Utilities está temporariamente pausado por questões financeiras. **O projeto não foi abandonado.** Esperamos voltar a publicar atualizações em breve; ainda não há uma data confirmada.
+
+### Um resumo do que construímos
+
+- **Mídia e criação:** Downloader para conteúdos autorizados, biblioteca musical, editores de áudio multifaixa e vídeo, gravação e captura de tela.
+- **Arquivos e documentos:** conversores de vídeo e imagem, ferramentas de PDF e documentos, compressão, QR Codes e área de transferência.
+- **Organização e produtividade:** renomeação, Analisador de Armazenamento com treemap, Desinstalador com revisão de sobras e quarentena, relógios, estudos e lembretes.
+- **Segurança e ferramentas locais:** recursos de segurança, testes de microfone e webcam, Luz da Tela e Modificador de Voz.
+- **Jogos e experimentos:** Jogos e Sorteios, NTC RNG, NTC Labs e Ambient Mixer com sons offline.
+
+**Obrigado** a todas as pessoas que usaram, apoiaram, testaram ou compartilharam o NTC. Agradecemos também a quem continuará usando o programa durante a pausa. O trabalho feito até aqui continua disponível, e esperamos voltar quando as condições permitirem.
+
 ## 1.4.0 — NTC Utilities · 30 set. 2026
 
 ### Novo Desinstalador
